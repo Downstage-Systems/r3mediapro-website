@@ -264,3 +264,8 @@ table.vt tr:hover td { background: rgba(255,255,255,0.02); }
 .vt .d { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
 .vt .btns { text-align: right; white-space: nowrap; width: 1%; }
 .btn.sm { padding: 8px 16px; font-size: 0.8rem; margin-left: 8px; border-radius: 4px; }
+.vt tr.info-row td {
+  background: var(--bg-alt); color: var(--muted); font-size: 0.85rem;
+  padding: 10px 12px 12px; border-bottom: 1px solid var(--line);
+}
+.vt tr.info-row td span { margin-right: 22px; white-space: nowrap; }
