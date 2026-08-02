@@ -29,6 +29,17 @@
   </div>
 </header>
 
+<div id="sent-banner" style="display:none; background:#1d7a3e; color:#fff; text-align:center; padding:14px 24px; font-weight:600;">
+  ✓ Request sent! We'll get back to you within one business day.
+</div>
+<script>
+if (new URLSearchParams(location.search).get('sent') === '1') {
+  document.getElementById('sent-banner').style.display = 'block';
+  history.replaceState(null, '', location.pathname);
+  setTimeout(() => { document.getElementById('sent-banner').style.display = 'none'; }, 6000);
+}
+</script>
+
 <section class="hero">
   <div class="wrap">
     <div class="kicker">Corporate Event Video &middot; Live Streaming &middot; Commercial &middot; Podcasts</div>
