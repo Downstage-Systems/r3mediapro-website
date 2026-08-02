@@ -249,3 +249,18 @@ footer ul a:hover { color: var(--red-bright); opacity: 1; }
   color: var(--muted); font-size: 0.82rem; display: flex; justify-content: space-between;
   flex-wrap: wrap; gap: 10px;
 }
+
+/* ---------- Portal video table ---------- */
+.vt-section { margin-top: 36px; }
+.vt-section > h3 {
+  font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--red-bright); margin-bottom: 4px; font-weight: 800;
+}
+.vt-wrap { overflow-x: auto; }
+table.vt { width: 100%; border-collapse: collapse; min-width: 560px; }
+table.vt td { padding: 16px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.vt tr:hover td { background: rgba(255,255,255,0.02); }
+.vt .t { font-weight: 700; }
+.vt .d { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+.vt .btns { text-align: right; white-space: nowrap; width: 1%; }
+.btn.sm { padding: 8px 16px; font-size: 0.8rem; margin-left: 8px; border-radius: 4px; }
