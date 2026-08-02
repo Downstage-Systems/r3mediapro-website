@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get a Quote | R3 Media Production</title>
+  <meta name="description" content="Request a quote for corporate event video, live streaming, or commercial production. We respond within one business day.">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <img src="assets/r3-mark.png" alt="R3 Media Production logo">
+      <img class="mp-text" src="assets/mp-text.png" alt="Media Production">
+    </a>
+    <button class="menu-toggle" aria-label="Menu" onclick="document.querySelector('nav.links').classList.toggle('open')">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="links">
+      <a href="index.html">Home</a>
+      <a href="services.html">Services</a>
+      <a href="portfolio.html">Portfolio</a>
+      <a href="about.html">About</a>
+      <a href="contact.html" class="btn">Get a Quote</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="wrap">
+    <h1>Tell us about your event</h1>
+    <p>Fill out the form and we'll reply with a plan and quote — usually within one business day. Or email us directly at <a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a>.</p>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap" style="max-width: 780px;">
+    <!-- NOTE: Form uses Formspree (free tier) so it works on GitHub Pages.
+         Sign up at formspree.io with rob@r3mediapro.com, create a form,
+         and replace YOUR_FORM_ID below with the real ID. -->
+    <form class="quote" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+      <div>
+        <label for="name">Your Name</label>
+        <input type="text" id="name" name="name" required>
+      </div>
+      <div>
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      <div>
+        <label for="company">Company / Organization</label>
+        <input type="text" id="company" name="company">
+      </div>
+      <div>
+        <label for="date">Event Date</label>
+        <input type="date" id="date" name="event_date">
+      </div>
+      <div>
+        <label for="type">Service Needed</label>
+        <select id="type" name="service">
+          <option>Corporate Event Video</option>
+          <option>Live Streaming</option>
+          <option>Commercial / Brand Video</option>
+          <option>Podcast Capture (Video &amp; Audio)</option>
+          <option>Post-Production / Editing</option>
+          <option>Not sure yet</option>
+        </select>
+      </div>
+      <div>
+        <label for="location">Event Location</label>
+        <input type="text" id="location" name="location" placeholder="City, venue, or virtual">
+      </div>
+      <div class="full">
+        <label for="details">Tell us about the event</label>
+        <textarea id="details" name="details" placeholder="What's the event? How many attendees? What deliverables do you need?"></textarea>
+      </div>
+      <div class="full">
+        <button type="submit" class="btn" style="border:0; cursor:pointer; font-size:1rem; width:100%;">Send Request</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="index.html"><img src="assets/r3-mark.png" alt="R3 Media Production"></a>
+        <p class="tag">Professional video production for corporate events, live streams, and brands.</p>
+      </div>
+      <div>
+        <h4>Site</h4>
+        <ul>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="portfolio.html">Portfolio</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Contact</h4>
+        <ul>
+          <li><a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 R3 Media Production. All rights reserved.</span>
+      <span>r3mediapro.com</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
