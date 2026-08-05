@@ -110,7 +110,7 @@
    change or a new video link shows up here without anyone touching this file.
    Set API to the Apps Script /exec URL.
    ------------------------------------------------------------------------- */
-const API = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
+const API = 'https://script.google.com/macros/s/AKfycby94roLBTLGid0d_bpyT6FNMweixw0lqzAmzEdDDmHthAgxAXkY0egUWse8DsFRxzvn/exec';
 
 const COLOURS = {
   notstarted: '#6b6b74', editing: '#d98324', exported: '#3d8bfd',
@@ -153,9 +153,18 @@ function roomLabel(code, name){
 }
 
 async function fetchBoard(){
+  if (!API || API.indexOf('PASTE_YOUR') === 0){
+    throw new Error('This page hasn’t been connected to the tracker yet (setup step 4). ' +
+                    'Contact rob@r3mediapro.com.');
+  }
   const url = API + '?mode=portal&event=' + encodeURIComponent(EVENT) + '&pw=' + encodeURIComponent(password);
-  const res = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) throw new Error('Could not reach the server.');
+  let res;
+  try {
+    res = await fetch(url, { redirect: 'follow' });
+  } catch (e){
+    throw new Error('Could not reach the server — check your internet connection.');
+  }
+  if (!res.ok) throw new Error('The server returned an error (' + res.status + ').');
   return res.json();
 }
 
