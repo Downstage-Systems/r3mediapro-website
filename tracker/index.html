@@ -2163,6 +2163,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
+const NEEDS_SCRIPT = 3;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2281,6 +2282,10 @@ async function syncNow(quiet){
   syncing = true; setSyncState('busy');
   try {
     const remote = await api(null, '?mode=pull&token=' + encodeURIComponent(sync.token));
+    if ((remote.version || 0) < NEEDS_SCRIPT && !sync.warnedStale){
+      sync.warnedStale = true; saveSync();
+      toast('Your Apps Script is older than this app — open Sync and hit Test connection.', true);
+    }
     mergeRemote(remote);
     const mine = localChanges();
     if (mine.projects.length || mine.sessions.length){
@@ -2436,11 +2441,31 @@ async function testSync(){
   const out = document.getElementById('sy-result');
   if (!sync.url) { out.textContent = 'Paste the Web App /exec URL first.'; return; }
   out.textContent = 'Testing…';
+  const ok = t => `<span style="color:var(--s-delivered)">&#10003;</span> ${t}`;
+  const no = t => `<span style="color:var(--red-bright)">&#10007;</span> ${t}`;
   try {
-    await api(null, '?mode=ping');
-    const pulled = await api(null, '?mode=pull&token=' + encodeURIComponent(sync.token));
-    out.innerHTML = `<span style="color:var(--s-delivered)">Connected.</span> The Sheet holds
-      ${(pulled.projects || []).length} project(s) and ${(pulled.sessions || []).length} session(s).`;
+    const ping = await api(null, '?mode=ping');
+    const lines = [];
+    if (!ping.version){
+      lines.push(no('<b>Your Apps Script is out of date</b> — re-paste Code.gs, run <b>setUp</b>, then ' +
+                    'Deploy &rsaquo; Manage deployments &rsaquo; pencil &rsaquo; <b>New version</b>. ' +
+                    'Thumbnails and download links need this.'));
+      out.innerHTML = lines.join('<br>');
+      return;
+    }
+    const d = await api(null, '?mode=diag&token=' + encodeURIComponent(sync.token));
+    lines.push(d.version >= NEEDS_SCRIPT
+      ? ok(`Script v${d.version} — up to date.`)
+      : no(`Script v${d.version}, but this app expects v${NEEDS_SCRIPT}. Re-paste Code.gs and deploy a new version.`));
+    lines.push(d.columnsCurrent
+      ? ok('Sheet columns are current.')
+      : no('Sheet is missing the newer columns — run <b>setUp</b> in the script editor.'));
+    lines.push(d.vimeoTokenSet
+      ? (d.vimeoWorks ? ok('Vimeo connected.')
+                      : no('Vimeo token set but rejected: ' + esc(d.vimeoError || 'unknown error')))
+      : no('No VIMEO_TOKEN in the script — <b>this is why there are no thumbnails or download links.</b>'));
+    lines.push(ok(`${d.projects} project(s), ${d.sessions} session(s) in the Sheet.`));
+    out.innerHTML = lines.join('<br>');
   } catch (err){
     out.innerHTML = `<span style="color:var(--red-bright)">${esc(err.message)}</span> —
       check the /exec URL, the token, and that the deployment is set to “Anyone”.`;
