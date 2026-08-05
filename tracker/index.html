@@ -2470,6 +2470,23 @@ async function testSync(){
         : no('Download links: ' + esc(d.downloads || 'unknown')));
     }
     lines.push(ok(`${d.projects} project(s), ${d.sessions} session(s) in the Sheet.`));
+
+    // Is the published client page talking to this same deployment? Every time
+    // a new deployment is made instead of a new version, the URL changes and
+    // the client page gets left behind.
+    const dep = u => ((String(u || '').match(/macros\/s\/([A-Za-z0-9_-]+)\/exec/) || [])[1] || '');
+    try {
+      const html = await (await fetch('../portal/event.html', { cache: 'no-store' })).text();
+      const theirs = dep(html), mine = dep(sync.url);
+      if (theirs && mine){
+        lines.push(theirs === mine
+          ? ok('The client page uses this same deployment.')
+          : no('<b>The client page points at a different deployment.</b> That\'s why it can be missing ' +
+               'downloads or updates. Repoint <code>portal/event.html</code> at this URL, or in Apps Script ' +
+               'use <b>Manage deployments &rsaquo; pencil &rsaquo; New version</b> so the URL stops changing.'));
+      }
+    } catch (e){ /* opened as a local file, or offline — nothing to compare */ }
+
     out.innerHTML = lines.join('<br>');
   } catch (err){
     out.innerHTML = `<span style="color:var(--red-bright)">${esc(err.message)}</span> —
