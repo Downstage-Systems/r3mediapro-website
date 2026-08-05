@@ -1,0 +1,2508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Video Editing Tracker | R3 Media Production</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23c1121f'/%3E%3Ctext x='16' y='23' font-family='Helvetica,Arial' font-size='19' font-weight='bold' fill='%23fff' text-anchor='middle'%3ER3%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0c0c0e; --bg-alt:#131316; --card:#1a1a1e; --line:#2a2a30; --line-soft:#212127;
+  --text:#f4f4f5; --muted:#9d9da6; --red:#c1121f; --red-bright:#e63946;
+  --s-notstarted:#6b6b74; --s-editing:#d98324; --s-exported:#3d8bfd;
+  --s-uploaded:#8b5cf6; --s-delivered:#2ea86a;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  background:var(--bg); color:var(--text); line-height:1.5;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--red-bright);text-decoration:none}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;border:0;background:none}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+::selection{background:rgba(230,57,70,.35)}
+
+/* ---------- shell ---------- */
+.topbar{
+  flex:none; z-index:60; background:rgba(12,12,14,.94);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+}
+.topbar-in{display:flex;align-items:center;gap:16px;padding:0 22px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;flex:none}
+.brand img{height:30px;width:auto;display:block}
+.brand .mp-text{height:8px;width:auto;filter:invert(1) brightness(1.6);opacity:.92}
+.wordmark{
+  font-weight:800;letter-spacing:-.01em;font-size:1rem;white-space:nowrap;color:var(--muted);
+  padding-left:14px;margin-left:2px;border-left:1px solid var(--line);
+}
+.spacer{flex:1}
+
+.projbar{
+  flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px 22px;border-bottom:1px solid var(--line);background:var(--bg-alt);
+}
+.toolbar{
+  flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px 22px;border-bottom:1px solid var(--line);
+}
+.toolbar .sep{width:1px;height:26px;background:var(--line);margin:0 2px}
+main{flex:1;min-height:0;display:flex;flex-direction:column}
+
+/* ---------- controls ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:5px;
+  background:var(--red);color:#fff;font-weight:700;font-size:.85rem;letter-spacing:.02em;
+  transition:background .15s,transform .1s,border-color .15s;white-space:nowrap;
+}
+.btn:hover{background:var(--red-bright)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600}
+.btn.ghost:hover{border-color:#43434d;background:rgba(255,255,255,.03)}
+.btn.danger{background:transparent;border:1px solid var(--line);color:#ff7b85;font-weight:600}
+.btn.danger:hover{border-color:#ff7b85;background:rgba(230,57,70,.08)}
+.btn.sm{padding:5px 11px;font-size:.78rem}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.field{
+  padding:8px 12px;border-radius:5px;background:var(--bg);border:1px solid var(--line);
+  font-size:.88rem;min-width:0;
+}
+.field:focus{outline:none;border-color:var(--red-bright)}
+select.field{cursor:pointer;padding-right:28px;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239d9da6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center}
+.lbl{font-size:.7rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+
+/* dropdown menu */
+details.menu{position:relative}
+details.menu>summary{list-style:none;display:inline-flex}
+details.menu>summary::-webkit-details-marker{display:none}
+details.menu .pop{
+  position:absolute;right:0;top:calc(100% + 6px);z-index:70;min-width:230px;
+  background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px;
+  box-shadow:0 16px 40px rgba(0,0,0,.55);
+}
+details.menu .pop button{
+  display:block;width:100%;text-align:left;padding:9px 11px;border-radius:5px;font-size:.86rem;
+}
+details.menu .pop button:hover{background:rgba(255,255,255,.06)}
+details.menu .pop hr{border:0;border-top:1px solid var(--line);margin:5px 0}
+details.menu .pop .hint{padding:6px 11px 8px;font-size:.74rem;color:var(--muted);line-height:1.45}
+
+/* ---------- progress strip ---------- */
+.strip{flex:none;padding:16px 22px;border-bottom:1px solid var(--line);background:var(--bg-alt)}
+.bar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:#232329}
+.bar i{display:block;height:100%;transition:width .3s}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:11px;align-items:center}
+.legend .k{display:flex;align-items:center;gap:7px;font-size:.8rem;color:var(--muted)}
+.legend .k b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.legend .done{margin-left:auto;color:var(--muted);font-size:.8rem}
+.legend .done b{color:var(--text)}
+
+/* ---------- table ---------- */
+.tablewrap{flex:1;min-height:0;overflow:auto;padding-bottom:90px}
+table.grid{width:100%;border-collapse:collapse;min-width:1700px;table-layout:fixed}
+table.grid th{
+  text-align:left;font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);padding:13px 10px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--bg);z-index:20;white-space:nowrap;
+}
+table.grid td{padding:5px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+table.grid tbody tr:hover{background:rgba(255,255,255,.018)}
+table.grid tbody tr.sel{background:rgba(193,18,31,.09)}
+table.grid tbody tr.dragging{opacity:.35}
+table.grid tbody tr.dropafter td{box-shadow:inset 0 -2px 0 var(--red-bright)}
+table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
+.col-hand{width:30px} .col-chk{width:30px} .col-room{width:116px} .col-sess{width:58px}
+.col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
+.col-notes{width:206px} .col-file{width:314px} .col-vimeo{width:118px} .col-day{width:122px}
+td.notes-cell{padding:4px 10px}
+td.notes-cell .cell{display:block;font-size:.82rem;padding:5px 8px}
+td.notes-cell .cell.client{
+  border-left:2px solid rgba(61,139,253,.5);border-radius:0 4px 4px 0;margin-top:3px;color:#bcd4f7;
+}
+td.notes-cell .cell.client:hover{border-color:var(--line);border-left-color:rgba(61,139,253,.8)}
+td.notes-cell .cell.client:focus{border-color:var(--red-bright);border-left-color:#3d8bfd}
+tr.gone td .cell{text-decoration:line-through;opacity:.5}
+tr.gone .fname code{opacity:.45}
+.handle{cursor:grab;color:#4a4a55;text-align:center;user-select:none;font-size:.95rem;line-height:1}
+.handle:active{cursor:grabbing}
+input[type=checkbox]{accent-color:var(--red);width:15px;height:15px;cursor:pointer}
+
+.cell{
+  width:100%;padding:7px 9px;border-radius:4px;background:transparent;
+  border:1px solid transparent;font-size:.88rem;
+}
+.cell:hover{border-color:var(--line)}
+.cell:focus{outline:none;border-color:var(--red-bright);background:var(--bg)}
+.cell.mono{font-family:var(--mono);font-size:.8rem}
+.cell.num{text-align:center;font-variant-numeric:tabular-nums}
+td.title-cell .cell{font-weight:600}
+
+.fname{display:flex;align-items:center;gap:8px}
+.fname code{
+  flex:1;font-family:var(--mono);font-size:.78rem;letter-spacing:-.01em;color:#dcdce2;
+  background:#101013;border:1px solid var(--line);border-radius:4px;padding:7px 9px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+tr.dup .fname code{border-color:#8a5a1f;color:#f0b45f;background:rgba(217,131,36,.08)}
+.copy{
+  flex:none;padding:6px 11px;border-radius:4px;border:1px solid var(--line);
+  font-size:.74rem;font-weight:700;letter-spacing:.05em;color:var(--muted);transition:.15s;
+}
+.copy:hover{border-color:var(--red-bright);color:var(--text)}
+.copy.ok{border-color:var(--s-delivered);color:var(--s-delivered)}
+
+select.status{
+  width:100%;padding:7px 20px 7px 23px;border-radius:20px;font-size:.76rem;font-weight:700;
+  border:1px solid;appearance:none;cursor:pointer;background-repeat:no-repeat;
+  background-position:right 9px center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%239d9da6'/%3E%3C/svg%3E");
+}
+select.status:focus{outline:none}
+.status-dot{position:absolute;width:7px;height:7px;border-radius:50%;margin:11px 0 0 10px;pointer-events:none}
+td.status-cell{position:relative}
+.rowx{color:#55555f;font-size:1.05rem;line-height:1;padding:6px 8px;border-radius:4px}
+.rowx:hover{color:var(--red-bright);background:rgba(230,57,70,.1)}
+
+/* ---------- empty state ---------- */
+.empty{text-align:center;padding:90px 22px}
+.empty .big{font-size:2.6rem;margin-bottom:14px;opacity:.9}
+.empty h2{font-size:1.35rem;font-weight:800;margin-bottom:8px}
+.empty p{color:var(--muted);max-width:46ch;margin:0 auto 24px;font-size:.94rem}
+
+/* ---------- bulk bar ---------- */
+.bulk{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;
+  display:none;align-items:center;gap:11px;padding:11px 14px;border-radius:9px;
+  background:var(--card);border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.6);
+}
+.bulk.show{display:flex}
+.bulk .n{font-size:.85rem;color:var(--muted)}
+.bulk .n b{color:var(--text)}
+
+/* ---------- modal ---------- */
+.overlay{
+  position:fixed;inset:0;z-index:100;background:rgba(6,6,8,.78);backdrop-filter:blur(3px);
+  display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;
+}
+.overlay.show{display:flex}
+.modal{
+  width:100%;max-width:920px;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+}
+.modal.narrow{max-width:620px}
+.modal-h{display:flex;align-items:center;gap:14px;padding:20px 24px;border-bottom:1px solid var(--line)}
+.modal-h h2{font-size:1.08rem;font-weight:800;letter-spacing:-.01em}
+.modal-h p{font-size:.82rem;color:var(--muted);margin-top:2px}
+.modal-b{padding:24px}
+.modal-b.tall{padding-bottom:88px}   /* clears the sticky footer when scrolled to the end */
+.modal-f{
+  display:flex;align-items:center;gap:10px;padding:16px 24px;border-top:1px solid var(--line);
+  position:sticky;bottom:0;background:var(--card);border-radius:0 0 10px 10px;
+}
+.x{margin-left:auto;color:var(--muted);font-size:1.3rem;line-height:1;padding:4px 8px;border-radius:4px}
+.x:hover{color:var(--text);background:rgba(255,255,255,.06)}
+
+textarea.paste{
+  width:100%;min-height:210px;resize:vertical;padding:14px;border-radius:6px;
+  background:var(--bg);border:1px solid var(--line);font-family:var(--mono);font-size:.82rem;line-height:1.65;
+}
+textarea.paste:focus{outline:none;border-color:var(--red-bright)}
+.drop{
+  border:1px dashed #3a3a44;border-radius:7px;padding:20px;text-align:center;
+  color:var(--muted);font-size:.86rem;transition:.15s;
+}
+.drop.over{border-color:var(--red-bright);background:rgba(230,57,70,.06);color:var(--text)}
+.orline{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:.74rem;
+  letter-spacing:.14em;text-transform:uppercase;margin:18px 0}
+.orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
+
+table.prev{width:100%;border-collapse:collapse;font-size:.85rem}
+table.prev th{text-align:left;font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);font-weight:800;padding:9px 8px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--card);z-index:2}
+table.prev td{padding:3px 8px;border-bottom:1px solid var(--line-soft)}
+table.prev tr{cursor:pointer}
+table.prev tr.off td{opacity:.42}
+table.prev tr.off .cell{font-weight:400}
+table.prev tr.on{background:rgba(46,168,106,.07)}
+table.prev tr:hover td{background:rgba(255,255,255,.035)}
+.prevwrap{max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:7px}
+.sbadge{
+  display:inline-block;font-family:var(--mono);font-size:.66rem;letter-spacing:0;
+  padding:2px 6px;border-radius:3px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;
+}
+.sbadge.b{border-color:#4b4b57;color:#dcdce2;font-weight:700}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:20px;
+  border:1px solid var(--line);font-size:.8rem;color:var(--muted);transition:.15s;
+}
+.chip:hover{border-color:#4b4b57;color:var(--text)}
+.chip.on{border-color:var(--s-delivered);color:#7fd6a8;background:rgba(46,168,106,.12)}
+.chip b{font-variant-numeric:tabular-nums;font-size:.74rem;opacity:.8}
+.tick{display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--muted);cursor:pointer}
+
+/* duplicates */
+.dupe{border:1px solid var(--line);border-radius:8px;margin-bottom:14px;overflow:hidden}
+.dupe-h{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--bg-alt);
+  border-bottom:1px solid var(--line)}
+.dupe-t{font-weight:700;font-size:.92rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dupe-n{font-size:.76rem;color:var(--muted);white-space:nowrap}
+.dupe-r{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;
+  border-bottom:1px solid var(--line-soft);transition:background .12s}
+.dupe-r:last-child{border-bottom:0}
+.dupe-r:hover{background:rgba(255,255,255,.03)}
+.dupe-r.on{background:rgba(46,168,106,.09)}
+.dupe-r.neutral{background:transparent;opacity:.65}
+.dupe-r input{accent-color:var(--s-delivered);width:15px;height:15px;flex:none}
+.dupe-meta{font-size:.8rem;color:var(--muted);white-space:nowrap;width:268px;flex:none;
+  overflow:hidden;text-overflow:ellipsis}
+.dupe-r code{flex:1;min-width:0;font-family:var(--mono);font-size:.76rem;color:#c9c9d2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dupe-st{font-size:.74rem;font-weight:700;white-space:nowrap}
+
+.setgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:680px){.setgrid{grid-template-columns:1fr}}
+.setgrid .full{grid-column:1/-1}
+.set label{display:block;margin-bottom:6px}
+.set .help{font-size:.76rem;color:var(--muted);margin-top:6px;line-height:1.5}
+.set input,.set select{width:100%}
+.preview-box{
+  background:#101013;border:1px solid var(--line);border-radius:7px;padding:16px;
+  font-family:var(--mono);font-size:.86rem;color:#f0b45f;word-break:break-all;
+}
+.tokens{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tokens code{
+  font-family:var(--mono);font-size:.72rem;padding:3px 7px;border-radius:4px;
+  background:#101013;border:1px solid var(--line);color:var(--muted);cursor:pointer;
+}
+.tokens code:hover{border-color:var(--red-bright);color:var(--text)}
+.codeout{
+  width:100%;min-height:220px;resize:vertical;padding:14px;border-radius:6px;background:#101013;
+  border:1px solid var(--line);font-family:var(--mono);font-size:.76rem;line-height:1.6;color:#c9c9d2;
+}
+.toast{
+  position:fixed;bottom:26px;right:26px;z-index:200;padding:12px 18px;border-radius:7px;
+  background:var(--card);border:1px solid var(--line);font-size:.86rem;font-weight:600;
+  box-shadow:0 14px 40px rgba(0,0,0,.55);opacity:0;transform:translateY(10px);
+  transition:opacity .2s,transform .2s;pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{border-color:var(--red-bright);color:#ff9aa2}
+.saveping{font-size:.74rem;color:var(--muted);opacity:0;transition:opacity .25s}
+.saveping.on{opacity:1}
+.pill{
+  padding:5px 13px;border-radius:20px;border:1px solid var(--line);font-size:.76rem;
+  font-weight:700;letter-spacing:.03em;color:var(--muted);transition:.15s;white-space:nowrap;
+}
+.pill:hover{background:rgba(255,255,255,.04)}
+a.vlink{
+  display:inline-flex;align-items:center;justify-content:center;width:100%;padding:6px 8px;
+  border:1px solid var(--line);border-radius:4px;font-size:.76rem;font-weight:700;
+  color:var(--s-uploaded);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+a.vlink:hover{border-color:var(--s-uploaded)}
+button.vlink{cursor:pointer;background:transparent}
+button.vlink.find{color:var(--muted)}
+button.vlink.find:hover{border-color:var(--red-bright);color:var(--text)}
+button.vlink.miss{
+  color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,.1);
+}
+button.vlink.miss:hover{border-color:#f0b45f}
+tr.nolink td{background:rgba(217,131,36,.05)}
+h4.sec{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red-bright);
+  font-weight:800;margin:26px 0 14px}
+h4.sec:first-child{margin-top:0}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#" onclick="return false;" title="R3 Media Production">
+      <img src="assets/r3-mark.png" alt="R3 Media Production">
+      <img class="mp-text" src="assets/mp-text.png" alt="Media Production">
+    </a>
+    <div class="wordmark">Video Editing Tracker</div>
+    <div class="spacer"></div>
+    <span class="saveping" id="saveping">Saved</span>
+    <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
+    <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
+    <button class="btn ghost sm" onclick="openSettings()">&#9881;&nbsp; Naming</button>
+    <details class="menu" id="menu-export">
+      <summary><span class="btn ghost sm">Export &#9662;</span></summary>
+      <div class="pop">
+        <button onclick="closeMenus();exportCSV()">Spreadsheet (CSV)</button>
+        <button onclick="closeMenus();openClientView()">Client status block (HTML)</button>
+        <button onclick="closeMenus();copyAllFilenames()">Copy all filenames</button>
+        <hr>
+        <button onclick="closeMenus();backupJSON()">Download backup (JSON)</button>
+        <button onclick="closeMenus();document.getElementById('restore-input').click()">Restore from backup&hellip;</button>
+        <div class="hint">Backups hold every project. Your data lives in this browser only &mdash; download one after big changes.</div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="projbar">
+  <span class="lbl">Project</span>
+  <select class="field" id="proj-select" style="min-width:230px" onchange="switchProject(this.value)"></select>
+  <button class="btn ghost sm" onclick="newProject()">+ New</button>
+  <button class="btn ghost sm" onclick="renameProject()">Rename</button>
+  <button class="btn danger sm" onclick="deleteProject()">Delete</button>
+  <div class="spacer"></div>
+  <span class="lbl">Event code</span>
+  <input class="field" id="event-code" style="width:130px" placeholder="e.g. ULI26"
+         oninput="setEventCode(this.value)" title="Optional. Available as {event} in the filename pattern.">
+</div>
+
+<div class="strip">
+  <div class="bar" id="bar"></div>
+  <div class="legend" id="legend"></div>
+</div>
+
+<div class="toolbar">
+  <button class="btn" onclick="openImport()">&#8593;&nbsp; Import sessions</button>
+  <button class="btn ghost" onclick="addRow()">+ Add row</button>
+  <div class="sep"></div>
+  <button class="btn ghost sm" onclick="sortByRoomTime()">Sort by room &amp; time</button>
+  <button class="btn ghost sm" onclick="renumber()">Renumber</button>
+  <button class="btn ghost sm" onclick="openRooms()">Rooms</button>
+  <button class="btn ghost sm" id="btn-dupes" onclick="openDupes()">Duplicates</button>
+  <button class="btn ghost sm" onclick="matchVimeo()" title="Match every session to a video in the Vimeo folder">Match Vimeo</button>
+  <div class="sep"></div>
+  <input class="field" id="search" placeholder="Search title, room, filename&hellip;" style="width:250px" oninput="render()">
+  <select class="field" id="filter-status" onchange="render()" style="width:170px"></select>
+  <div class="spacer"></div>
+  <span class="lbl" id="count-label"></span>
+</div>
+
+<main>
+  <div class="tablewrap" id="tablewrap">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th class="col-hand"></th>
+          <th class="col-chk"><input type="checkbox" id="chk-all" onchange="toggleAll(this.checked)"></th>
+          <th class="col-room">Room</th>
+          <th class="col-sess">Sess</th>
+          <th class="col-day">Day</th>
+          <th class="col-time">Time</th>
+          <th class="col-title">Session title</th>
+          <th class="col-file">Filename</th>
+          <th class="col-ver">Ver</th>
+          <th class="col-status">Status</th>
+          <th class="col-vimeo">Vimeo</th>
+          <th class="col-notes">Notes <span style="color:#6f9ad6">/ client note</span></th>
+          <th class="col-x"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty" style="display:none">
+    <div class="big">&#127916;</div>
+    <h2>No sessions yet</h2>
+    <p>Drop in the run-of-show &mdash; paste the session list, or upload a PDF, TXT or CSV. Session IDs and filenames get built for you.</p>
+    <button class="btn" onclick="openImport()">Import sessions</button>
+  </div>
+</main>
+
+<div class="bulk" id="bulk">
+  <span class="n"><b id="bulk-n">0</b> selected</span>
+  <select class="field" id="bulk-status" style="width:160px"></select>
+  <button class="btn ghost sm" onclick="bulkApplyStatus()">Set status</button>
+  <button class="btn ghost sm" onclick="bulkBumpVersion()">Bump version</button>
+  <button class="btn ghost sm" onclick="bulkCopy()">Copy filenames</button>
+  <button class="btn danger sm" onclick="bulkDelete()">Delete</button>
+  <button class="btn ghost sm" onclick="clearSel()">Clear</button>
+</div>
+
+<!-- ===== Import modal ===== -->
+<div class="overlay" id="ov-import">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>Import sessions</h2>
+        <p id="import-sub">Paste the session list, or drop in a PDF / TXT / CSV of the run-of-show.</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-import')">&times;</button>
+    </div>
+
+    <div class="modal-b" id="import-step1">
+      <div class="drop" id="dropzone">
+        <strong>Drop a file here</strong> &nbsp;or&nbsp;
+        <button class="btn ghost sm" onclick="document.getElementById('file-input').click()">Choose file</button>
+        <div style="margin-top:7px;font-size:.78rem">PDF, TXT, CSV, TSV or Markdown</div>
+      </div>
+      <input type="file" id="file-input" accept=".pdf,.txt,.csv,.tsv,.md,text/*,application/pdf" style="display:none">
+      <div class="orline">or paste</div>
+      <textarea class="paste" id="paste" placeholder="9:00 AM  Breakout 1  Opening Keynote: The Road Ahead&#10;10:15 AM Breakout 1  Capital Markets Outlook&#10;9:00 AM  Breakout 2  Retail Reinvented&#10;&#10;Anything works &mdash; one session per line. Times and room names are picked out automatically; whatever is left becomes the title."></textarea>
+    </div>
+
+    <div class="modal-b" id="import-step2" style="display:none">
+      <div id="style-bar" style="display:none;margin-bottom:16px">
+        <div class="lbl" style="margin-bottom:8px">Which lines are session titles?</div>
+        <div class="chips" id="style-chips"></div>
+        <div class="help" style="font-size:.78rem;color:var(--muted);margin-top:8px">
+          Every line in the PDF is grouped by how it's set. Click a group to tick or untick all of it at once —
+          hover a chip to see an example.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <span class="lbl">Fill blank rooms with</span>
+        <input class="field" id="default-room" style="width:100px" placeholder="BO1">
+        <button class="btn ghost sm" onclick="applyDefaultRoom()">Apply</button>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" onclick="prevUncheckUntimed()">Untick untimed</button>
+        <button class="btn ghost sm" onclick="prevInvert()">Invert</button>
+        <button class="btn ghost sm" onclick="prevToggleAll(true)">All</button>
+        <button class="btn ghost sm" onclick="prevToggleAll(false)">None</button>
+        <label class="tick"><input type="checkbox" id="prev-hide" onchange="renderPreview()"> Hide unticked</label>
+      </div>
+
+      <div class="prevwrap">
+        <table class="prev">
+          <thead><tr>
+            <th style="width:32px"></th><th style="width:92px">Style</th><th style="width:96px">Room</th>
+            <th style="width:104px">Time</th><th>Title</th>
+          </tr></thead>
+          <tbody id="prev-body"></tbody>
+        </table>
+      </div>
+      <p class="help" style="font-size:.78rem;color:var(--muted);margin-top:12px">
+        Click a row to tick or untick it; shift-click to do a run of them. Fix rooms and times here or later in the main table.
+      </p>
+    </div>
+
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeOverlay('ov-import')">Cancel</button>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="btn-back" style="display:none" onclick="importBack()">Back</button>
+      <button class="btn" id="btn-parse" onclick="doParse()">Parse list &rarr;</button>
+      <button class="btn" id="btn-commit" style="display:none" onclick="commitImport()">Add sessions</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Settings modal ===== -->
+<div class="overlay" id="ov-settings">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>Naming &amp; filenames</h2>
+        <p>Applies to this project. Every filename in the table updates live.</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-settings')">&times;</button>
+    </div>
+    <div class="modal-b set tall">
+      <h4 class="sec">Pattern</h4>
+      <div class="preview-box" id="pattern-preview">&mdash;</div>
+      <div class="tokens" id="token-list"></div>
+      <div style="margin-top:14px">
+        <label class="lbl" for="s-pattern">Filename pattern</label>
+        <input class="field" id="s-pattern" oninput="onSettingChange()">
+        <div class="help">Click a token above to insert it. Empty tokens are dropped along with their separator.</div>
+      </div>
+
+      <h4 class="sec">Pieces</h4>
+      <div class="setgrid">
+        <div>
+          <label class="lbl" for="s-titlestyle">Title style</label>
+          <select class="field" id="s-titlestyle" onchange="onSettingChange()">
+            <option value="pascal">PascalCase &mdash; CapitalMarketsOutlook</option>
+            <option value="hyphen">Hyphenated &mdash; Capital-Markets-Outlook</option>
+            <option value="lower">lower-hyphen &mdash; capital-markets-outlook</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="s-titlewords">Title word limit</label>
+          <input class="field" id="s-titlewords" type="number" min="1" max="20" onchange="onSettingChange()">
+        </div>
+        <div>
+          <label class="lbl" for="s-timestyle">Time format</label>
+          <select class="field" id="s-timestyle" onchange="onSettingChange()">
+            <option value="24">24-hour &mdash; 0930 / 1415</option>
+            <option value="12">12-hour &mdash; 930AM / 215PM</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="s-numberby">Session numbering</label>
+          <select class="field" id="s-numberby" onchange="onSettingChange()">
+            <option value="room">Restart in each room &mdash; BO1_S01, BO2_S01</option>
+            <option value="global">Continuous across the event</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl" for="s-sessprefix">Session prefix</label>
+          <input class="field" id="s-sessprefix" onchange="onSettingChange()">
+        </div>
+        <div>
+          <label class="lbl" for="s-sesspad">Session digits</label>
+          <input class="field" id="s-sesspad" type="number" min="1" max="4" onchange="onSettingChange()">
+        </div>
+      </div>
+
+      <h4 class="sec">Client-facing status labels</h4>
+      <p class="help" style="margin:-8px 0 14px">What clients see in the exported status block. Your internal statuses stay as they are.</p>
+      <div class="setgrid" id="client-labels"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="resetSettings()">Reset to defaults</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="closeOverlay('ov-settings')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Client status export modal ===== -->
+<div class="overlay" id="ov-client">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>Client status block</h2>
+        <p>Drop this into the client's portal page (before you encrypt it). Uses the portal's own table styles.</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-client')">&times;</button>
+    </div>
+    <div class="modal-b">
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.86rem">
+          <input type="checkbox" id="cv-hide-notstarted" onchange="renderClientView()"> Hide sessions that haven't started
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.86rem">
+          <input type="checkbox" id="cv-show-count" checked onchange="renderClientView()"> Include the "x of y delivered" line
+        </label>
+      </div>
+      <textarea class="codeout" id="cv-code" readonly></textarea>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="copyClientView(this)">Copy HTML</button>
+      <button class="btn ghost" onclick="downloadClientView()">Download .html</button>
+      <div class="spacer"></div>
+      <button class="btn ghost" onclick="closeOverlay('ov-client')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Sync modal ===== -->
+<div class="overlay" id="ov-sync">
+  <div class="modal narrow">
+    <div class="modal-h">
+      <div>
+        <h2>Sync &amp; client portal</h2>
+        <p>Everything lives in one Google Sheet. Every machine reads and writes it; client pages read it live.</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-sync')">&times;</button>
+    </div>
+    <div class="modal-b set">
+      <h4 class="sec">This machine</h4>
+      <div style="margin-bottom:14px">
+        <label class="lbl" for="sy-url">Apps Script Web App URL</label>
+        <input class="field" id="sy-url" placeholder="https://script.google.com/macros/s/…/exec" onchange="saveSyncSettings()">
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="lbl" for="sy-token">Token</label>
+        <input class="field" id="sy-token" type="password" placeholder="the TOKEN you set in Code.gs" onchange="saveSyncSettings()">
+        <div class="help">Stored only in this browser, never in the deployed page — type it once per machine.</div>
+      </div>
+      <label class="tick" style="margin-bottom:12px">
+        <input type="checkbox" id="sy-auto" checked onchange="saveSyncSettings();startPolling()">
+        Sync automatically (pushes a couple of seconds after each edit, pulls every 25s)
+      </label>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn ghost sm" onclick="testSync()">Test connection</button>
+        <button class="btn ghost sm" onclick="syncNow()">Sync now</button>
+      </div>
+      <p id="sy-result" style="font-size:.82rem;color:var(--muted);margin-top:12px"></p>
+
+      <h4 class="sec">Client page for “<span id="sy-project"></span>”</h4>
+      <div class="setgrid">
+        <div>
+          <label class="lbl" for="sy-slug">Event slug</label>
+          <input class="field" id="sy-slug" placeholder="starpower-2026" onchange="saveSyncSettings()">
+        </div>
+        <div>
+          <label class="lbl" for="sy-pw">Client password</label>
+          <input class="field" id="sy-pw" placeholder="leave blank for no password" onchange="saveSyncSettings()">
+        </div>
+      </div>
+      <div class="help" style="margin-top:12px">Send the client this link and the password:</div>
+      <div class="preview-box" style="font-size:.78rem;color:#7fd6a8;margin-top:6px" id="sy-portal-link">—</div>
+
+      <h4 class="sec">Vimeo folder</h4>
+      <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <label class="lbl" for="sy-folder">Folder for this event</label>
+          <select class="field" id="sy-folder" onchange="saveSyncSettings()"><option value="">— none —</option></select>
+        </div>
+        <button class="btn ghost sm" onclick="loadVimeoFolders()">Load folders</button>
+      </div>
+      <div class="help">Needs VIMEO_TOKEN set in the Apps Script. <b>Match Vimeo</b> in the toolbar then links each
+        session to the video whose Vimeo title equals the generated filename.</div>
+    </div>
+    <div class="modal-f">
+      <div class="spacer"></div>
+      <button class="btn" onclick="saveSyncSettings();closeOverlay('ov-sync')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Vimeo picker ===== -->
+<div class="overlay" id="ov-vimeo">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>Find the video on Vimeo</h2>
+        <p>For “<span id="vp-for"></span>” &mdash; expecting <code style="font-family:var(--mono)" id="vp-file"></code></p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-vimeo')">&times;</button>
+    </div>
+    <div class="modal-b tall">
+      <input class="field" id="vp-q" placeholder="Search the folder by name…" oninput="renderVimeoPick()" style="width:100%;margin-bottom:14px">
+      <div id="vp-list"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="openVimeoUpload()">Not uploaded yet &mdash; open Vimeo</button>
+      <button class="btn ghost sm" onclick="vimeoFetchVideos(true).then(renderVimeoPick)">Refresh folder</button>
+      <div class="spacer"></div>
+      <button class="btn ghost" onclick="closeOverlay('ov-vimeo')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Rooms modal ===== -->
+<div class="overlay" id="ov-rooms">
+  <div class="modal narrow">
+    <div class="modal-h">
+      <div>
+        <h2>Rooms</h2>
+        <p>Rename a room and every session in it follows. Rename one to an existing code to merge them.</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-rooms')">&times;</button>
+    </div>
+    <div class="modal-b">
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:18px">
+        <span class="lbl">Number the rooms</span>
+        <input class="field" id="room-prefix" style="width:88px" placeholder="BO" value="BO">
+        <button class="btn ghost sm" onclick="autoNumberRooms()">Apply IDs</button>
+        <span style="font-size:.78rem;color:var(--muted)">&rarr; BO1, BO2, BO3&hellip; in the order below</span>
+      </div>
+      <div class="prevwrap" style="max-height:46vh">
+        <table class="prev">
+          <thead><tr>
+            <th style="width:132px">Room ID</th>
+            <th>Name clients see</th>
+            <th style="width:88px">Sessions</th>
+          </tr></thead>
+          <tbody id="rooms-body"></tbody>
+        </table>
+      </div>
+      <p class="help" style="font-size:.78rem;color:var(--muted);margin-top:12px">
+        The Room ID goes in the filename. The client-facing name is only used in the exported status block &mdash;
+        leave it blank and codes like <code style="font-family:var(--mono)">BO1</code> are spelled out as
+        &ldquo;Breakout 1&rdquo; automatically.
+      </p>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="renumber();renderRooms()">Renumber sessions</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="closeOverlay('ov-rooms')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Duplicates modal ===== -->
+<div class="overlay" id="ov-dupes">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>Duplicates</h2>
+        <p id="dupes-sub">&mdash;</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-dupes')">&times;</button>
+    </div>
+    <div class="modal-b tall" id="dupes-body"></div>
+    <div class="modal-f">
+      <button class="btn ghost sm" onclick="dupesKeepAll()">Keep everything</button>
+      <button class="btn ghost sm" onclick="dupesKeepFirst()">Keep the first of each</button>
+      <div class="spacer"></div>
+      <span id="dupes-count" style="font-size:.82rem;color:var(--muted)"></span>
+      <button class="btn" id="dupes-apply" onclick="applyDupes()">Delete the rest</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="restore-input" accept=".json,application/json" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/pdf.worker.min.js"></script>
+<script>
+/* =====================================================================
+   R3 Video Editing Tracker
+   Single-file, offline. Data lives in this browser's localStorage.
+   ===================================================================== */
+
+const KEY = 'r3-video-editing-tracker-v1';
+
+const STATUSES = [
+  {key:'notstarted', label:'Not Started', hex:'#6b6b74', client:'Scheduled'},
+  {key:'editing',    label:'Editing',     hex:'#d98324', client:'In Edit'},
+  {key:'exported',   label:'Exported',    hex:'#3d8bfd', client:'In Review'},
+  {key:'uploaded',   label:'Uploaded',    hex:'#8b5cf6', client:'Ready'},
+  {key:'delivered',  label:'Delivered',   hex:'#2ea86a', client:'Available'},
+  {key:'issue',      label:'Issue',       hex:'#e63946', client:'Delayed',    off:true},
+  {key:'deleted',    label:'Deleted',     hex:'#4a4a55', client:'Not recorded', off:true, hideFromClient:true},
+];
+// 'off' statuses sit outside the pipeline: they don't count toward progress.
+const PIPELINE = STATUSES.filter(s => !s.off);
+const S_BY_KEY = Object.fromEntries(STATUSES.map(s => [s.key, s]));
+
+const DEFAULT_SETTINGS = {
+  pattern: '{room}_{sess}_{title}_{time}_{ver}',
+  titleStyle: 'pascal',
+  titleWords: 6,
+  timeStyle: '24',
+  numberBy: 'room',
+  sessPrefix: 'S',
+  sessPad: 2,
+  clientLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.client])),
+};
+
+let db = { projects: [], activeId: null };
+let selected = new Set();
+let parsedRows = [];
+let parseSource = null;            // {lines, styles} when the rows came from a styled PDF
+let titleKeys = new Set();         // style keys currently treated as session titles
+
+/* ---------------- storage ---------------- */
+function uid(){ return Math.random().toString(36).slice(2, 10); }
+
+function load(){
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); } catch(e){
+    toast('This browser is blocking local storage — nothing will be saved.', true);
+  }
+  if (raw){
+    try { db = JSON.parse(raw); } catch(e){ toast('Saved data was unreadable; starting fresh.', true); }
+  }
+  if (!db.projects || !db.projects.length){
+    db = { projects: [ blankProject('Untitled Project') ], activeId: null };
+    db.activeId = db.projects[0].id;
+  }
+  if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
+  db.projects.forEach(p => { p.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings || {});
+                             p.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, p.settings.clientLabels || {});
+                             p.roomNames = p.roomNames || {}; });
+}
+
+let saveTimer = null;
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch(e){
+    toast('Could not save — local storage is full or blocked.', true); return;
+  }
+  const p = document.getElementById('saveping');
+  p.classList.add('on'); clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => p.classList.remove('on'), 1100);
+  queuePush();
+}
+
+function blankProject(name){
+  return { id: uid(), name, eventCode: '', roomNames: {},
+           settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), sessions: [] };
+}
+function proj(){ return db.projects.find(p => p.id === db.activeId); }
+function cfg(){ return proj().settings; }
+
+/* ---------------- text helpers ---------------- */
+const ROOM_PATTERNS = [
+  [/\bbreakout\s*(?:room\s*)?#?\s*(\d+)\b/i,  m => 'BO' + m[1]],
+  [/\bbo\s*#?\s*(\d+)\b/i,                    m => 'BO' + m[1]],
+  [/\bb\s*(\d+)\b/i,                          m => 'BO' + m[1]],
+  [/\btrack\s*#?\s*([a-z0-9]+)\b/i,           m => 'TR' + m[1].toUpperCase()],
+  [/\b(?:main\s*stage|mainstage)\b/i,         () => 'MAIN'],
+  [/\bgeneral\s*session\b/i,                  () => 'GS'],
+  [/\bkeynote\s*(?:hall|room)\b/i,            () => 'KEY'],
+  [/\bballroom\s*([a-z0-9]*)\b/i,             m => 'BALL' + (m[1] || '').toUpperCase()],
+  [/\bsalon\s*([a-z0-9]+)\b/i,                m => 'SALON' + m[1].toUpperCase()],
+  [/\bstudio\s*([a-z0-9]+)\b/i,               m => 'STU' + m[1].toUpperCase()],
+  [/\broom\s*#?\s*([a-z0-9-]+)\b/i,           m => 'RM' + m[1].toUpperCase().replace(/-/g,'')],
+];
+
+// Returns {room, rest} — pulls a room token out of a line if one is there.
+function extractRoom(line){
+  for (const [re, fn] of ROOM_PATTERNS){
+    const m = line.match(re);
+    if (m) return { room: fn(m), rest: (line.slice(0, m.index) + ' ' + line.slice(m.index + m[0].length)) };
+  }
+  return { room: '', rest: line };
+}
+
+function normalizeRoom(v){
+  if (!v) return '';
+  v = dedupeDoubled(String(v).replace(/\s+/g, ' '));
+  const hit = extractRoom(v);
+  if (hit.room && !hit.rest.trim()) return hit.room;
+  const flat = dedupeDoubled(v.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  if (flat.length <= 8) return flat;
+  // Too long for a filename prefix: initials of the words + any digits.
+  const words = v.toUpperCase().match(/[A-Z]+/g) || [];
+  const digits = (v.match(/[0-9]+/g) || []).join('');
+  const initials = words.map(w => w[0]).join('');
+  return (initials + digits).slice(0, 8) || flat.slice(0, 8);
+}
+
+const TIME_RE = /\b(\d{1,2})\s*[:.]\s*(\d{2})\s*([ap])\.?m?\.?\b|\b(\d{1,2})\s*([ap])\.?m\.?\b|\b(\d{1,2})\s*[:.]\s*(\d{2})\b/i;
+
+// Free-typed time -> canonical "HH:MM" (24h), or '' if unparseable.
+// Event heuristic: with no am/pm, 1-7 reads as PM, 8-12 as AM, 13-23 as-is.
+function parseTime(input){
+  if (!input) return '';
+  const s = String(input).trim().toLowerCase().replace(/\s+/g, '');
+  if (!s) return '';
+  let m = s.match(/^(\d{1,2})[:.](\d{2})\s*([ap])\.?m?\.?$/);
+  if (m) return to24(+m[1], +m[2], m[3]);
+  m = s.match(/^(\d{1,2})\s*([ap])\.?m?\.?$/);
+  if (m) return to24(+m[1], 0, m[2]);
+  m = s.match(/^(\d{1,2})[:.](\d{2})$/);
+  if (m) return to24(+m[1], +m[2], null);
+  m = s.match(/^(\d{3,4})$/);
+  if (m){
+    const raw = m[1].padStart(4, '0');
+    const h = +raw.slice(0,2), mi = +raw.slice(2);
+    if (h > 23 || mi > 59) return '';
+    return (m[1].length === 4) ? pad2(h) + ':' + pad2(mi) : to24(h, mi, null);
+  }
+  m = s.match(/^(\d{1,2})$/);
+  if (m) return to24(+m[1], 0, null);
+  return '';
+}
+function to24(h, mi, ap){
+  if (h > 23 || mi > 59) return '';
+  if (ap === 'a') h = (h === 12) ? 0 : h;
+  else if (ap === 'p') h = (h === 12) ? 12 : h + 12;
+  else if (h >= 1 && h <= 7) h += 12;      // event-day heuristic
+  if (h > 23) return '';
+  return pad2(h) + ':' + pad2(mi);
+}
+function pad2(n){ return String(n).padStart(2, '0'); }
+
+// "Friday, July 24" -> "Fri Jul 24"; anything unrecognised passes through.
+function shortDay(v){
+  const t = String(v || '').trim();
+  if (!t) return '';
+  const m = t.match(/^(mon|tues?|wednes|thurs?|fri|satur|sun)day\b[,\s]*(.*)$/i);
+  if (!m) return t.slice(0, 16);
+  const dow = { mon:'Mon', tue:'Tue', tues:'Tue', wednes:'Wed', thur:'Thu', thurs:'Thu', fri:'Fri', satur:'Sat', sun:'Sun' }[m[1].toLowerCase()] || m[1];
+  const rest = (m[2] || '').replace(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i, (s) => s.slice(0,3));
+  return (dow + ' ' + rest).trim().slice(0, 16);
+}
+
+function timeHuman(hhmm){
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ':' + pad2(m) + ' ' + ap;
+}
+function timeToken(hhmm, style){
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  if (style === '12'){
+    const ap = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return String(h12) + pad2(m) + ap;
+  }
+  return pad2(h) + pad2(m);
+}
+
+function titleToken(title, style, maxWords){
+  if (!title) return '';
+  let t = title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  t = t.replace(/&/g, ' And ').replace(/[''`]/g, '').replace(/[^A-Za-z0-9]+/g, ' ').trim();
+  if (!t) return '';
+  let words = t.split(/\s+/);
+  if (maxWords > 0) words = words.slice(0, maxWords);
+  if (style === 'hyphen') return words.map(cap).join('-');
+  if (style === 'lower')  return words.map(w => w.toLowerCase()).join('-');
+  return words.map(cap).join('');
+}
+function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
+
+function buildFilename(s, p){
+  const c = p.settings;
+  const vals = {
+    event: (p.eventCode || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+    room:  s.room || '',
+    sess:  s.seq ? c.sessPrefix + String(s.seq).padStart(+c.sessPad || 2, '0') : '',
+    title: titleToken(s.title, c.titleStyle, +c.titleWords || 0),
+    time:  timeToken(s.time, c.timeStyle),
+    ver:   'V' + (s.version || 1),
+  };
+  let out = c.pattern.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
+  // Collapse separators left behind by empty tokens.
+  out = out.replace(/[_\-.]{2,}/g, m => m[0]).replace(/^[_\-.]+|[_\-.]+$/g, '');
+  return out || 'Untitled';
+}
+
+/* ---------------- numbering ---------------- */
+function renumber(silent){
+  const p = proj();
+  if (cfg().numberBy === 'global'){
+    p.sessions.forEach((s, i) => s.seq = i + 1);
+  } else {
+    const counters = {};
+    p.sessions.forEach(s => {
+      const k = s.room || '_';
+      counters[k] = (counters[k] || 0) + 1;
+      s.seq = counters[k];
+    });
+  }
+  save(); render();
+  if (!silent) toast('Session numbers rebuilt in table order.');
+}
+
+function nextSeq(room){
+  const p = proj();
+  if (cfg().numberBy === 'global') return p.sessions.length + 1;
+  return p.sessions.filter(s => (s.room || '') === (room || '')).length + 1;
+}
+
+/* ---------------- rendering ---------------- */
+function visibleSessions(){
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const f = document.getElementById('filter-status').value;
+  const p = proj();
+  return p.sessions.filter(s => {
+    if (f && s.status !== f) return false;
+    if (!q) return true;
+    return (s.title + ' ' + s.room + ' ' + (s.day || '') + ' ' + buildFilename(s, p) + ' ' +
+            (s.notes || '') + ' ' + (s.clientNote || '')).toLowerCase().includes(q);
+  });
+}
+
+function render(){
+  const p = proj();
+  // project picker
+  const ps = document.getElementById('proj-select');
+  ps.innerHTML = db.projects.map(x =>
+    `<option value="${x.id}" ${x.id === db.activeId ? 'selected' : ''}>${esc(x.name)} (${x.sessions.length})</option>`).join('');
+  document.getElementById('event-code').value = p.eventCode || '';
+
+  const rows = visibleSessions();
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  document.getElementById('empty').style.display = p.sessions.length ? 'none' : 'block';
+  document.getElementById('tablewrap').style.display = p.sessions.length ? 'block' : 'none';
+  document.getElementById('count-label').textContent =
+    rows.length === p.sessions.length ? `${p.sessions.length} sessions` : `${rows.length} of ${p.sessions.length}`;
+
+  for (const s of rows) tbody.appendChild(rowEl(s));
+  refreshComputed();
+  updateStrip();
+  updateBulk();
+  updateDupeBadge();
+}
+
+function updateDupeBadge(){
+  const btn = document.getElementById('btn-dupes');
+  const n = proj().sessions.length ? dupeCount() : 0;
+  btn.textContent = n ? `Duplicates (${n})` : 'Duplicates';
+  btn.style.borderColor = n ? '#8a5a1f' : '';
+  btn.style.color = n ? '#f0b45f' : '';
+}
+
+function rowEl(s){
+  const tr = document.createElement('tr');
+  tr.dataset.id = s.id;
+  tr.draggable = false;
+  if (selected.has(s.id)) tr.classList.add('sel');
+
+  const st = S_BY_KEY[s.status] || STATUSES[0];
+  if (s.status === 'deleted') tr.classList.add('gone');
+  if (s.vimeoMiss && !s.vimeo) tr.classList.add('nolink');
+  tr.innerHTML = `
+    <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
+    <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
+    <td><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="BO1" spellcheck="false"></td>
+    <td><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
+    <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
+    <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="9:30 AM" spellcheck="false"></td>
+    <td class="title-cell"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"></td>
+    <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
+    <td><input class="cell num" data-f="version" value="${s.version || 1}" inputmode="numeric"></td>
+    <td class="status-cell">
+      <span class="status-dot" style="background:${st.hex}"></span>
+      <select class="status" data-f="status">
+        ${STATUSES.map(o => `<option value="${o.key}" ${o.key === s.status ? 'selected' : ''}>${o.label}</option>`).join('')}
+      </select>
+    </td>
+    <td class="vimeo-cell">${s.vimeo
+      ? `<div style="display:flex;align-items:center;gap:4px">
+           <a class="vlink" href="${esc(s.vimeo)}" target="_blank" rel="noopener" title="${esc(s.vimeo)}">Watch &#8599;</a>
+           <button class="rowx" data-act="clearv" title="Remove link">&times;</button>
+         </div>`
+      : s.vimeoMiss
+        ? `<button class="vlink miss" data-act="findv" title="Not in the Vimeo folder — search or upload">Not found</button>`
+        : `<button class="vlink find" data-act="findv" title="Search the Vimeo folder">Find&hellip;</button>`}</td>
+    <td class="notes-cell">
+      <input class="cell" data-f="notes" value="${esc(s.notes || '')}" placeholder="internal note">
+      <input class="cell client" data-f="clientNote" value="${esc(s.clientNote || '')}" placeholder="note for client" title="Shown to the client on their portal page">
+    </td>
+    <td><button class="rowx" data-act="del" title="Delete session">&times;</button></td>`;
+
+  paintStatus(tr, st);
+
+  tr.querySelector('.handle').addEventListener('mousedown', () => { tr.draggable = true; });
+  tr.addEventListener('dragend', () => { tr.draggable = false; });
+
+  tr.addEventListener('input', e => {
+    const f = e.target.dataset.f; if (!f) return;
+    const rec = find(s.id); if (!rec) return;
+    if (f === 'seq' || f === 'version'){
+      const n = parseInt(e.target.value, 10);
+      rec[f] = isNaN(n) ? (f === 'version' ? 1 : 0) : Math.max(f === 'version' ? 1 : 0, n);
+    } else if (f !== 'time'){
+      rec[f] = e.target.value;
+    }
+    refreshComputed(); queueSave();
+  });
+
+  tr.addEventListener('change', e => {
+    const f = e.target.dataset.f;
+    const rec = find(s.id); if (!rec) return;
+    if (f === 'time'){
+      const parsed = parseTime(e.target.value);
+      rec.time = parsed;
+      e.target.value = timeHuman(parsed);
+      if (e.target.value === '' && String(e.target.defaultValue).trim() !== '') e.target.placeholder = 'unreadable';
+      refreshComputed(); queueSave();
+    } else if (f === 'room'){
+      rec.room = normalizeRoom(e.target.value);
+      e.target.value = rec.room;
+      refreshComputed(); queueSave();
+    } else if (f === 'status'){
+      rec.status = e.target.value;
+      paintStatus(tr, S_BY_KEY[rec.status]);
+      tr.classList.toggle('gone', rec.status === 'deleted');
+      updateStrip(); queueSave();
+    } else if (f === 'vimeo'){
+      rec.vimeo = normalizeVimeo(e.target.value);
+      save(); render();
+    }
+  });
+
+  tr.addEventListener('click', e => {
+    const act = e.target.dataset.act;
+    if (act === 'del'){
+      const rec = find(s.id);
+      if (rec && rec.title && !confirm(`Delete "${rec.title}"?`)) return;
+      proj().sessions = proj().sessions.filter(x => x.id !== s.id);
+      selected.delete(s.id); save(); render();
+    } else if (act === 'copy'){
+      const codeEl = tr.querySelector('[data-fname]');
+      copyText(codeEl.textContent).then(ok => {
+        if (!ok){ selectText(codeEl); return toast('Copy blocked — the filename is selected, press ⌘C.', true); }
+        const b = e.target; b.textContent = 'Copied'; b.classList.add('ok');
+        setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('ok'); }, 1200);
+      });
+    } else if (act === 'findv'){
+      openVimeoPick(s.id);
+    } else if (act === 'clearv'){
+      const rec = find(s.id); if (rec){ rec.vimeo = ''; save(); render(); }
+    } else if (act === 'sel'){
+      if (e.target.checked) selected.add(s.id); else selected.delete(s.id);
+      tr.classList.toggle('sel', e.target.checked);
+      updateBulk();
+    }
+  });
+
+  return tr;
+}
+
+function paintStatus(tr, st){
+  const sel = tr.querySelector('select.status');
+  sel.style.color = st.hex;
+  sel.style.borderColor = st.hex + '66';
+  sel.style.background = st.hex + '1f';
+  tr.querySelector('.status-dot').style.background = st.hex;
+}
+
+// Recompute filename cells + duplicate flags without rebuilding the table.
+function refreshComputed(){
+  const p = proj();
+  const counts = {};
+  const byRow = [];
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    const s = find(tr.dataset.id); if (!s) return;
+    const fn = buildFilename(s, p);
+    counts[fn] = (counts[fn] || 0) + 1;
+    byRow.push([tr, fn]);
+  });
+  byRow.forEach(([tr, fn]) => {
+    const code = tr.querySelector('[data-fname]');
+    code.textContent = fn;
+    code.title = counts[fn] > 1 ? fn + '  —  duplicate filename' : fn;
+    tr.classList.toggle('dup', counts[fn] > 1);
+  });
+}
+
+function updateStrip(){
+  const p = proj();
+  const counts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
+  p.sessions.forEach(s => { if (counts[s.status] !== undefined) counts[s.status]++; });
+  // Deleted sessions aren't part of the job any more; issues still are.
+  const total = p.sessions.length - counts.deleted;
+
+  document.getElementById('bar').innerHTML = total
+    ? STATUSES.filter(s => s.key !== 'deleted')
+        .map(s => counts[s.key] ? `<i style="width:${counts[s.key]/total*100}%;background:${s.hex}"></i>` : '').join('')
+    : '<i style="width:100%;background:#232329"></i>';
+
+  const done = counts.delivered;
+  document.getElementById('legend').innerHTML =
+    STATUSES.filter(s => counts[s.key] || !s.off)
+      .map(s => `<span class="k"><span class="dot" style="background:${s.hex}"></span>${s.label} <b>${counts[s.key]}</b></span>`).join('') +
+    `<span class="done"><b>${done}</b> of <b>${total}</b> delivered${total ? ' &nbsp;&middot;&nbsp; ' + Math.round(done/total*100) + '%' : ''}</span>`;
+}
+
+function updateBulk(){
+  const ids = new Set(proj().sessions.map(s => s.id));
+  [...selected].forEach(id => { if (!ids.has(id)) selected.delete(id); });
+  document.getElementById('bulk').classList.toggle('show', selected.size > 0);
+  document.getElementById('bulk-n').textContent = selected.size;
+  const vis = visibleSessions();
+  const all = document.getElementById('chk-all');
+  all.checked = vis.length > 0 && vis.every(s => selected.has(s.id));
+}
+
+function find(id){ return proj().sessions.find(s => s.id === id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let qsTimer = null;
+function queueSave(){ clearTimeout(qsTimer); qsTimer = setTimeout(save, 350); }
+
+/* ---------------- row actions ---------------- */
+function addRow(){
+  const p = proj();
+  const last = p.sessions[p.sessions.length - 1];
+  const room = last ? last.room : '';
+  p.sessions.push({ id: uid(), room, seq: nextSeq(room), day: last ? last.day || '' : '', time: '', title: '',
+                    version: 1, status: 'notstarted', notes: '', clientNote: '', vimeo: '' });
+  save(); render();
+  const rows = document.querySelectorAll('#tbody tr');
+  const el = rows[rows.length - 1];
+  if (el){ el.scrollIntoView({block:'center', behavior:'smooth'}); el.querySelector('[data-f="title"]').focus(); }
+}
+
+function sortByRoomTime(){
+  proj().sessions.sort((a, b) =>
+    (a.room || '~').localeCompare(b.room || '~') || (a.time || '99:99').localeCompare(b.time || '99:99'));
+  renumber(true); toast('Sorted by room, then time — numbers rebuilt.');
+}
+
+function toggleAll(on){
+  visibleSessions().forEach(s => on ? selected.add(s.id) : selected.delete(s.id));
+  render();
+}
+function clearSel(){ selected.clear(); render(); }
+
+function bulkApplyStatus(){
+  const v = document.getElementById('bulk-status').value;
+  proj().sessions.forEach(s => { if (selected.has(s.id)) s.status = v; });
+  save(); render(); toast(`${selected.size} set to ${S_BY_KEY[v].label}.`);
+}
+function bulkBumpVersion(){
+  proj().sessions.forEach(s => { if (selected.has(s.id)) s.version = (s.version || 1) + 1; });
+  save(); render(); toast('Version bumped.');
+}
+function bulkCopy(){
+  const p = proj();
+  const names = p.sessions.filter(s => selected.has(s.id)).map(s => buildFilename(s, p));
+  copyText(names.join('\n')).then(ok => toast(ok ? `${names.length} filenames copied.` : 'Copy blocked by the browser.', !ok));
+}
+function bulkDelete(){
+  if (!confirm(`Delete ${selected.size} session${selected.size === 1 ? '' : 's'}?`)) return;
+  proj().sessions = proj().sessions.filter(s => !selected.has(s.id));
+  selected.clear(); save(); render();
+}
+function copyAllFilenames(){
+  const p = proj();
+  const names = visibleSessions().map(s => buildFilename(s, p));
+  if (!names.length) return toast('Nothing to copy.', true);
+  copyText(names.join('\n')).then(ok => toast(ok ? `${names.length} filenames copied.` : 'Copy blocked by the browser.', !ok));
+}
+
+/* ---------------- drag reorder ---------------- */
+let dragId = null;
+document.addEventListener('dragstart', e => {
+  const tr = e.target.closest && e.target.closest('#tbody tr'); if (!tr) return;
+  dragId = tr.dataset.id; tr.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', dragId); } catch(_){}
+});
+document.addEventListener('dragover', e => {
+  const tr = e.target.closest && e.target.closest('#tbody tr'); if (!tr || !dragId) return;
+  e.preventDefault();
+  document.querySelectorAll('#tbody tr').forEach(r => r.classList.remove('dropafter','dropbefore'));
+  const r = tr.getBoundingClientRect();
+  tr.classList.add(e.clientY > r.top + r.height / 2 ? 'dropafter' : 'dropbefore');
+});
+document.addEventListener('drop', e => {
+  const tr = e.target.closest && e.target.closest('#tbody tr'); if (!tr || !dragId) return;
+  e.preventDefault();
+  const after = tr.classList.contains('dropafter');
+  const list = proj().sessions;
+  const from = list.findIndex(s => s.id === dragId);
+  const targetId = tr.dataset.id;
+  if (from < 0 || targetId === dragId) return cleanupDrag();
+  const [moved] = list.splice(from, 1);
+  let to = list.findIndex(s => s.id === targetId);
+  list.splice(after ? to + 1 : to, 0, moved);
+  cleanupDrag(); save(); render();
+});
+document.addEventListener('dragend', cleanupDrag);
+function cleanupDrag(){
+  dragId = null;
+  document.querySelectorAll('#tbody tr').forEach(r => r.classList.remove('dragging','dropafter','dropbefore'));
+}
+
+/* ---------------- projects ---------------- */
+function switchProject(id){ db.activeId = id; selected.clear(); save(); render(); }
+function newProject(){
+  const name = prompt('Project name', 'New Event ' + new Date().getFullYear());
+  if (!name) return;
+  const p = blankProject(name.trim());
+  db.projects.push(p); db.activeId = p.id; selected.clear(); save(); render();
+}
+function renameProject(){
+  const name = prompt('Project name', proj().name);
+  if (!name) return;
+  proj().name = name.trim(); save(); render();
+}
+function deleteProject(){
+  if (db.projects.length === 1) return toast('That is your only project.', true);
+  if (!confirm(`Delete "${proj().name}" and its ${proj().sessions.length} sessions? This can't be undone.`)) return;
+  db.projects = db.projects.filter(p => p.id !== db.activeId);
+  db.activeId = db.projects[0].id; selected.clear(); save(); render();
+}
+function setEventCode(v){ proj().eventCode = v; refreshComputed(); queueSave(); }
+
+/* ---------------- import ---------------- */
+function openImport(){
+  parsedRows = [];
+  document.getElementById('paste').value = '';
+  importBack();
+  show('ov-import');
+  setTimeout(() => document.getElementById('paste').focus(), 60);
+}
+function importBack(){
+  document.getElementById('import-step1').style.display = 'block';
+  document.getElementById('import-step2').style.display = 'none';
+  document.getElementById('btn-parse').style.display = 'inline-flex';
+  document.getElementById('btn-commit').style.display = 'none';
+  document.getElementById('btn-back').style.display = 'none';
+  document.getElementById('import-sub').textContent = 'Paste the session list, or drop in a PDF / TXT / CSV of the run-of-show.';
+}
+
+const SKIP_RE = /^(?:break|lunch|breakfast|dinner|reception|networking|registration|coffee|refreshment|transition|q\s*&\s*a\s*$|agenda|schedule|day\s*\d|page\s*\d)/i;
+
+// meta (optional, from a PDF) is one style record per line of `text`.
+function parseText(text, meta){
+  const raw = text.split(/\r?\n/);
+  const lines = [], styles = [];
+  for (let i = 0; i < raw.length; i++){
+    const t = raw[i].replace(/\s+/g, ' ').trim();
+    if (!t) continue;
+    lines.push(t); styles.push(meta ? (meta[i] || null) : null);
+  }
+  if (!lines.length) return [];
+  if (meta){
+    parseSource = { lines, styles };
+    titleKeys = new Set([guessTitleStyle(lines, styles)].filter(Boolean));
+    return parseStyled(lines, styles, titleKeys);
+  }
+  parseSource = null; titleKeys = new Set();
+
+  // Delimited (CSV / TSV) if most lines share the same delimiter with 2+ fields.
+  const delim = detectDelim(lines);
+  const rows = [];
+  let sectionRoom = '';          // set by lines that are nothing but a room name
+  for (let li = 0; li < lines.length; li++){
+    const line = lines[li];
+    if (li === 0 && delim && looksLikeHeader(splitDelim(line, delim))) continue;
+    let room = '', time = '', title = '';
+    if (delim){
+      const cells = splitDelim(line, delim).map(c => c.trim()).filter(c => c !== '');
+      if (!cells.length) continue;
+      const rest = [];
+      for (const c of cells){
+        if (!time && parseTime(c)) { time = parseTime(c); continue; }
+        const r = extractRoom(c);
+        if (!room && r.room && !r.rest.trim()) { room = r.room; continue; }
+        rest.push(c);
+      }
+      title = rest.sort((a, b) => b.length - a.length)[0] || '';
+      if (!room){ const r = extractRoom(title); if (r.room){ room = r.room; title = r.rest; } }
+      if (!time){ const t = title.match(TIME_RE); if (t){ time = parseTime(t[0]); title = title.replace(t[0], ' '); } }
+    } else {
+      let rest = line;
+      const r = extractRoom(rest); room = r.room; rest = r.rest;
+      let t = rest.match(TIME_RE);
+      // Bare military time at the head of the line: "0930 Data Centers 101".
+      // Minutes must land on a 5 so years ("2026 Outlook") don't read as times.
+      if (!t){
+        const b = rest.match(/^\s*(\d{3,4})\b/);
+        if (b && +b[1].padStart(4,'0').slice(2) % 5 === 0 && parseTime(b[1])) t = b;
+      }
+      if (t){
+        time = parseTime(t[0]);
+        // A range like "9:30 - 10:15 AM": the meridiem sits on the second time.
+        const tail = rest.slice(t.index + t[0].length);
+        const range = tail.match(/^\s*(?:-|–|—|to)\s*\d{1,2}(?:[:.]\d{2})?\s*([ap])\.?m\.?/i);
+        if (range){
+          if (!/[ap]\.?m/i.test(t[0])) time = parseTime(t[0].replace(/\s+/g,'') + range[1]);
+          rest = rest.slice(0, t.index) + tail.slice(range[0].length);
+        } else {
+          rest = rest.slice(0, t.index) + tail;
+        }
+      }
+      title = rest;
+    }
+    title = cleanTitleText(title);
+    // A line that is only a room name ("Breakout 2") heads a section — everything
+    // under it inherits that room until the next such line.
+    if (room && !title && !time){ sectionRoom = room; continue; }
+    if (!title && !time) continue;
+    if (!room) room = sectionRoom;
+    rows.push({ include: !SKIP_RE.test(title) && title.length > 2, room, time, title });
+  }
+  // If the list is mostly timed, the untimed lines are almost always document
+  // titles or notes — leave them unchecked rather than importing junk.
+  const timed = rows.filter(r => r.time).length;
+  if (timed >= rows.length / 2) rows.forEach(r => { if (!r.time) r.include = false; });
+  return rows;
+}
+
+const DATE_LINE = /^(?:mon|tues|wednes|thurs|fri|satur|sun)day\b|^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}\b|^day\s+\d/i;
+const SPEAKER_LINE = /^(?:stars?|presenters?|speakers?|panelists?|moderators?|featuring|hosted by|presented by)\b\s*:?/i;
+
+// Pick the style that most likely carries session titles: the busiest bold
+// style, or — when the PDF won't reveal weights — the largest of the busiest.
+function guessTitleStyle(lines, styles){
+  const seen = {};
+  lines.forEach((t, i) => {
+    const k = styleKey(styles[i]);
+    if (!k || t.length < 8 || DATE_LINE.test(t)) return;
+    (seen[k] = seen[k] || { key: k, n: 0, bold: styles[i].bold, size: styles[i].size }).n++;
+  });
+  const all = Object.values(seen);
+  if (!all.length) return null;
+  const bold = all.filter(s => s.bold);
+  if (bold.length) return bold.sort((a, b) => b.n - a.n)[0].key;
+  return all.sort((a, b) => b.n - a.n).slice(0, 3).sort((a, b) => b.size - a.size)[0].key;
+}
+
+// A trailing "Senate 2+3" / "Grand 1" / "Room 204" on a speaker or slot line.
+// PDFs often glue the room onto the last name ("Jeffrey KlinnerGrand 1"), so
+// take only the final CamelCase segment of the word.
+function trailingRoom(t){
+  const m = t.match(/(?:^|\s|\d)([A-Za-z]{2,20})\s*([0-9][0-9+&\-]{0,4})\s*$/);
+  if (!m) return '';
+  const word = (m[1].match(/[A-Z][a-z]*$|^[a-z]+$/) || [m[1]])[0];
+  if (word.length < 2 || /^(am|pm|no|suite|floor|day|page|the|and|of)$/i.test(word)) return '';
+  return normalizeRoom(word + m[2]);
+}
+
+// "Grand 3Grand 3" — the same label drawn twice. Keep one.
+function dedupeDoubled(s){
+  const t = s.trim();
+  if (t.length % 2 === 0){
+    const half = t.slice(0, t.length / 2);
+    if (half && half === t.slice(t.length / 2)) return half;
+  }
+  return t;
+}
+
+// PDF path: keep every line so nothing is silently dropped, tag each with its
+// style, and pre-tick only the lines in the title style.
+function parseStyled(lines, styles, forcedKeys){
+  const titleKeys = forcedKeys || new Set([guessTitleStyle(lines, styles)].filter(Boolean));
+  const rows = [];
+  let curTime = '', curRoom = '', curDay = '', lastTitle = null, lastTitleIdx = -2;
+
+  // Right-hand edge of the title column, for spotting titles that wrapped.
+  let measure = 0;
+  lines.forEach((t, i) => {
+    if (styles[i] && titleKeys.has(styleKey(styles[i])) && styles[i].x < 280) measure = Math.max(measure, styles[i].right || 0);
+  });
+
+  for (let i = 0; i < lines.length; i++){
+    const t = lines[i], m = styles[i], key = styleKey(m);
+    const isTitleStyle = titleKeys.has(key);
+    if (DATE_LINE.test(t) && t.length <= 40) curDay = t.replace(/[,\s]+$/, '');
+    const base = { style: key, bold: m ? m.bold : null, size: m ? m.size : null,
+                   room: '', time: '', title: t, note: '', include: false };
+
+    // Right-hand column fragment in the title style — that's a room label
+    // sitting beside a title, not a session of its own.
+    if (isTitleStyle && m && m.x >= 280 && t.length <= 30 && lastTitle && !TIME_RE.test(t)){
+      lastTitle.room = normalizeRoom(t) || lastTitle.room;
+      rows.push(Object.assign(base, { title: t, room: lastTitle.room }));
+      continue;
+    }
+
+    if (isTitleStyle && !DATE_LINE.test(t)){
+      // A title that ran past the column edge continues on the very next line.
+      const wrapped = lastTitle && lastTitleIdx === i - 1 && measure &&
+                      (styles[i - 1].right || 0) >= measure * 0.9 &&
+                      !/[.!?]$/.test(lastTitle.title);
+      if (wrapped){
+        lastTitle.title = cleanTitleText(lastTitle.title + ' ' + t);
+        lastTitleIdx = i;
+        rows.push(Object.assign(base, { title: t, room: lastTitle.room, time: lastTitle.time }));
+        continue;
+      }
+      const r = extractRoom(t);
+      const row = Object.assign(base, {
+        room: r.room || curRoom,
+        time: curTime,
+        note: curDay,                       // which day this ran — tells repeats apart
+        title: cleanTitleText(r.room ? r.rest : t),
+        include: true,
+      });
+      if (SKIP_RE.test(row.title) || row.title.length < 3) row.include = false;
+      rows.push(row); lastTitle = row; lastTitleIdx = i;
+      continue;
+    }
+
+    // Everything else is context: slot times, rooms, speaker lists, page
+    // furniture. Harvested, listed, but not ticked.
+    const r = extractRoom(t);
+    const tm = t.match(TIME_RE);
+    if (tm){
+      const parsed = parseRangeTime(t, tm);
+      if (parsed){ curTime = parsed; curRoom = r.room || ''; }
+    } else if (r.room && !r.rest.trim()){
+      curRoom = r.room;
+    }
+    if (lastTitle && !lastTitle.room && SPEAKER_LINE.test(t)){
+      const rr = trailingRoom(t); if (rr) lastTitle.room = rr;
+    }
+    rows.push(Object.assign(base, { room: r.room, time: tm ? parseRangeTime(t, tm) || '' : '' }));
+  }
+  return rows;
+}
+
+// "10:20 to 11:10 am" — the meridiem often sits only on the end of the range.
+function parseRangeTime(line, tm){
+  let time = parseTime(tm[0]);
+  const tail = line.slice(tm.index + tm[0].length);
+  const range = tail.match(/^\s*(?:-|–|—|to)\s*\d{1,2}(?:[:.]\d{2})?\s*([ap])\.?m\.?/i);
+  if (range && !/[ap]\.?m/i.test(tm[0])) time = parseTime(tm[0].replace(/\s+/g, '') + range[1]);
+  return time;
+}
+
+function cleanTitleText(t){
+  return t.replace(/\s+/g, ' ')
+          .replace(/^[\s\-–—|:•*·>•\.\)\]]+/, '')
+          .replace(/[\s\-–—|:]+$/, '')
+          .replace(/^\d{1,3}[\.\)]\s*/, '')
+          .trim();
+}
+
+const HEADER_WORD = /^(room|location|stage|time|start|end|title|session|topic|name|track|day|date|#|no\.?|num(ber)?|speaker|presenter|duration|status|notes?)s?$/i;
+function looksLikeHeader(cells){
+  const c = cells.map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
+  return c.length >= 2 && c.every(x => HEADER_WORD.test(x));
+}
+
+function detectDelim(lines){
+  for (const d of ['\t', ',', '|', ';']){
+    const hits = lines.filter(l => splitDelim(l, d).length >= 2).length;
+    if (hits >= Math.max(2, lines.length * 0.6)) return d;
+  }
+  return null;
+}
+function splitDelim(line, d){
+  if (d !== ',') return line.split(d);
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++){
+    const ch = line[i];
+    if (ch === '"'){ if (q && line[i+1] === '"'){ cur += '"'; i++; } else q = !q; }
+    else if (ch === ',' && !q){ out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur); return out;
+}
+
+async function doParse(){
+  const text = document.getElementById('paste').value;
+  if (!text.trim()) return toast('Paste a list or choose a file first.', true);
+  parsedRows = parseText(text);
+  if (!parsedRows.length) return toast('Nothing recognisable in that list.', true);
+  showPreview();
+}
+
+function showPreview(){
+  document.getElementById('import-step1').style.display = 'none';
+  document.getElementById('import-step2').style.display = 'block';
+  document.getElementById('btn-parse').style.display = 'none';
+  document.getElementById('btn-commit').style.display = 'inline-flex';
+  document.getElementById('btn-back').style.display = 'inline-flex';
+  // With style info, start collapsed to the ticked lines — that's the list to check.
+  document.getElementById('prev-hide').checked = !!parseSource;
+  lastPrevClick = null;
+  renderStyleChips();
+  renderPreview();
+}
+
+function renderPreview(){
+  const hide = document.getElementById('prev-hide').checked;
+  const tb = document.getElementById('prev-body');
+  tb.innerHTML = parsedRows.map((r, i) => (hide && !r.include) ? '' : `
+    <tr data-i="${i}" class="${r.include ? 'on' : 'off'}">
+      <td><input type="checkbox" data-chk ${r.include ? 'checked' : ''}></td>
+      <td>${r.style ? `<span class="sbadge ${r.bold ? 'b' : ''}">${esc(r.style)}</span>` : ''}</td>
+      <td><input class="cell mono" value="${esc(r.room)}" placeholder="—"
+                 onchange="parsedRows[${i}].room=normalizeRoom(this.value);this.value=parsedRows[${i}].room"></td>
+      <td><input class="cell" value="${esc(timeHuman(r.time))}" placeholder="—"
+                 onchange="parsedRows[${i}].time=parseTime(this.value);this.value=timeHuman(parsedRows[${i}].time)"></td>
+      <td><input class="cell" value="${esc(r.title)}" oninput="parsedRows[${i}].title=this.value"></td>
+    </tr>`).join('');
+  updateImportCount();
+}
+
+// Click anywhere on a row to tick it; shift-click to sweep a run.
+let lastPrevClick = null;
+function wirePreview(){
+  const tb = document.getElementById('prev-body');
+  tb.addEventListener('click', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    if (e.target.classList.contains('cell')) return;      // let field edits through
+    const i = +tr.dataset.i;
+    const want = !parsedRows[i].include;
+    if (e.shiftKey && lastPrevClick !== null){
+      const [a, b] = [lastPrevClick, i].sort((x, y) => x - y);
+      for (let k = a; k <= b; k++) parsedRows[k].include = want;
+    } else {
+      parsedRows[i].include = want;
+    }
+    lastPrevClick = i;
+    renderPreview();
+  });
+}
+
+function renderStyleChips(){
+  const bar = document.getElementById('style-bar');
+  if (!parseSource){ bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  const groups = {};
+  parseSource.lines.forEach((t, i) => {
+    const k = styleKey(parseSource.styles[i]) || '—';
+    (groups[k] = groups[k] || { n: 0, sample: t, bold: parseSource.styles[i] && parseSource.styles[i].bold }).n++;
+  });
+  document.getElementById('style-chips').innerHTML = Object.entries(groups)
+    .sort((a, b) => b[1].n - a[1].n)
+    .map(([k, g]) => `<button class="chip ${titleKeys.has(k) ? 'on' : ''}" title="${esc(g.sample.slice(0, 90))}"
+            onclick="toggleStyleKey(${JSON.stringify(k).replace(/"/g, '&quot;')})">${esc(k)} <b>${g.n}</b></button>`)
+    .join('');
+}
+
+function toggleStyleKey(k){
+  if (titleKeys.has(k)) titleKeys.delete(k); else titleKeys.add(k);
+  parsedRows = parseStyled(parseSource.lines, parseSource.styles, titleKeys);
+  renderStyleChips(); renderPreview();
+}
+
+function updateImportCount(){
+  const on = parsedRows.filter(r => r.include).length;
+  document.getElementById('import-sub').textContent =
+    `${parsedRows.length} lines read — ${on} ticked to import.`;
+  document.getElementById('btn-commit').textContent = on ? `Add ${on} session${on === 1 ? '' : 's'}` : 'Add sessions';
+}
+
+function prevToggleAll(on){ parsedRows.forEach(r => r.include = on); renderPreview(); }
+function prevInvert(){ parsedRows.forEach(r => r.include = !r.include); renderPreview(); }
+function prevUncheckUntimed(){ parsedRows.forEach(r => { if (!r.time) r.include = false; }); renderPreview(); }
+function applyDefaultRoom(){
+  const v = normalizeRoom(document.getElementById('default-room').value);
+  if (!v) return toast('Type a room code first.', true);
+  parsedRows.forEach(r => { if (!r.room) r.room = v; });
+  renderPreview();
+}
+
+function commitImport(){
+  const p = proj();
+  const add = parsedRows.filter(r => r.include);
+  if (!add.length) return toast('Nothing selected.', true);
+  for (const r of add){
+    p.sessions.push({ id: uid(), room: r.room || '', seq: 0, day: shortDay(r.note || ''), time: r.time || '',
+                      title: r.title || '', version: 1, status: 'notstarted', notes: '', clientNote: '', vimeo: '' });
+  }
+  renumber(true);
+  closeOverlay('ov-import');
+  toast(`${add.length} session${add.length === 1 ? '' : 's'} added.`);
+}
+
+/* ---------------- file input ---------------- */
+async function handleFile(file){
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  try {
+    let text, meta = null;
+    if (name.endsWith('.pdf') || file.type === 'application/pdf'){
+      toast('Reading PDF…');
+      ({ text, meta } = await extractPdfDoc(file));
+    } else {
+      text = await file.text();
+    }
+    if (!text || !text.trim()) return toast('No text found in that file.', true);
+    document.getElementById('paste').value = text;
+    parsedRows = parseText(text, meta);
+    if (!parsedRows.length) return toast('No sessions recognised in that file.', true);
+    showPreview();
+  } catch (err){
+    console.error(err);
+    toast('Could not read that file: ' + (err.message || err), true);
+  }
+}
+
+// Returns { text, meta } — meta[i] describes line i: {bold, size, x}.
+// Bold is the strongest signal in a printed agenda: session titles are set in
+// the bold face, times and speaker lists are not.
+async function extractPdfDoc(file){
+  if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js is missing from the vendor folder');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
+  const out = [], meta = [];
+  for (let n = 1; n <= pdf.numPages; n++){
+    if (pdf.numPages > 2) toast(`Reading PDF — page ${n} of ${pdf.numPages}…`);
+    const page = await pdf.getPage(n);
+    // Font objects only resolve once the page has been through the operator
+    // list; without this the weight of each run is unknowable.
+    try { await page.getOperatorList(); } catch(e){}
+    const tc = await page.getTextContent();
+    const lines = [];                                  // [{y, items:[{x,w,s,f,size}]}]
+    for (const it of tc.items){
+      if (!it.str || !it.str.trim()) continue;
+      const y = it.transform[5], x = it.transform[4];
+      const size = Math.hypot(it.transform[0], it.transform[1]) || it.height || 10;
+      let bucket = lines.find(l => Math.abs(l.y - y) <= 3);
+      if (!bucket){ bucket = { y, items: [] }; lines.push(bucket); }
+      bucket.items.push({ x, w: it.width || 0, s: it.str, f: it.fontName, size });
+    }
+    lines.sort((a, b) => b.y - a.y);
+    for (const l of lines){
+      l.items.sort((a, b) => a.x - b.x);
+      // Join runs by position: a real gap becomes a space, adjacent runs don't
+      // (otherwise "…Sam MillerSenate 1" and "Hel lo" both come out wrong).
+      let txt = '', prev = null;
+      for (const it of l.items){
+        if (prev){
+          const gap = it.x - (prev.x + prev.w);
+          if (gap > 0.28 * (it.size || 10) && !/\s$/.test(txt) && !/^\s/.test(it.s)) txt += ' ';
+        }
+        txt += it.s; prev = it;
+      }
+      txt = txt.replace(/\s+/g, ' ').trim();
+      if (!txt) continue;
+      const first = l.items[0], last = l.items[l.items.length - 1];
+      out.push(txt);
+      meta.push({
+        bold: fontIsBold(page, first.f),
+        size: Math.round(first.size * 10) / 10,
+        x: Math.round(first.x),
+        right: Math.round(last.x + last.w),
+      });
+    }
+  }
+  return { text: out.join('\n'), meta };
+}
+
+// true / false / null when the font can't be resolved.
+function fontIsBold(page, fontName){
+  try {
+    const f = page.commonObjs.get(fontName);
+    const name = String((f && (f.name || f.loadedName)) || '');
+    if (!name) return null;
+    return /bold|black|heavy|semib|demib/i.test(name);
+  } catch(e){ return null; }
+}
+
+function styleKey(m){
+  if (!m) return '';
+  const weight = m.bold === null ? '' : (m.bold ? 'Bold ' : 'Regular ');
+  return weight + m.size + 'pt';
+}
+
+/* ---------------- settings ---------------- */
+function openSettings(){
+  const c = cfg();
+  document.getElementById('s-pattern').value = c.pattern;
+  document.getElementById('s-titlestyle').value = c.titleStyle;
+  document.getElementById('s-titlewords').value = c.titleWords;
+  document.getElementById('s-timestyle').value = c.timeStyle;
+  document.getElementById('s-numberby').value = c.numberBy;
+  document.getElementById('s-sessprefix').value = c.sessPrefix;
+  document.getElementById('s-sesspad').value = c.sessPad;
+  document.getElementById('client-labels').innerHTML = STATUSES.map(s => `
+    <div>
+      <label class="lbl">${s.label}</label>
+      <input class="field" data-client="${s.key}" value="${esc(c.clientLabels[s.key])}" onchange="onSettingChange()">
+    </div>`).join('');
+  document.getElementById('token-list').innerHTML =
+    ['{room}','{sess}','{title}','{time}','{ver}','{event}']
+      .map(t => `<code onclick="insertToken('${t}')">${t}</code>`).join('');
+  patternPreview();
+  show('ov-settings');
+}
+
+function onSettingChange(){
+  const c = cfg();
+  c.pattern     = document.getElementById('s-pattern').value;
+  c.titleStyle  = document.getElementById('s-titlestyle').value;
+  c.titleWords  = Math.max(1, parseInt(document.getElementById('s-titlewords').value, 10) || 6);
+  c.timeStyle   = document.getElementById('s-timestyle').value;
+  c.sessPrefix  = document.getElementById('s-sessprefix').value;
+  c.sessPad     = Math.min(4, Math.max(1, parseInt(document.getElementById('s-sesspad').value, 10) || 2));
+  const nb = document.getElementById('s-numberby').value;
+  const changed = nb !== c.numberBy;
+  c.numberBy = nb;
+  document.querySelectorAll('[data-client]').forEach(i => c.clientLabels[i.dataset.client] = i.value);
+  patternPreview();
+  if (changed) renumber(true); else { refreshComputed(); queueSave(); }
+}
+
+function insertToken(t){
+  const el = document.getElementById('s-pattern');
+  const at = el.selectionStart ?? el.value.length;
+  el.value = el.value.slice(0, at) + t + el.value.slice(el.selectionEnd ?? at);
+  el.focus(); el.selectionStart = el.selectionEnd = at + t.length;
+  onSettingChange();
+}
+
+function patternPreview(){
+  const p = proj();
+  const sample = p.sessions[0] ||
+    { room:'BO1', seq:1, time:'09:30', title:'Capital Markets Outlook', version:1 };
+  document.getElementById('pattern-preview').textContent = buildFilename(sample, p);
+}
+
+function resetSettings(){
+  if (!confirm('Reset naming settings for this project?')) return;
+  proj().settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  save(); openSettings(); render();
+}
+
+/* ---------------- rooms ---------------- */
+// Distinct rooms in the order they first appear, blanks included so they can
+// be filled in one go.
+function roomList(){
+  const seen = new Map();
+  proj().sessions.forEach(s => {
+    const k = s.room || '';
+    seen.set(k, (seen.get(k) || 0) + 1);
+  });
+  return [...seen.entries()].map(([code, n]) => ({ code, n }));
+}
+
+function openRooms(){ renderRooms(); show('ov-rooms'); }
+
+function renderRooms(){
+  const names = proj().roomNames || (proj().roomNames = {});
+  document.getElementById('rooms-body').innerHTML = roomList().map(r => `
+    <tr>
+      <td><input class="cell mono" value="${esc(r.code)}" placeholder="unassigned" spellcheck="false"
+                 onchange="renameRoom(${JSON.stringify(r.code).replace(/"/g,'&quot;')}, this.value)"></td>
+      <td><input class="cell" value="${esc(names[r.code] || '')}" placeholder="${esc(roomLabel(r.code) || '—')}"
+                 onchange="setRoomName(${JSON.stringify(r.code).replace(/"/g,'&quot;')}, this.value)"></td>
+      <td style="color:var(--muted);font-variant-numeric:tabular-nums;padding-left:14px">${r.n}</td>
+    </tr>`).join('') || '<tr><td colspan="3" style="color:var(--muted)">No sessions yet.</td></tr>';
+}
+
+function renameRoom(from, toRaw){
+  const to = normalizeRoom(toRaw);
+  if (to === from) return renderRooms();
+  const p = proj();
+  const merging = to && p.sessions.some(s => (s.room || '') === to);
+  let n = 0;
+  p.sessions.forEach(s => { if ((s.room || '') === from){ s.room = to; n++; } });
+  const names = p.roomNames || (p.roomNames = {});
+  if (names[from] && !names[to]){ names[to] = names[from]; }
+  delete names[from];
+  save(); renderRooms(); render();
+  toast(merging ? `${n} session${n === 1 ? '' : 's'} merged into ${to}. Session numbers now repeat — hit Renumber.`
+                : `${n} session${n === 1 ? '' : 's'} moved to ${to || 'unassigned'}.`);
+}
+
+function setRoomName(code, label){
+  const names = proj().roomNames || (proj().roomNames = {});
+  if (label.trim()) names[code] = label.trim(); else delete names[code];
+  save();
+}
+
+// Re-code every room as PREFIX1, PREFIX2… in list order. Two passes so a new
+// code that clashes with an existing one can't clobber it mid-flight.
+function autoNumberRooms(){
+  const prefix = normalizeRoom(document.getElementById('room-prefix').value) || 'BO';
+  const p = proj();
+  const codes = roomList().map(r => r.code);
+  if (!codes.length) return toast('No sessions yet.', true);
+  if (!confirm(`Re-code ${codes.length} room${codes.length === 1 ? '' : 's'} as ${prefix}1 … ${prefix}${codes.length}?`)) return;
+  const names = p.roomNames || (p.roomNames = {});
+  const oldNames = Object.assign({}, names);
+  const tmp = {};
+  codes.forEach((c, i) => { tmp[c] = ' ' + i; });
+  p.sessions.forEach(s => { const t = tmp[s.room || '']; if (t !== undefined) s.room = t; });
+  Object.keys(names).forEach(k => delete names[k]);
+  codes.forEach((c, i) => {
+    const to = prefix + (i + 1);
+    p.sessions.forEach(s => { if (s.room === tmp[c]) s.room = to; });
+    if (oldNames[c]) names[to] = oldNames[c];
+    else if (c && roomLabel(c) !== c) names[to] = roomLabel(c);   // keep the old readable name
+  });
+  renumber(true); renderRooms();
+  toast(`Rooms re-coded ${prefix}1–${prefix}${codes.length}.`);
+}
+
+/* ---------------- duplicates ---------------- */
+let dupKeep = {};                  // groupKey -> session id, or 'all'
+
+function normTitle(t){ return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+// Same title, or (different titles that) land on the same filename.
+function dupeGroups(){
+  const p = proj();
+  const groups = [], byKey = new Map();
+  const push = (key, label, kind, s) => {
+    let g = byKey.get(key);
+    if (!g){ g = { key, label, kind, rows: [] }; byKey.set(key, g); groups.push(g); }
+    g.rows.push(s);
+  };
+  p.sessions.forEach(s => { const k = normTitle(s.title); if (k) push('t:' + k, s.title, 'title', s); });
+  const titleDupes = new Set();
+  groups.forEach(g => { if (g.rows.length > 1) g.rows.forEach(s => titleDupes.add(s.id)); });
+  p.sessions.forEach(s => {
+    if (titleDupes.has(s.id)) return;
+    push('f:' + buildFilename(s, p), buildFilename(s, p), 'filename', s);
+  });
+  return groups.filter(g => g.rows.length > 1);
+}
+
+function dupeCount(){ return dupeGroups().reduce((n, g) => n + g.rows.length - 1, 0); }
+
+function openDupes(){
+  const groups = dupeGroups();
+  dupKeep = {};
+  groups.forEach(g => { dupKeep[g.key] = g.rows[0].id; });
+  renderDupes(groups);
+  show('ov-dupes');
+}
+
+function renderDupes(groups){
+  groups = groups || dupeGroups();
+  const p = proj();
+  document.getElementById('dupes-sub').textContent = groups.length
+    ? `${groups.length} title${groups.length === 1 ? '' : 's'} appear more than once. Pick the one to keep in each.`
+    : 'Nothing repeated in this project.';
+  document.getElementById('dupes-body').innerHTML = groups.length ? groups.map(g => `
+    <div class="dupe">
+      <div class="dupe-h">
+        <span class="dupe-t">${esc(g.label || 'Untitled')}</span>
+        <span class="dupe-n">${g.rows.length} copies${g.kind === 'filename' ? ' &middot; same filename' : ''}</span>
+        <button class="btn ghost sm" onclick="setDupKeep(${JSON.stringify(g.key).replace(/"/g,'&quot;')}, 'all')">Keep all</button>
+      </div>
+      ${g.rows.map(s => {
+        const st = S_BY_KEY[s.status] || STATUSES[0];
+        const on = dupKeep[g.key] === s.id;
+        return `<label class="dupe-r ${on ? 'on' : ''} ${dupKeep[g.key] === 'all' ? 'neutral' : ''}">
+          <input type="radio" name="d-${esc(g.key)}" ${on ? 'checked' : ''}
+                 onchange="setDupKeep(${JSON.stringify(g.key).replace(/"/g,'&quot;')}, ${JSON.stringify(s.id).replace(/"/g,'&quot;')})">
+          <span class="dupe-meta">${s.day ? `<b style="color:var(--text)">${esc(s.day)}</b> &middot; ` : ''}${esc(s.room || '—')}
+            &middot; ${esc(timeHuman(s.time) || 'no time')} &middot; #${p.sessions.indexOf(s) + 1}</span>
+          <code>${esc(buildFilename(s, p))}</code>
+          <span class="dupe-st" style="color:${st.hex}">${st.label}</span>
+        </label>`;
+      }).join('')}
+    </div>`).join('') : '<p style="color:var(--muted)">Every session title in this project is unique.</p>';
+
+  const doomed = countDoomed(groups);
+  document.getElementById('dupes-count').textContent = doomed ? `${doomed} to delete` : 'nothing selected for deletion';
+  document.getElementById('dupes-apply').disabled = !doomed;
+}
+
+function countDoomed(groups){
+  return (groups || dupeGroups()).reduce((n, g) =>
+    n + (dupKeep[g.key] === 'all' ? 0 : g.rows.filter(s => s.id !== dupKeep[g.key]).length), 0);
+}
+
+function setDupKeep(key, id){ dupKeep[key] = id; renderDupes(); }
+function dupesKeepAll(){ dupeGroups().forEach(g => dupKeep[g.key] = 'all'); renderDupes(); }
+function dupesKeepFirst(){ dupeGroups().forEach(g => dupKeep[g.key] = g.rows[0].id); renderDupes(); }
+
+function applyDupes(){
+  const groups = dupeGroups();
+  const kill = new Set();
+  groups.forEach(g => {
+    if (dupKeep[g.key] === 'all') return;
+    g.rows.forEach(s => { if (s.id !== dupKeep[g.key]) kill.add(s.id); });
+  });
+  if (!kill.size) return;
+  if (!confirm(`Delete ${kill.size} duplicate session${kill.size === 1 ? '' : 's'}? The ones you picked are kept.`)) return;
+  proj().sessions = proj().sessions.filter(s => !kill.has(s.id));
+  kill.forEach(id => selected.delete(id));
+  save(); render();
+  toast(`${kill.size} deleted. Session numbers left as they were — hit Renumber if you want them tightened up.`);
+  const left = dupeGroups();
+  if (!left.length) closeOverlay('ov-dupes'); else { dupKeep = {}; left.forEach(g => dupKeep[g.key] = g.rows[0].id); renderDupes(left); }
+}
+
+/* ---------------- exports ---------------- */
+function exportCSV(){
+  const p = proj();
+  const head = ['Room','Session','Day','Time','Title','Filename','Version','Status','Vimeo','Notes','Client note'];
+  const rows = p.sessions.map(s => [
+    s.room, cfg().sessPrefix + String(s.seq || 0).padStart(+cfg().sessPad || 2, '0'),
+    s.day || '', timeHuman(s.time), s.title, buildFilename(s, p), 'V' + (s.version || 1),
+    (S_BY_KEY[s.status] || STATUSES[0]).label, s.vimeo || '', s.notes || '', s.clientNote || ''
+  ]);
+  const csv = [head, ...rows].map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  download(slug(p.name) + '-edits.csv', csv, 'text/csv');
+}
+
+function backupJSON(){
+  download('r3-tracker-backup-' + stamp() + '.json', JSON.stringify(db, null, 2), 'application/json');
+}
+
+function restoreJSON(file){
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const data = JSON.parse(fr.result);
+      if (!data.projects || !Array.isArray(data.projects)) throw new Error('not a tracker backup');
+      if (!confirm(`Restore ${data.projects.length} project(s)? This replaces everything currently in the tracker.`)) return;
+      db = data; load(); save(); render();
+      toast('Backup restored.');
+    } catch(e){ toast('That file is not a tracker backup.', true); }
+  };
+  fr.readAsText(file);
+}
+
+// Internal room codes read as jargon to a client — use the name set in the
+// Rooms panel, else spell the common codes out.
+function roomLabel(code){
+  if (!code) return '';
+  const custom = (proj().roomNames || {})[code];
+  if (custom) return custom;
+  const m = String(code).toUpperCase();
+  let x;
+  if ((x = m.match(/^BO(\d+)$/)))    return 'Breakout ' + x[1];
+  if ((x = m.match(/^TR(.+)$/)))     return 'Track ' + x[1];
+  if ((x = m.match(/^RM(.+)$/)))     return 'Room ' + x[1];
+  if ((x = m.match(/^SALON(.+)$/)))  return 'Salon ' + x[1];
+  if ((x = m.match(/^BALL(.*)$/)))   return ('Ballroom ' + x[1]).trim();
+  if ((x = m.match(/^STU(.+)$/)))    return 'Studio ' + x[1];
+  if (m === 'MAIN') return 'Main Stage';
+  if (m === 'GS')   return 'General Session';
+  if (m === 'KEY')  return 'Keynote Hall';
+  // Last resort: SENATE1 -> Senate 1, so a client never sees a raw code.
+  if ((x = m.match(/^([A-Z]{2,})(\d[\d+&-]*)$/))) return x[1].charAt(0) + x[1].slice(1).toLowerCase() + ' ' + x[2];
+  return code;
+}
+
+function openClientView(){ renderClientView(); show('ov-client'); }
+
+function renderClientView(){
+  const p = proj();
+  const hideNS = document.getElementById('cv-hide-notstarted').checked;
+  const showCount = document.getElementById('cv-show-count').checked;
+  const c = cfg();
+  const list = p.sessions.filter(s => !(hideNS && s.status === 'notstarted'));
+  const done = p.sessions.filter(s => s.status === 'delivered').length;
+
+  const rows = list.map(s => {
+    const st = S_BY_KEY[s.status] || STATUSES[0];
+    const meta = [roomLabel(s.room), timeHuman(s.time)].filter(Boolean).join(' &middot; ');
+    return `      <tr>
+        <td>
+          <div class="t">${esc(s.title || 'Untitled session')}</div>
+          ${meta ? `<div class="d">${meta}</div>` : ''}
+        </td>
+        <td class="btns">
+          <span style="display:inline-block;padding:5px 13px;border-radius:20px;font-size:.75rem;font-weight:700;letter-spacing:.04em;color:${st.hex};border:1px solid ${st.hex}66;background:${st.hex}1f;">${esc(c.clientLabels[st.key])}</span>
+        </td>
+      </tr>`;
+  }).join('\n');
+
+  const html =
+`<!-- R3 production status — ${esc(p.name)} — generated ${new Date().toLocaleDateString()} -->
+<div class="vt-section">
+  <h3>Production Status</h3>
+  ${showCount ? `<p style="color:var(--muted);font-size:.9rem;margin-bottom:6px;">${done} of ${p.sessions.length} sessions delivered.</p>` : ''}
+  <div class="vt-wrap">
+    <table class="vt">
+${rows || '      <tr><td>No sessions yet.</td></tr>'}
+    </table>
+  </div>
+</div>`;
+
+  document.getElementById('cv-code').value = html;
+}
+
+function copyClientView(btn){
+  copyText(document.getElementById('cv-code').value).then(ok => {
+    if (!ok) return toast('Copy blocked — select the text and copy manually.', true);
+    btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy HTML', 1300);
+  });
+}
+function downloadClientView(){
+  download(slug(proj().name) + '-status.html', document.getElementById('cv-code').value, 'text/html');
+}
+
+/* =====================================================================
+   Sync — the Google Sheet is the source of truth. Local storage is a cache
+   so the app still works with no network; anything edited offline is pushed
+   the next time it connects.
+   ===================================================================== */
+
+const SYNC_KEY = 'r3-vet-sync-v1';
+let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
+let syncState = 'off';               // off | ok | busy | error | offline
+let pushTimer = null, pollTimer = null, syncing = false;
+
+function loadSync(){
+  try { Object.assign(sync, JSON.parse(localStorage.getItem(SYNC_KEY) || '{}')); } catch(e){}
+  sync.baseline = sync.baseline || { p: {}, s: {} };
+}
+function saveSync(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch(e){} }
+function syncOn(){ return !!(sync.url && sync.token); }
+
+// Row fingerprints — anything that differs from the last agreed state is ours
+// to push, and is protected from being overwritten by an incoming pull.
+function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status,
+                                          s.notes || '', s.clientNote || '', s.vimeo || '']); }
+function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
+                                          p.vimeoFolder || '', p.settings, p.roomNames || {}]); }
+
+function localChanges(){
+  const now = new Date().toISOString();
+  const out = { projects: [], sessions: [] };
+  const liveP = new Set(), liveS = new Set();
+  db.projects.forEach(p => {
+    liveP.add(p.id);
+    if (sync.baseline.p[p.id] !== pHash(p)){
+      out.projects.push({ id: p.id, name: p.name, eventCode: p.eventCode || '', eventSlug: p.eventSlug || '',
+                          clientPassword: p.clientPassword || '', vimeoFolder: p.vimeoFolder || '',
+                          settings: p.settings, roomNames: p.roomNames || {}, updated: now, deleted: false });
+    }
+    p.sessions.forEach(s => {
+      liveS.add(s.id);
+      if (sync.baseline.s[s.id] !== sHash(s)){
+        out.sessions.push({ id: s.id, projectId: p.id, room: s.room || '', seq: s.seq || 0, day: s.day || '',
+                            time: s.time || '', title: s.title || '', version: s.version || 1,
+                            status: s.status || 'notstarted', notes: s.notes || '', clientNote: s.clientNote || '',
+                            vimeo: s.vimeo || '', updated: now, deleted: false });
+      }
+    });
+  });
+  Object.keys(sync.baseline.p).forEach(id => { if (!liveP.has(id)) out.projects.push({ id, deleted: true, updated: now }); });
+  Object.keys(sync.baseline.s).forEach(id => { if (!liveS.has(id)) out.sessions.push({ id, deleted: true, updated: now }); });
+  return out;
+}
+
+function setBaseline(){
+  const b = { p: {}, s: {} };
+  db.projects.forEach(p => { b.p[p.id] = pHash(p); p.sessions.forEach(s => { b.s[s.id] = sHash(s); }); });
+  sync.baseline = b; sync.lastAt = new Date().toISOString(); saveSync();
+}
+
+function mergeRemote(data){
+  const mine = localChanges();
+  const dirtyP = new Set(mine.projects.map(x => x.id));
+  const dirtyS = new Set(mine.sessions.map(x => x.id));
+
+  (data.projects || []).forEach(rp => {
+    if (dirtyP.has(rp.id)) return;                       // my edit wins; it'll push
+    const local = db.projects.find(p => p.id === rp.id);
+    if (rp.deleted){ if (local) db.projects = db.projects.filter(p => p.id !== rp.id); return; }
+    const fields = { name: rp.name, eventCode: rp.eventCode || '', eventSlug: rp.eventSlug || '',
+                     clientPassword: rp.clientPassword || '', vimeoFolder: rp.vimeoFolder || '',
+                     settings: Object.assign({}, DEFAULT_SETTINGS, rp.settings || {}),
+                     roomNames: rp.roomNames || {} };
+    fields.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, fields.settings.clientLabels || {});
+    if (local) Object.assign(local, fields);
+    else db.projects.push(Object.assign({ id: rp.id, sessions: [] }, fields));
+  });
+
+  const byId = {}; db.projects.forEach(p => byId[p.id] = p);
+  (data.sessions || []).forEach(rs => {
+    if (dirtyS.has(rs.id)) return;
+    let found = null, holder = null;
+    for (const p of db.projects){ const s = p.sessions.find(x => x.id === rs.id); if (s){ found = s; holder = p; break; } }
+    if (rs.deleted){ if (holder) holder.sessions = holder.sessions.filter(x => x.id !== rs.id); return; }
+    const owner = byId[rs.projectId];
+    if (!owner) return;
+    const rec = { id: rs.id, room: rs.room || '', seq: rs.seq || 0, day: rs.day || '', time: rs.time || '',
+                  title: rs.title || '', version: rs.version || 1, status: rs.status || 'notstarted',
+                  notes: rs.notes || '', clientNote: rs.clientNote || '', vimeo: rs.vimeo || '' };
+    if (found){
+      Object.assign(found, rec);
+      if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
+    } else owner.sessions.push(rec);
+  });
+
+  // Drop the empty starter project once real ones arrive.
+  db.projects = db.projects.filter(p =>
+    !(p.sessions.length === 0 && p.name === 'Untitled Project' && !sync.baseline.p[p.id] && db.projects.length > 1));
+  if (!db.projects.length) db.projects = [blankProject('Untitled Project')];
+  if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
+}
+
+async function api(payload, query){
+  const url = sync.url + (query || '');
+  const opts = payload
+    ? { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' }
+    : { method: 'GET', redirect: 'follow' };
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data.ok === false) throw new Error(data.error || 'server said no');
+  return data;
+}
+
+async function syncNow(quiet){
+  if (!syncOn() || syncing) return;
+  syncing = true; setSyncState('busy');
+  try {
+    const remote = await api(null, '?mode=pull&token=' + encodeURIComponent(sync.token));
+    mergeRemote(remote);
+    const mine = localChanges();
+    if (mine.projects.length || mine.sessions.length){
+      await api({ mode: 'push', token: sync.token, projects: mine.projects, sessions: mine.sessions });
+    }
+    setBaseline();
+    save(); render();
+    setSyncState('ok');
+    if (!quiet) toast('Synced with the Sheet.');
+  } catch (err){
+    setSyncState(navigator.onLine ? 'error' : 'offline');
+    if (!quiet) toast('Sync failed: ' + err.message, true);
+    console.error(err);
+  } finally { syncing = false; }
+}
+
+function queuePush(){
+  if (!syncOn() || !sync.auto || syncing) return;
+  setSyncState('busy');
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => syncNow(true), 1800);
+}
+
+function startPolling(){
+  clearInterval(pollTimer);
+  if (syncOn() && sync.auto) pollTimer = setInterval(() => { if (!document.hidden) syncNow(true); }, 25000);
+}
+
+function setSyncState(s){
+  syncState = s;
+  const el = document.getElementById('sync-pill');
+  const map = {
+    off:     ['Not synced',  'var(--muted)'],
+    busy:    ['Syncing…',    '#3d8bfd'],
+    ok:      ['Synced',      'var(--s-delivered)'],
+    error:   ['Sync error',  'var(--red-bright)'],
+    offline: ['Offline',     '#d98324'],
+  };
+  const [label, colour] = map[s] || map.off;
+  el.textContent = label;
+  el.style.color = colour;
+  el.style.borderColor = s === 'off' ? 'var(--line)' : colour + '66';
+  el.title = sync.lastAt ? 'Last sync ' + new Date(sync.lastAt).toLocaleTimeString() : 'Not connected yet';
+}
+
+/* --------- sync settings UI --------- */
+function openSync(){
+  document.getElementById('sy-url').value = sync.url;
+  document.getElementById('sy-token').value = sync.token;
+  document.getElementById('sy-auto').checked = !!sync.auto;
+  const p = proj();
+  document.getElementById('sy-slug').value = p.eventSlug || '';
+  document.getElementById('sy-pw').value = p.clientPassword || '';
+  document.getElementById('sy-project').textContent = p.name;
+  const fsel = document.getElementById('sy-folder');
+  if (p.vimeoFolder && !fsel.querySelector(`option[value="${p.vimeoFolder}"]`)){
+    fsel.insertAdjacentHTML('beforeend', `<option value="${esc(p.vimeoFolder)}" selected>Folder ${esc(p.vimeoFolder)}</option>`);
+  }
+  fsel.value = p.vimeoFolder || '';
+  updatePortalLink();
+  document.getElementById('sy-result').textContent = '';
+  show('ov-sync');
+}
+
+function saveSyncSettings(){
+  sync.url = document.getElementById('sy-url').value.trim();
+  sync.token = document.getElementById('sy-token').value.trim();
+  sync.auto = document.getElementById('sy-auto').checked;
+  saveSync();
+  const p = proj();
+  p.eventSlug = document.getElementById('sy-slug').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
+  p.clientPassword = document.getElementById('sy-pw').value.trim();
+  const fsel = document.getElementById('sy-folder');
+  if (fsel) p.vimeoFolder = fsel.value;
+  document.getElementById('sy-slug').value = p.eventSlug;
+  save(); updatePortalLink();
+  setSyncState(syncOn() ? (syncState === 'off' ? 'ok' : syncState) : 'off');
+  startPolling();
+}
+
+function updatePortalLink(){
+  const p = proj();
+  const el = document.getElementById('sy-portal-link');
+  el.textContent = p.eventSlug ? `https://r3mediapro.com/portal/event.html?event=${p.eventSlug}` : '— give the event a slug first —';
+}
+
+async function loadVimeoFolders(){
+  const sel = document.getElementById('sy-folder');
+  const out = document.getElementById('sy-result');
+  if (!syncOn()) { out.textContent = 'Set the Web App URL and token first.'; return; }
+  out.textContent = 'Asking Vimeo…';
+  try {
+    const data = await api(null, '?mode=vimeoFolders&token=' + encodeURIComponent(sync.token));
+    const cur = proj().vimeoFolder || '';
+    sel.innerHTML = '<option value="">— none —</option>' + (data.folders || [])
+      .map(f => `<option value="${esc(f.id)}" ${f.id === cur ? 'selected' : ''}>${esc(f.name)} (${f.videos})</option>`).join('');
+    out.innerHTML = `<span style="color:var(--s-delivered)">${(data.folders || []).length} folder(s) found.</span>`;
+  } catch (err){
+    out.innerHTML = `<span style="color:var(--red-bright)">${esc(err.message)}</span>`;
+  }
+}
+
+async function testSync(){
+  saveSyncSettings();
+  const out = document.getElementById('sy-result');
+  if (!sync.url) { out.textContent = 'Paste the Web App /exec URL first.'; return; }
+  out.textContent = 'Testing…';
+  try {
+    await api(null, '?mode=ping');
+    const pulled = await api(null, '?mode=pull&token=' + encodeURIComponent(sync.token));
+    out.innerHTML = `<span style="color:var(--s-delivered)">Connected.</span> The Sheet holds
+      ${(pulled.projects || []).length} project(s) and ${(pulled.sessions || []).length} session(s).`;
+  } catch (err){
+    out.innerHTML = `<span style="color:var(--red-bright)">${esc(err.message)}</span> —
+      check the /exec URL, the token, and that the deployment is set to “Anyone”.`;
+  }
+}
+
+/* =====================================================================
+   Vimeo matching — the Apps Script holds the Vimeo token and does the
+   talking, so no key ever sits in this page.
+   ===================================================================== */
+
+let vimeoCache = { folder: null, videos: [], at: 0 };
+let vimeoPickFor = null;
+
+function matchKey(s){
+  return String(s || '').toLowerCase()
+    .replace(/\.(mp4|mov|m4v|mxf|avi|wav)$/i, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+async function vimeoFetchVideos(force){
+  const folder = proj().vimeoFolder || '';
+  const fresh = vimeoCache.folder === folder && Date.now() - vimeoCache.at < 120000;
+  if (fresh && !force) return vimeoCache.videos;
+  const data = await api(null, '?mode=vimeoVideos&token=' + encodeURIComponent(sync.token) +
+                               '&folder=' + encodeURIComponent(folder));
+  vimeoCache = { folder, videos: data.videos || [], at: Date.now() };
+  return vimeoCache.videos;
+}
+
+/** Exact filename match first, then a looser containment match. */
+function bestVideoFor(session, videos, p){
+  const want = matchKey(buildFilename(session, p));
+  if (!want) return null;
+  let hit = videos.find(v => matchKey(v.name) === want);
+  if (hit) return { video: hit, exact: true };
+  hit = videos.find(v => { const k = matchKey(v.name); return k && (k.includes(want) || want.includes(k)); });
+  return hit ? { video: hit, exact: false } : null;
+}
+
+async function matchVimeo(){
+  if (!syncOn()) return toast('Connect the Sheet first — the Vimeo token lives in the Apps Script.', true);
+  toast('Reading the Vimeo folder…');
+  try {
+    const videos = await vimeoFetchVideos(true);
+    if (!videos.length) return toast('That Vimeo folder came back empty.', true);
+    const p = proj();
+    let exact = 0, loose = 0, missing = 0;
+    p.sessions.forEach(s => {
+      if (s.status === 'deleted') return;
+      if (s.vimeo){ s.vimeoMiss = false; return; }
+      const found = bestVideoFor(s, videos, p);
+      if (found){
+        s.vimeo = found.video.link;
+        s.vimeoMiss = false;
+        if (found.exact) exact++; else loose++;
+      } else {
+        s.vimeoMiss = true;
+        missing++;
+      }
+    });
+    save(); render();
+    toast(`${exact} matched exactly${loose ? `, ${loose} by close name` : ''}${missing ? `, ${missing} not found` : ''}.`);
+  } catch (err){
+    toast('Vimeo lookup failed: ' + err.message, true);
+  }
+}
+
+/* --------- picker for the ones that didn't match --------- */
+async function openVimeoPick(id){
+  vimeoPickFor = id;
+  const s = find(id);
+  document.getElementById('vp-for').textContent = s ? s.title : '';
+  document.getElementById('vp-file').textContent = s ? buildFilename(s, proj()) : '';
+  document.getElementById('vp-q').value = '';
+  document.getElementById('vp-list').innerHTML = '<p style="color:var(--muted)">Loading the folder…</p>';
+  show('ov-vimeo');
+  try {
+    await vimeoFetchVideos(false);
+    renderVimeoPick();
+  } catch (err){
+    document.getElementById('vp-list').innerHTML =
+      `<p style="color:var(--red-bright)">${esc(err.message)}</p>`;
+  }
+}
+
+function renderVimeoPick(){
+  const q = matchKey(document.getElementById('vp-q').value);
+  const s = find(vimeoPickFor);
+  const want = s ? matchKey(buildFilename(s, proj())) : '';
+  let list = vimeoCache.videos.slice();
+  if (q) list = list.filter(v => matchKey(v.name).includes(q));
+  else if (want) list.sort((a, b) => score(b.name, want) - score(a.name, want));
+  document.getElementById('vp-list').innerHTML = list.length ? list.slice(0, 60).map(v => `
+    <label class="dupe-r" onclick="linkVimeo(${JSON.stringify(v.link).replace(/"/g,'&quot;')})">
+      <span class="dupe-meta" style="width:auto;flex:1;color:var(--text)">${esc(v.name || '(untitled)')}</span>
+      <span class="dupe-st muted" style="color:var(--muted)">${v.duration ? Math.floor(v.duration/60) + 'm' : ''} ${esc(v.privacy || '')}</span>
+      <code style="flex:none;width:190px">${esc(v.link)}</code>
+    </label>`).join('') : '<p style="color:var(--muted)">Nothing in the folder matches that.</p>';
+}
+
+function score(name, want){
+  const k = matchKey(name);
+  if (!k || !want) return 0;
+  if (k === want) return 100;
+  if (k.includes(want) || want.includes(k)) return 60;
+  let n = 0;
+  for (let i = 0; i < Math.min(k.length, want.length); i++){ if (k[i] === want[i]) n++; else break; }
+  return n;
+}
+
+function linkVimeo(url){
+  const s = find(vimeoPickFor);
+  if (s){ s.vimeo = url; s.vimeoMiss = false; save(); render(); }
+  closeOverlay('ov-vimeo');
+  toast('Linked.');
+}
+
+function openVimeoUpload(){
+  const s = find(vimeoPickFor);
+  if (s) copyText(buildFilename(s, proj()));
+  window.open('https://vimeo.com/upload', '_blank', 'noopener');
+  toast('Filename copied — paste it as the Vimeo title, then Match again.');
+}
+
+/* ---------------- misc utils ---------------- */
+async function copyText(t){
+  try { await navigator.clipboard.writeText(t); return true; } catch(e){}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch(e){ return false; }
+}
+function selectText(el){
+  const r = document.createRange(); r.selectNodeContents(el);
+  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+function download(name, text, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: mime}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function slug(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'project'; }
+function normalizeVimeo(v){
+  const t = String(v || '').trim();
+  if (!t) return '';
+  if (/^\d{6,12}$/.test(t)) return 'https://vimeo.com/' + t;                    // bare id
+  if (/^\d{6,12}\/[a-z0-9]+$/i.test(t)) return 'https://vimeo.com/' + t;        // id/hash (unlisted)
+  if (/^https?:\/\//i.test(t)) return t;
+  return 'https://' + t.replace(/^\/+/, '');
+}
+function stamp(){ const d = new Date(); return d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()); }
+
+let toastTimer = null;
+function toast(msg, isErr){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.toggle('err', !!isErr); el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+function show(id){ document.getElementById(id).classList.add('show'); }
+function closeOverlay(id){ document.getElementById(id).classList.remove('show'); }
+function closeMenus(){ document.querySelectorAll('details.menu[open]').forEach(d => d.open = false); }
+
+/* ---------------- wiring ---------------- */
+function init(){
+  load();
+  loadSync();
+
+  document.getElementById('filter-status').innerHTML =
+    '<option value="">All statuses</option>' + STATUSES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+  document.getElementById('bulk-status').innerHTML =
+    STATUSES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+
+  wirePreview();
+  document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
+  document.getElementById('restore-input').addEventListener('change', e => { if (e.target.files[0]) restoreJSON(e.target.files[0]); e.target.value = ''; });
+
+  const dz = document.getElementById('dropzone');
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('details.menu')) closeMenus();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape'){ document.querySelectorAll('.overlay.show').forEach(o => o.classList.remove('show')); closeMenus(); }
+    if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)){
+      e.preventDefault(); document.getElementById('search').focus();
+    }
+  });
+  document.querySelectorAll('.overlay').forEach(o =>
+    o.addEventListener('mousedown', e => { if (e.target === o) o.classList.remove('show'); }));
+
+  render();
+  setSyncState(syncOn() ? 'busy' : 'off');
+  if (syncOn()){ syncNow(true); startPolling(); }
+  window.addEventListener('online',  () => { if (syncOn()) syncNow(true); });
+  window.addEventListener('offline', () => setSyncState('offline'));
+}
+init();
+</script>
+</body>
+</html>
