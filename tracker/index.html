@@ -107,7 +107,7 @@ details.menu .pop .hint{padding:6px 11px 8px;font-size:.74rem;color:var(--muted)
 
 /* ---------- table ---------- */
 .tablewrap{flex:1;min-height:0;overflow:auto;padding-bottom:90px}
-table.grid{width:100%;border-collapse:collapse;min-width:1700px;table-layout:fixed}
+table.grid{width:100%;border-collapse:collapse;min-width:1820px;table-layout:fixed}
 table.grid th{
   text-align:left;font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
   color:var(--muted);padding:13px 10px;border-bottom:1px solid var(--line);
@@ -121,7 +121,8 @@ table.grid tbody tr.dropafter td{box-shadow:inset 0 -2px 0 var(--red-bright)}
 table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
 .col-hand{width:30px} .col-chk{width:30px} .col-room{width:116px} .col-sess{width:58px}
 .col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
-.col-notes{width:206px} .col-file{width:314px} .col-vimeo{width:118px} .col-day{width:122px}
+.col-notes{width:200px} .col-file{width:290px} .col-vimeo{width:118px} .col-day{width:112px}
+.col-section{width:132px}
 td.notes-cell{padding:4px 10px}
 td.notes-cell .cell{display:block;font-size:.82rem;padding:5px 8px}
 td.notes-cell .cell.client{
@@ -369,6 +370,7 @@ h4.sec:first-child{margin-top:0}
   <div class="legend" id="legend"></div>
 </div>
 
+<datalist id="section-list"></datalist>
 <div class="toolbar">
   <button class="btn" onclick="openImport()">&#8593;&nbsp; Import sessions</button>
   <button class="btn ghost" onclick="addRow()">+ Add row</button>
@@ -392,6 +394,7 @@ h4.sec:first-child{margin-top:0}
         <tr>
           <th class="col-hand"></th>
           <th class="col-chk"><input type="checkbox" id="chk-all" onchange="toggleAll(this.checked)"></th>
+          <th class="col-section">Section</th>
           <th class="col-room">Room</th>
           <th class="col-sess">Sess</th>
           <th class="col-day">Day</th>
@@ -421,6 +424,7 @@ h4.sec:first-child{margin-top:0}
   <select class="field" id="bulk-status" style="width:160px"></select>
   <button class="btn ghost sm" onclick="bulkApplyStatus()">Set status</button>
   <button class="btn ghost sm" onclick="bulkBumpVersion()">Bump version</button>
+  <button class="btn ghost sm" onclick="bulkSection()">Set section</button>
   <button class="btn ghost sm" onclick="bulkCopy()">Copy filenames</button>
   <button class="btn danger sm" onclick="bulkDelete()">Delete</button>
   <button class="btn ghost sm" onclick="clearSel()">Clear</button>
@@ -638,6 +642,27 @@ h4.sec:first-child{margin-top:0}
       </div>
       <div class="help" style="margin-top:12px">Send the client this link and the password:</div>
       <div class="preview-box" style="font-size:.78rem;color:#7fd6a8;margin-top:6px" id="sy-portal-link">—</div>
+
+      <h4 class="sec">What the client page says</h4>
+      <div class="setgrid">
+        <div class="full">
+          <label class="lbl" for="sy-client">Client / company name</label>
+          <input class="field" id="sy-client" placeholder="Acme Corporation" onchange="saveSyncSettings()">
+          <div class="help">Shown in small red caps above the event name.</div>
+        </div>
+        <div class="full">
+          <label class="lbl" for="sy-welcome">Welcome paragraph</label>
+          <textarea class="field" id="sy-welcome" style="min-height:74px;resize:vertical"
+                    placeholder="Welcome! All of your event deliverables live on this page…" onchange="saveSyncSettings()"></textarea>
+        </div>
+        <div class="full">
+          <label class="lbl" for="sy-details">Event details</label>
+          <textarea class="field" id="sy-details" style="min-height:92px;resize:vertical;font-family:var(--mono);font-size:.82rem"
+                    placeholder="Dates: March 12–13, 2026&#10;Venue: Gaylord Rockies, Aurora CO&#10;Coverage: 3-camera keynote + livestream"
+                    onchange="saveSyncSettings()"></textarea>
+          <div class="help">One per line, as <b>Label: value</b>. Appears in the Event Details block at the foot of their page.</div>
+        </div>
+      </div>
 
       <h4 class="sec">Vimeo folder</h4>
       <div style="display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap">
@@ -1025,8 +1050,8 @@ function visibleSessions(){
   return p.sessions.filter(s => {
     if (f && s.status !== f) return false;
     if (!q) return true;
-    return (s.title + ' ' + s.room + ' ' + (s.day || '') + ' ' + buildFilename(s, p) + ' ' +
-            (s.notes || '') + ' ' + (s.clientNote || '')).toLowerCase().includes(q);
+    return (s.title + ' ' + s.room + ' ' + (s.day || '') + ' ' + (s.section || '') + ' ' +
+            buildFilename(s, p) + ' ' + (s.notes || '') + ' ' + (s.clientNote || '')).toLowerCase().includes(q);
   });
 }
 
@@ -1043,6 +1068,8 @@ function render(){
   tbody.innerHTML = '';
   document.getElementById('empty').style.display = p.sessions.length ? 'none' : 'block';
   document.getElementById('tablewrap').style.display = p.sessions.length ? 'block' : 'none';
+  document.getElementById('section-list').innerHTML =
+    [...new Set(p.sessions.map(x => x.section).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
   document.getElementById('count-label').textContent =
     rows.length === p.sessions.length ? `${p.sessions.length} sessions` : `${rows.length} of ${p.sessions.length}`;
 
@@ -1073,6 +1100,7 @@ function rowEl(s){
   tr.innerHTML = `
     <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
     <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
+    <td><input class="cell" data-f="section" value="${esc(s.section || '')}" placeholder="&mdash;" list="section-list" title="Groups sessions under a heading on the client page"></td>
     <td><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="BO1" spellcheck="false"></td>
     <td><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
@@ -1236,8 +1264,9 @@ function addRow(){
   const p = proj();
   const last = p.sessions[p.sessions.length - 1];
   const room = last ? last.room : '';
-  p.sessions.push({ id: uid(), room, seq: nextSeq(room), day: last ? last.day || '' : '', time: '', title: '',
-                    version: 1, status: 'notstarted', notes: '', clientNote: '', vimeo: '' });
+  p.sessions.push({ id: uid(), room, seq: nextSeq(room), section: last ? last.section || '' : '',
+                    day: last ? last.day || '' : '', time: '', title: '', version: 1, status: 'notstarted',
+                    notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '' });
   save(); render();
   const rows = document.querySelectorAll('#tbody tr');
   const el = rows[rows.length - 1];
@@ -1261,6 +1290,16 @@ function bulkApplyStatus(){
   proj().sessions.forEach(s => { if (selected.has(s.id)) s.status = v; });
   save(); render(); toast(`${selected.size} set to ${S_BY_KEY[v].label}.`);
 }
+function bulkSection(){
+  const first = proj().sessions.find(s => selected.has(s.id));
+  const v = prompt('Section heading for the ' + selected.size + ' selected session(s)\n' +
+                   '(this is the heading they appear under on the client page)', first ? first.section || '' : '');
+  if (v === null) return;
+  proj().sessions.forEach(s => { if (selected.has(s.id)) s.section = v.trim(); });
+  save(); render();
+  toast(v.trim() ? `Section set to "${v.trim()}".` : 'Section cleared.');
+}
+
 function bulkBumpVersion(){
   proj().sessions.forEach(s => { if (selected.has(s.id)) s.version = (s.version || 1) + 1; });
   save(); render(); toast('Version bumped.');
@@ -1686,8 +1725,9 @@ function commitImport(){
   const add = parsedRows.filter(r => r.include);
   if (!add.length) return toast('Nothing selected.', true);
   for (const r of add){
-    p.sessions.push({ id: uid(), room: r.room || '', seq: 0, day: shortDay(r.note || ''), time: r.time || '',
-                      title: r.title || '', version: 1, status: 'notstarted', notes: '', clientNote: '', vimeo: '' });
+    p.sessions.push({ id: uid(), room: r.room || '', seq: 0, section: '', day: shortDay(r.note || ''),
+                      time: r.time || '', title: r.title || '', version: 1, status: 'notstarted',
+                      notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '' });
   }
   renumber(true);
   closeOverlay('ov-import');
@@ -2131,9 +2171,11 @@ function syncOn(){ return !!(sync.url && sync.token); }
 // Row fingerprints — anything that differs from the last agreed state is ours
 // to push, and is protected from being overwritten by an incoming pull.
 function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status,
-                                          s.notes || '', s.clientNote || '', s.vimeo || '']); }
+                                          s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
+                                          s.thumb || '', s.duration || 0, s.download || '', s.drive || '']); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
-                                          p.vimeoFolder || '', p.settings, p.roomNames || {}]); }
+                                          p.vimeoFolder || '', p.clientName || '', p.welcome || '',
+                                          p.details || [], p.settings, p.roomNames || {}]); }
 
 function localChanges(){
   const now = new Date().toISOString();
@@ -2144,6 +2186,7 @@ function localChanges(){
     if (sync.baseline.p[p.id] !== pHash(p)){
       out.projects.push({ id: p.id, name: p.name, eventCode: p.eventCode || '', eventSlug: p.eventSlug || '',
                           clientPassword: p.clientPassword || '', vimeoFolder: p.vimeoFolder || '',
+                          clientName: p.clientName || '', welcome: p.welcome || '', details: p.details || [],
                           settings: p.settings, roomNames: p.roomNames || {}, updated: now, deleted: false });
     }
     p.sessions.forEach(s => {
@@ -2151,8 +2194,11 @@ function localChanges(){
       if (sync.baseline.s[s.id] !== sHash(s)){
         out.sessions.push({ id: s.id, projectId: p.id, room: s.room || '', seq: s.seq || 0, day: s.day || '',
                             time: s.time || '', title: s.title || '', version: s.version || 1,
-                            status: s.status || 'notstarted', notes: s.notes || '', clientNote: s.clientNote || '',
-                            vimeo: s.vimeo || '', updated: now, deleted: false });
+                            status: s.status || 'notstarted', section: s.section || '',
+                            notes: s.notes || '', clientNote: s.clientNote || '', vimeo: s.vimeo || '',
+                            thumb: s.thumb || '', duration: s.duration || 0,
+                            download: s.download || '', drive: s.drive || '',
+                            updated: now, deleted: false });
       }
     });
   });
@@ -2178,6 +2224,7 @@ function mergeRemote(data){
     if (rp.deleted){ if (local) db.projects = db.projects.filter(p => p.id !== rp.id); return; }
     const fields = { name: rp.name, eventCode: rp.eventCode || '', eventSlug: rp.eventSlug || '',
                      clientPassword: rp.clientPassword || '', vimeoFolder: rp.vimeoFolder || '',
+                     clientName: rp.clientName || '', welcome: rp.welcome || '', details: rp.details || [],
                      settings: Object.assign({}, DEFAULT_SETTINGS, rp.settings || {}),
                      roomNames: rp.roomNames || {} };
     fields.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, fields.settings.clientLabels || {});
@@ -2195,7 +2242,9 @@ function mergeRemote(data){
     if (!owner) return;
     const rec = { id: rs.id, room: rs.room || '', seq: rs.seq || 0, day: rs.day || '', time: rs.time || '',
                   title: rs.title || '', version: rs.version || 1, status: rs.status || 'notstarted',
-                  notes: rs.notes || '', clientNote: rs.clientNote || '', vimeo: rs.vimeo || '' };
+                  section: rs.section || '', notes: rs.notes || '', clientNote: rs.clientNote || '',
+                  vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
+                  download: rs.download || '', drive: rs.drive || '' };
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
@@ -2280,6 +2329,9 @@ function openSync(){
   document.getElementById('sy-slug').value = p.eventSlug || '';
   document.getElementById('sy-pw').value = p.clientPassword || '';
   document.getElementById('sy-project').textContent = p.name;
+  document.getElementById('sy-client').value = p.clientName || '';
+  document.getElementById('sy-welcome').value = p.welcome || '';
+  document.getElementById('sy-details').value = (p.details || []).map(d => d.label + ': ' + d.value).join('\n');
   const fsel = document.getElementById('sy-folder');
   if (p.vimeoFolder && !fsel.querySelector(`option[value="${p.vimeoFolder}"]`)){
     fsel.insertAdjacentHTML('beforeend', `<option value="${esc(p.vimeoFolder)}" selected>Folder ${esc(p.vimeoFolder)}</option>`);
@@ -2300,6 +2352,12 @@ function saveSyncSettings(){
   p.clientPassword = document.getElementById('sy-pw').value.trim();
   const fsel = document.getElementById('sy-folder');
   if (fsel) p.vimeoFolder = fsel.value;
+  p.clientName = document.getElementById('sy-client').value.trim();
+  p.welcome = document.getElementById('sy-welcome').value.trim();
+  p.details = document.getElementById('sy-details').value.split(/\n/)
+    .map(l => l.trim()).filter(Boolean)
+    .map(l => { const i = l.indexOf(':'); return i === -1 ? { label: l, value: '' }
+                                                         : { label: l.slice(0, i).trim(), value: l.slice(i + 1).trim() }; });
   document.getElementById('sy-slug').value = p.eventSlug;
   save(); updatePortalLink();
   setSyncState(syncOn() ? (syncState === 'off' ? 'ok' : syncState) : 'off');
@@ -2393,6 +2451,8 @@ async function matchVimeo(){
       const found = bestVideoFor(s, videos, p);
       if (found){
         s.vimeo = found.video.link;
+        s.thumb = found.video.thumb || s.thumb || '';
+        s.duration = found.video.duration || s.duration || 0;
         s.vimeoMiss = false;
         if (found.exact) exact++; else loose++;
       } else {
@@ -2505,9 +2565,10 @@ function createFromOrphans(){
     counters[room]++;
     p.sessions.push({
       id: uid(), room, seq: cfg().numberBy === 'global' ? 0 : counters[room],
-      day: '', time: o.time || '', title: o.title || o.video.name || 'Untitled',
+      section: '', day: '', time: o.time || '', title: o.title || o.video.name || 'Untitled',
       version: o.version || 1, status: 'uploaded', notes: '', clientNote: '',
-      vimeo: o.video.link, vimeoMiss: false
+      vimeo: o.video.link, thumb: o.video.thumb || '', duration: o.video.duration || 0,
+      download: '', drive: '', vimeoMiss: false
     });
   });
   if (cfg().numberBy === 'global') renumber(true);

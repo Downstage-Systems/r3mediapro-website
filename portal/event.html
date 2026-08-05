@@ -9,26 +9,66 @@
   <link rel="stylesheet" href="../css/styles.css">
   <style>
     .badge{
-      display:inline-block; padding:5px 13px; border-radius:20px; font-size:.75rem;
-      font-weight:700; letter-spacing:.04em; white-space:nowrap;
+      display:inline-block; padding:5px 12px; border-radius:20px; font-size:.72rem;
+      font-weight:700; letter-spacing:.04em; white-space:nowrap; vertical-align:middle;
     }
-    .vt .btns .badge{ margin-left:8px; }
-    .day-head{
-      font-size:.8rem; text-transform:uppercase; letter-spacing:.14em; color:var(--muted);
-      font-weight:800; padding:26px 12px 8px;
+    /* thumbnail + text, side by side */
+    .vrow{ display:flex; gap:14px; align-items:flex-start; }
+    .thumb{
+      flex:none; width:132px; aspect-ratio:16/9; border-radius:5px; overflow:hidden;
+      background:linear-gradient(135deg,#1c1c21,#26262c); border:1px solid var(--line);
+      position:relative; cursor:pointer;
     }
-    .live{
-      display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted);
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb .play{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.28); opacity:0; transition:opacity .18s; font-size:1.3rem;
     }
-    .live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; }
-    .muted{ color:var(--muted); }
+    .thumb:hover .play{ opacity:1; }
+    .thumb.empty{ display:flex; align-items:center; justify-content:center; cursor:default;
+                  color:#3f3f48; font-size:1.4rem; }
+    .vmeta{ min-width:0; flex:1; }
     .vt .note{
       margin-top:7px; font-size:.86rem; color:#bcd4f7; line-height:1.45;
       border-left:2px solid rgba(61,139,253,.55); padding-left:10px; max-width:64ch;
     }
+    @media (max-width:620px){
+      .thumb{ width:92px; }
+      .vt-wrap{ overflow-x:visible; }
+      table.vt{ min-width:0; }
+      table.vt tr{ display:block; border-bottom:1px solid var(--line); padding:6px 0; }
+      table.vt tr:last-child{ border-bottom:0; }
+      table.vt td{ display:block; border-bottom:0; padding:10px 0; }
+      table.vt td.btns{ width:auto; text-align:left; white-space:normal; padding-top:0; }
+    }
+    .live{ display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
+    .live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; }
+    .muted{ color:var(--muted); }
     .gate-logo{ display:flex; flex-direction:column; align-items:center; gap:9px; margin-bottom:24px; }
     .gate-logo img{ height:56px; width:auto; }
     .gate-logo .mp{ height:13px; filter:invert(1) brightness(1.6); opacity:.92; }
+    .btn.sm.ghost{ background:transparent; border:1px solid var(--line); color:var(--text) !important; }
+    .btn.sm.ghost:hover{ border-color:var(--red-bright); }
+
+    /* One slot per action, always the same width, so the buttons line up
+       down the page whether or not a given row has that action. */
+    .vt td.btns{ width:1%; }
+    .actions{ display:grid; grid-template-columns:108px 156px 82px; gap:8px; align-items:center; }
+    .actions > *{ min-width:0; }
+    .actions .btn.sm{ display:flex; align-items:center; justify-content:center; gap:5px;
+                      margin-left:0; padding:8px 10px; text-align:center; }
+    .actions .badge{ display:flex; align-items:center; justify-content:center; padding:7px 6px; }
+    .actions .empty-slot{ height:1px; }
+    @media (max-width:760px){
+      .actions{ grid-template-columns:1fr; gap:6px; }
+      .actions .empty-slot{ display:none; }
+    }
+    #player-wrap{ aspect-ratio:16/9; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:#000; }
+    #player-wrap .placeholder{
+      width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+      flex-direction:column; gap:10px; color:var(--muted); font-size:.9rem;
+      background:radial-gradient(ellipse 60% 60% at 50% 40%, rgba(193,18,31,.16), transparent 65%), #0f0f12;
+    }
   </style>
 </head>
 <body>
@@ -45,7 +85,7 @@
   </div>
 </header>
 
-<!-- password gate -->
+<!-- ---------- password gate ---------- -->
 <section id="gate">
   <div class="page-hero"><div class="wrap" style="text-align:center;">
     <div class="gate-logo">
@@ -53,7 +93,7 @@
       <img class="mp" src="../assets/mp-text.png" alt="Media Production">
     </div>
     <h1 style="font-size:clamp(1.6rem,3.5vw,2.2rem);">This page is password protected</h1>
-    <p style="margin:12px auto 0; max-width:44ch;">Enter the password from your delivery email to see your session videos.</p>
+    <p style="margin:12px auto 0; max-width:44ch;">Enter the password from your delivery email to see your videos.</p>
   </div></div>
   <div class="block" style="padding:50px 0 80px;">
     <div class="wrap" style="max-width:420px;">
@@ -71,35 +111,73 @@
   </div>
 </section>
 
-<!-- the live board -->
+<!-- ---------- the board ---------- -->
 <section id="board" style="display:none;">
   <div class="page-hero"><div class="wrap">
+    <div id="ev-client" style="color:var(--red-bright); font-weight:700; letter-spacing:0.22em;
+         text-transform:uppercase; font-size:0.75rem; margin-bottom:10px; display:none;"></div>
     <h1 id="ev-name">Your Event</h1>
-    <p id="ev-sum" class="muted"></p>
+    <p id="ev-welcome"></p>
   </div></div>
 
-  <div class="block" style="padding:44px 0 90px;">
+  <section class="block">
     <div class="wrap">
-      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:6px;">
-        <span class="live"><i id="dot"></i> <span id="live-txt">Live &mdash; updates as we finish each edit</span></span>
+      <div class="section-head" style="margin-bottom:24px;">
+        <div class="kicker">Now Playing</div>
+        <h2 id="now-playing">Choose a video below</h2>
+      </div>
+      <div id="player-wrap">
+        <div class="placeholder" id="player-placeholder">
+          <div style="font-size:2rem;">&#127916;</div>
+          <div>Pick any video below to play it here</div>
+        </div>
+      </div>
+
+      <div id="sections"></div>
+
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
+        <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
+        <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span style="flex:1"></span>
-        <button class="btn ghost" style="border:1px solid var(--line); cursor:pointer;" onclick="refresh(true)">Refresh</button>
+        <button class="btn sm ghost" style="cursor:pointer;" onclick="refresh(true)">Refresh</button>
       </div>
-      <div class="vt-wrap">
-        <table class="vt" id="tbl"></table>
-      </div>
-      <p class="muted" style="font-size:.85rem; margin-top:22px;">
-        Questions about any of these? Email <a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a>.
+
+      <p style="color:var(--red-bright); font-size:0.9rem; margin-top:26px; font-weight:600;">
+        &#9888; Please download your files and store them on your own drive or server.
+        Uploaded files are guaranteed available for 1 year from delivery.
+      </p>
+      <p class="muted" style="font-size:0.85rem; margin-top:8px;">
+        Need a different format or aspect ratio? Just ask &mdash;
+        <a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a>.
       </p>
     </div>
-  </div>
+  </section>
+
+  <section class="block alt" id="details-block" style="display:none;">
+    <div class="wrap">
+      <div class="section-head" style="margin-bottom:18px;">
+        <div class="kicker">Project Summary</div>
+        <h2>Event Details</h2>
+      </div>
+      <ul class="checks" id="ev-details"></ul>
+    </div>
+  </section>
+
+  <section class="cta-band">
+    <div class="wrap">
+      <h2>Planning your next event?</h2>
+      <p>We'd love to do it again. Lock in your date and we'll carry everything over &mdash;
+         shot lists, branding, and lessons learned.</p>
+      <a class="btn" href="../contact.html">Book Your Next Event</a>
+    </div>
+  </section>
 </section>
 
 <footer class="site-footer">
   <div class="wrap">
     <div class="footer-bottom" style="margin-top:0; padding-top:0; border-top:0;">
-      <span>&copy; 2026 R3 Media Production</span>
-      <span><a href="../index.html">r3mediapro.com</a></span>
+      <span>&copy; 2026 R3 Media Production &middot; This page is private &mdash; please don't share the link publicly.</span>
+      <span><a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a></span>
     </div>
   </div>
 </footer>
@@ -107,14 +185,14 @@
 <script>
 /* -------------------------------------------------------------------------
    Reads the same Google Sheet the editing tracker writes to, so a status
-   change or a new video link shows up here without anyone touching this file.
+   change, a new video or a new link shows up here on the next load.
    Set API to the Apps Script /exec URL.
    ------------------------------------------------------------------------- */
 const API = 'https://script.google.com/macros/s/AKfycby94roLBTLGid0d_bpyT6FNMweixw0lqzAmzEdDDmHthAgxAXkY0egUWse8DsFRxzvn/exec';
 
 const COLOURS = {
-  notstarted: '#6b6b74', editing: '#d98324', exported: '#3d8bfd',
-  uploaded: '#8b5cf6', delivered: '#2ea86a'
+  notstarted:'#6b6b74', editing:'#d98324', exported:'#3d8bfd',
+  uploaded:'#8b5cf6', delivered:'#2ea86a', issue:'#e63946'
 };
 
 const params = new URLSearchParams(location.search);
@@ -122,31 +200,37 @@ const EVENT = (params.get('event') || '').toLowerCase();
 let password = sessionStorage.getItem('r3-pw-' + EVENT) || '';
 let timer = null;
 
-function esc(s){
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function timeHuman(hhmm){
   if (!hhmm) return '';
   const [h, m] = String(hhmm).split(':').map(Number);
   if (isNaN(h)) return String(hhmm);
   const ap = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return h12 + ':' + String(m || 0).padStart(2, '0') + ' ' + ap;
+  return (h % 12 === 0 ? 12 : h % 12) + ':' + String(m || 0).padStart(2, '0') + ' ' + ap;
 }
-
+function dur(sec){
+  if (!sec) return '';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m >= 60 ? `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                 : `${m}:${String(s).padStart(2,'0')}`;
+}
+function size(bytes){
+  if (!bytes) return '';
+  const gb = bytes / 1073741824;
+  return gb >= 1 ? gb.toFixed(1) + ' GB' : Math.round(bytes / 1048576) + ' MB';
+}
 function roomLabel(code, name){
   if (name) return name;
   if (!code) return '';
   let m;
-  if ((m = code.match(/^BO(\d+)$/i)))   return 'Breakout ' + m[1];
-  if ((m = code.match(/^TR(.+)$/i)))    return 'Track ' + m[1];
-  if ((m = code.match(/^RM(.+)$/i)))    return 'Room ' + m[1];
-  if (code.toUpperCase() === 'MAIN')    return 'Main Stage';
-  if (code.toUpperCase() === 'GS')      return 'General Session';
-  if (code.toUpperCase() === 'KEY')     return 'Keynote Hall';
-  // Last resort: SENATE1 -> Senate 1, so a client never sees a raw code.
+  if ((m = code.match(/^BO(\d+)$/i)))  return 'Breakout ' + m[1];
+  if ((m = code.match(/^TR(.+)$/i)))   return 'Track ' + m[1];
+  if ((m = code.match(/^RM(.+)$/i)))   return 'Room ' + m[1];
+  if (code.toUpperCase() === 'MAIN')   return 'Main Stage';
+  if (code.toUpperCase() === 'GS')     return 'General Session';
+  if (code.toUpperCase() === 'KEY')    return 'Keynote Hall';
   m = code.match(/^([A-Za-z]{2,})(\d[\d+&-]*)$/);
   if (m) return m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() + ' ' + m[2];
   return code;
@@ -159,11 +243,8 @@ async function fetchBoard(){
   }
   const url = API + '?mode=portal&event=' + encodeURIComponent(EVENT) + '&pw=' + encodeURIComponent(password);
   let res;
-  try {
-    res = await fetch(url, { redirect: 'follow' });
-  } catch (e){
-    throw new Error('Could not reach the server — check your internet connection.');
-  }
+  try { res = await fetch(url, { redirect: 'follow' }); }
+  catch (e){ throw new Error('Could not reach the server — check your internet connection.'); }
   if (!res.ok) throw new Error('The server returned an error (' + res.status + ').');
   return res.json();
 }
@@ -180,8 +261,7 @@ async function unlock(){
     sessionStorage.setItem('r3-pw-' + EVENT, password);
     showBoard(data);
   } catch (e){
-    err.textContent = e.message;
-    err.style.display = 'block';
+    err.textContent = e.message; err.style.display = 'block';
     btn.textContent = 'Unlock';
   }
 }
@@ -191,7 +271,7 @@ function showBoard(data){
   document.getElementById('board').style.display = 'block';
   render(data);
   clearInterval(timer);
-  timer = setInterval(() => refresh(false), 60000);      // pick up changes while the tab is open
+  timer = setInterval(() => refresh(false), 60000);
 }
 
 async function refresh(loud){
@@ -206,40 +286,106 @@ async function refresh(loud){
   }
 }
 
+function playVideo(id, title){
+  document.getElementById('player-wrap').innerHTML =
+    '<iframe id="player" src="https://player.vimeo.com/video/' + encodeURIComponent(id) + '?autoplay=1" ' +
+    'style="width:100%;height:100%;border:0;" allow="autoplay; fullscreen; picture-in-picture" ' +
+    'allowfullscreen title="Video player"></iframe>';
+  document.getElementById('now-playing').textContent = title;
+  document.getElementById('now-playing').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
 function render(data){
-  document.title = (data.event && data.event.name ? data.event.name : 'Your Event') + ' | R3 Media Production';
-  document.getElementById('ev-name').textContent = data.event && data.event.name ? data.event.name : 'Your Event';
+  const ev = data.event || {};
+  document.title = (ev.name || 'Your Event') + ' | R3 Media Production';
+  document.getElementById('ev-name').textContent = ev.name || 'Your Event';
+
+  const client = document.getElementById('ev-client');
+  client.textContent = ev.client || '';
+  client.style.display = ev.client ? 'block' : 'none';
+
+  document.getElementById('ev-welcome').textContent = ev.welcome ||
+    'All of your event deliverables live on this page. Stream any video below, or use the download ' +
+    'buttons to save the full-quality files. This page is private to your team — feel free to share ' +
+    'it internally along with the password.';
+
   document.getElementById('ev-sum').textContent =
-    data.total ? `${data.delivered} of ${data.total} sessions delivered.` : 'Sessions will appear here as they go into production.';
+    data.total ? `${data.delivered} of ${data.total} sessions delivered.` : '';
   document.getElementById('dot').style.background = '#2ea86a';
   document.getElementById('live-txt').textContent = 'Live — updated ' + new Date().toLocaleTimeString();
 
-  let html = '', lastDay = null;
+  // group into sections, preserving the order they arrive in
+  const groups = [];
+  const byName = new Map();
   (data.sessions || []).forEach(s => {
-    if ((s.day || '') !== lastDay){
-      lastDay = s.day || '';
-      if (lastDay) html += `<tr><td colspan="2" class="day-head">${esc(lastDay)}</td></tr>`;
-    }
-    const colour = COLOURS[s.status] || '#6b6b74';
-    const meta = [roomLabel(s.room, s.roomName), timeHuman(s.time)].filter(Boolean).join(' &middot; ');
-    const watch = s.vimeo
-      ? `<a class="btn sm" href="${esc(s.vimeo)}" target="_blank" rel="noopener">Watch</a>`
-      : '';
-    html += `<tr>
-      <td>
-        <div class="t">${esc(s.title || 'Untitled session')}</div>
-        ${meta ? `<div class="d">${meta}</div>` : ''}
-        ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
-      </td>
-      <td class="btns">
-        ${watch}
-        <span class="badge" style="color:${colour}; border:1px solid ${colour}66; background:${colour}1f;">${esc(s.label || s.status)}</span>
-      </td>
-    </tr>`;
+    const key = s.section || '';
+    if (!byName.has(key)){ const g = { name: key, rows: [] }; byName.set(key, g); groups.push(g); }
+    byName.get(key).rows.push(s);
   });
 
-  document.getElementById('tbl').innerHTML = html ||
-    '<tr><td class="muted">Nothing posted yet — check back soon.</td></tr>';
+  document.getElementById('sections').innerHTML = groups.length
+    ? groups.map(g => sectionHtml(g, groups.length)).join('')
+    : '<div class="vt-section"><p class="muted">Nothing posted yet — check back soon.</p></div>';
+
+  const details = ev.details || [];
+  document.getElementById('details-block').style.display = details.length ? 'block' : 'none';
+  document.getElementById('ev-details').innerHTML =
+    details.map(d => `<li><strong>${esc(d.label)}:</strong> ${esc(d.value)}</li>`).join('');
+}
+
+function sectionHtml(g, groupCount){
+  const heading = g.name ? `<h3>${esc(g.name)}</h3>`
+                         : (groupCount > 1 ? '<h3>Other</h3>' : '');
+  return `<div class="vt-section">
+    ${heading}
+    <div class="vt-wrap"><table class="vt">${g.rows.map(rowHtml).join('')}</table></div>
+  </div>`;
+}
+
+function rowHtml(s){
+  const colour = COLOURS[s.status] || '#6b6b74';
+  const ready  = !!s.vimeo;
+  const jsTitle = JSON.stringify(s.title || 'Video').replace(/"/g, '&quot;');
+
+  const thumb = ready && s.thumb
+    ? `<div class="thumb" onclick="playVideo('${esc(s.vimeoId)}', ${jsTitle})">
+         <img src="${esc(s.thumb)}" alt="" loading="lazy">
+         <div class="play">&#9654;</div>
+       </div>`
+    : `<div class="thumb empty">&#127916;</div>`;
+
+  const facts = [
+    dur(s.duration),
+    [roomLabel(s.room, s.roomName), s.day, timeHuman(s.time)].filter(Boolean).join(' &middot; ')
+  ].filter(Boolean).join(' &middot; ');
+
+  // Three fixed slots — watch, download, drive — so every row lines up.
+  const gap = '<span class="empty-slot"></span>';
+  const slots = [
+    ready
+      ? `<a class="btn sm" href="#" onclick="playVideo('${esc(s.vimeoId)}', ${jsTitle}); return false;">&#9654; Watch</a>`
+      : `<span class="badge" style="color:${colour};border:1px solid ${colour}66;background:${colour}1f;">${esc(s.label || s.status)}</span>`,
+    s.download
+      ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
+           s.downloadSize ? ' <span style="opacity:.6">' + size(s.downloadSize) + '</span>' : ''}</a>`
+      : gap,
+    s.drive ? `<a class="btn sm ghost" href="${esc(s.drive)}" target="_blank" rel="noopener">Drive</a>` : gap
+  ];
+  const buttons = `<div class="actions">${slots.join('')}</div>`;
+
+  return `<tr>
+    <td>
+      <div class="vrow">
+        ${thumb}
+        <div class="vmeta">
+          <div class="t">${esc(s.title || 'Untitled session')}</div>
+          ${facts ? `<div class="d">${facts}</div>` : ''}
+          ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
+        </div>
+      </div>
+    </td>
+    <td class="btns">${buttons}</td>
+  </tr>`;
 }
 
 (async function start(){
@@ -248,11 +394,8 @@ function render(data){
     document.getElementById('err').style.display = 'block';
     return;
   }
-  if (password){                       // already unlocked this browser session
-    try {
-      const data = await fetchBoard();
-      if (data.ok) return showBoard(data);
-    } catch (e){}
+  if (password){
+    try { const data = await fetchBoard(); if (data.ok) return showBoard(data); } catch (e){}
     sessionStorage.removeItem('r3-pw-' + EVENT);
   }
   document.getElementById('pw').focus();
