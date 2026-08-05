@@ -359,6 +359,11 @@ h4.sec:first-child{margin-top:0}
   <button class="btn ghost sm" onclick="newProject()">+ New</button>
   <button class="btn ghost sm" onclick="renameProject()">Rename</button>
   <button class="btn danger sm" onclick="deleteProject()">Delete</button>
+  <div class="sep"></div>
+  <button class="btn ghost sm" id="btn-clientview" onclick="openClientPage()" title="Open this event's client page in a new tab">
+    &#128065;&nbsp; Client view &#8599;</button>
+  <button class="btn ghost sm" id="btn-clientlink" onclick="copyClientLink()" title="Copy the link you send the client">
+    Copy link</button>
   <div class="spacer"></div>
   <span class="lbl">Event code</span>
   <input class="field" id="event-code" style="width:130px" placeholder="e.g. ULI26"
@@ -1078,6 +1083,7 @@ function render(){
   updateStrip();
   updateBulk();
   updateDupeBadge();
+  updateClientButtons();
 }
 
 function updateDupeBadge(){
@@ -2359,9 +2365,48 @@ function saveSyncSettings(){
     .map(l => { const i = l.indexOf(':'); return i === -1 ? { label: l, value: '' }
                                                          : { label: l.slice(0, i).trim(), value: l.slice(i + 1).trim() }; });
   document.getElementById('sy-slug').value = p.eventSlug;
-  save(); updatePortalLink();
+  save(); updatePortalLink(); updateClientButtons();
   setSyncState(syncOn() ? (syncState === 'off' ? 'ok' : syncState) : 'off');
   startPolling();
+}
+
+/* --------- the client's own page --------- */
+const PORTAL_BASE = 'https://r3mediapro.com/portal/event.html';
+
+function clientUrl(){
+  const p = proj();
+  return p.eventSlug ? PORTAL_BASE + '?event=' + encodeURIComponent(p.eventSlug) : '';
+}
+
+function needSlug(){
+  toast('Give this project an event slug first — the sync panel, under “Client page”.', true);
+  openSync();
+  setTimeout(() => document.getElementById('sy-slug').focus(), 120);
+}
+
+function openClientPage(){
+  const u = clientUrl();
+  if (!u) return needSlug();
+  window.open(u, '_blank', 'noopener');
+}
+
+function copyClientLink(){
+  const u = clientUrl();
+  if (!u) return needSlug();
+  const p = proj();
+  copyText(u).then(ok => {
+    if (!ok) return toast('Copy blocked by the browser.', true);
+    toast(p.clientPassword ? `Link copied. Password is “${p.clientPassword}”.` : 'Link copied — this event has no password.');
+  });
+}
+
+// Dim the pair when there's nothing to point at yet.
+function updateClientButtons(){
+  const on = !!proj().eventSlug;
+  ['btn-clientview', 'btn-clientlink'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b){ b.style.opacity = on ? '' : '.45'; b.title = on ? clientUrl() : 'No event slug set yet'; }
+  });
 }
 
 function updatePortalLink(){
