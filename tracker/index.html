@@ -2163,7 +2163,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 4;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 5;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2460,6 +2460,13 @@ async function testSync(){
     lines.push(d.columnsCurrent
       ? ok('Sheet columns are current.')
       : no('Sheet is missing the newer columns — run <b>setUp</b> in the script editor.'));
+    const sp = d.secretsInProperties || {};
+    if (sp.token || sp.vimeo){
+      lines.push(ok(`Secrets held in Script Properties${sp.token && sp.vimeo ? '' : ' (partly)'} — safe to re-paste the code.`));
+    } else if (d.version >= 5){
+      lines.push(no('Secrets are hardcoded in Code.gs — move them to <b>Project Settings &rsaquo; Script Properties</b> ' +
+                    'so re-pasting the code stops wiping them.'));
+    }
     lines.push(d.vimeoTokenSet
       ? (d.vimeoWorks ? ok('Vimeo connected.')
                       : no('Vimeo token set but rejected: ' + esc(d.vimeoError || 'unknown error')))
