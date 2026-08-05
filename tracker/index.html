@@ -2163,7 +2163,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 3;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 4;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2464,6 +2464,11 @@ async function testSync(){
       ? (d.vimeoWorks ? ok('Vimeo connected.')
                       : no('Vimeo token set but rejected: ' + esc(d.vimeoError || 'unknown error')))
       : no('No VIMEO_TOKEN in the script — <b>this is why there are no thumbnails or download links.</b>'));
+    if (d.vimeoWorks){
+      lines.push(d.downloads === 'available'
+        ? ok(`Download links available (${d.downloadsFound} of the first 5 videos offer one).`)
+        : no('Download links: ' + esc(d.downloads || 'unknown')));
+    }
     lines.push(ok(`${d.projects} project(s), ${d.sessions} session(s) in the Sheet.`));
     out.innerHTML = lines.join('<br>');
   } catch (err){
