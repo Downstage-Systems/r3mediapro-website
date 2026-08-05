@@ -2265,16 +2265,38 @@ function mergeRemote(data){
   if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
 }
 
-async function api(payload, query){
+// Apps Script intermittently answers with a Google error page instead of the
+// script's own response, so a single failed call means nothing — retry before
+// believing it. Real answers ("bad token") are never retried.
+async function api(payload, query, tries){
+  tries = tries || 3;
   const url = sync.url + (query || '');
   const opts = payload
     ? { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' }
     : { method: 'GET', redirect: 'follow' };
-  const res = await fetch(url, opts);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (data.ok === false) throw new Error(data.error || 'server said no');
-  return data;
+
+  let last;
+  for (let i = 0; i < tries; i++){
+    try {
+      const res = await fetch(url, opts);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e){
+        throw new Error(/^\s*<(!doctype|html)/i.test(text)
+          ? 'Google hiccuped (returned a web page instead of data)'
+          : 'HTTP ' + res.status + ' — unreadable reply');
+      }
+      if (data.ok === false) throw new Error(data.error || 'server said no');
+      return data;
+    } catch (err){
+      last = err;
+      const worthRetrying = /hiccup|unreadable|HTTP (429|5\d\d)|Failed to fetch|NetworkError|Load failed/i.test(err.message);
+      if (!worthRetrying || i === tries - 1) throw err;
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  throw last;
 }
 
 async function syncNow(quiet){
