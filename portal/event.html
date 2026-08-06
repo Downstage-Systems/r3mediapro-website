@@ -53,13 +53,13 @@
     /* One slot per action, always the same width, so the buttons line up
        down the page whether or not a given row has that action. */
     .vt td.btns{ width:1%; }
-    .actions{ display:grid; grid-template-columns:104px 150px 92px 100px 76px; gap:8px; align-items:center; }
+    .actions{ display:grid; grid-template-columns:100px 172px 94px 130px 74px; gap:8px; align-items:center; }
     .actions > *{ min-width:0; }
     .actions .btn.sm{ display:flex; align-items:center; justify-content:center; gap:5px;
                       margin-left:0; padding:8px 10px; text-align:center; }
     .actions .badge{ display:flex; align-items:center; justify-content:center; padding:7px 6px; }
     .actions .empty-slot{ height:1px; }
-    @media (max-width:1080px){
+    @media (max-width:1140px){
       .actions{ grid-template-columns:1fr; gap:6px; }
       .actions .empty-slot{ display:none; }
     }
@@ -299,7 +299,20 @@ function loadPlayer(id, title, autoplay){
 function playVideo(id, title){
   firstLoaded = true;
   loadPlayer(id, title, true);
-  document.getElementById('now-playing').scrollIntoView({ behavior:'smooth', block:'center' });
+  scrollToPlayer();
+}
+
+// Bring the player just under the sticky header — not the heading above it,
+// and not at all if you can already see the whole thing.
+function scrollToPlayer(){
+  const wrap = document.getElementById('player-wrap');
+  if (!wrap) return;
+  const head = document.querySelector('header.site-header');
+  const gap = (head ? head.offsetHeight : 68) + 20;
+  const box = wrap.getBoundingClientRect();
+  const fullyVisible = box.top >= gap && box.bottom <= window.innerHeight;
+  if (fullyVisible) return;
+  window.scrollTo({ top: box.top + window.scrollY - gap, behavior: 'smooth' });
 }
 
 function render(data){
@@ -379,7 +392,7 @@ function rowHtml(s){
       : `<span class="badge" style="color:${colour};border:1px solid ${colour}66;background:${colour}1f;">${esc(s.label || s.status)}</span>`,
     s.download
       ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
-           s.downloadSize ? ' <span style="opacity:.6">' + size(s.downloadSize) + '</span>' : ''}</a>`
+           s.downloadSize ? ' <span style="opacity:.6;font-size:.86em">' + size(s.downloadSize) + '</span>' : ''}</a>`
       : gap,
     s.review
       ? `<a class="btn sm ghost" href="${esc(s.review)}" target="_blank" rel="noopener"
