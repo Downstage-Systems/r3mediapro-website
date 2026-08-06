@@ -355,7 +355,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 9:41 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:07 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1360,6 +1360,7 @@ function addRow(){
                     day: last ? last.day || '' : '', time: '', title: '', version: 1, status: 'notstarted',
                     notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
                     review: '', reviewOn: false, feedback: '' });
+  reindex();
   save(); render();
   const rows = document.querySelectorAll('#tbody tr');
   const el = rows[rows.length - 1];
@@ -1388,6 +1389,12 @@ function sortKey(s, key, p){
   }
 }
 
+// The array's order is the running order; write it onto the rows so the
+// Sheet — and therefore the client page — can see it.
+function reindex(){
+  proj().sessions.forEach((s, i) => { s.order = i; });
+}
+
 function sortBy(key){
   const p = proj();
   sortState = { key, dir: sortState.key === key ? -sortState.dir : 1 };
@@ -1399,6 +1406,7 @@ function sortBy(key){
     // stable-ish tiebreak so equal rows keep a sensible order
     return (a.room || '').localeCompare(b.room || '') || (a.seq || 0) - (b.seq || 0);
   });
+  reindex();
   save(); render();
 }
 
@@ -1414,6 +1422,7 @@ function sortByRoomTime(){
   proj().sessions.sort((a, b) =>
     (a.room || '~').localeCompare(b.room || '~') || (a.time || '99:99').localeCompare(b.time || '99:99'));
   sortState = { key: '', dir: 1 };
+  reindex();
   renumber(true); toast('Sorted by room, then time — numbers rebuilt.');
 }
 
@@ -1521,6 +1530,7 @@ document.addEventListener('drop', e => {
   const [moved] = list.splice(from, 1);
   let to = list.findIndex(s => s.id === targetId);
   list.splice(after ? to + 1 : to, 0, moved);
+  reindex();
   cleanupDrag(); save(); render();
 });
 document.addEventListener('dragend', cleanupDrag);
@@ -1904,6 +1914,7 @@ function commitImport(){
                       notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
                       review: '', reviewOn: false, feedback: '' });
   }
+  reindex();
   renumber(true);
   closeOverlay('ov-import');
   toast(`${add.length} session${add.length === 1 ? '' : 's'} added.`);
@@ -2427,7 +2438,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 9;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 10;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2444,7 +2455,7 @@ function syncOn(){ return !!(sync.url && sync.token); }
 function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status,
                                           s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
                                           s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
-                                          s.review || '', !!s.reviewOn, s.feedback || '']); }
+                                          s.review || '', !!s.reviewOn, s.feedback || '', s.order]); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
                                           p.vimeoFolder || '', p.clientName || '', p.welcome || '',
                                           p.details || [], p.sectionOrder || [], p.settings, p.roomNames || {}]); }
@@ -2471,6 +2482,7 @@ function localChanges(){
                             thumb: s.thumb || '', duration: s.duration || 0,
                             download: s.download || '', drive: s.drive || '',
                             review: s.review || '', reviewOn: !!s.reviewOn, feedback: s.feedback || '',
+                            order: s.order,
                             updated: now, deleted: false });
       }
     });
@@ -2525,7 +2537,8 @@ function mergeRemote(data){
                   section: rs.section || '', notes: rs.notes || '', clientNote: rs.clientNote || '',
                   vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
                   download: rs.download || '', drive: rs.drive || '',
-                  review: rs.review || '', reviewOn: !!rs.reviewOn, feedback: rs.feedback || '' };
+                  review: rs.review || '', reviewOn: !!rs.reviewOn, feedback: rs.feedback || '',
+                  order: rs.order };
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
@@ -2535,6 +2548,12 @@ function mergeRemote(data){
   // Drop the empty starter project once real ones arrive.
   db.projects = db.projects.filter(p =>
     !(p.sessions.length === 0 && p.name === 'Untitled Project' && !sync.baseline.p[p.id] && db.projects.length > 1));
+  // Honour the shared running order once everything has merged.
+  db.projects.forEach(p => p.sessions.sort((a, b) => {
+    const x = (a.order === null || a.order === undefined) ? 1e9 : a.order;
+    const y = (b.order === null || b.order === undefined) ? 1e9 : b.order;
+    return x - y;
+  }));
   db.projects = db.projects.filter(p => String(p.name || '').trim() || p.sessions.length);
   if (!db.projects.length) db.projects = [blankProject('Untitled Project')];
   if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
@@ -2968,6 +2987,7 @@ function createFromOrphans(){
       download: '', drive: '', review: o.video.review || '', reviewOn: false, vimeoMiss: false
     });
   });
+  reindex();
   if (cfg().numberBy === 'global') renumber(true);
   save(); render();
   closeOverlay('ov-orphans');
