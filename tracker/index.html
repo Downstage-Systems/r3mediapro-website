@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>Video Editing Tracker | R3 Media Production</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23c1121f'/%3E%3Ctext x='16' y='23' font-family='Helvetica,Arial' font-size='19' font-weight='bold' fill='%23fff' text-anchor='middle'%3ER3%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-r3-32.png">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/favicon-r3.png">
+<link rel="apple-touch-icon" href="assets/favicon-r3.png">
 <style>
 :root{
   --bg:#0c0c0e; --bg-alt:#131316; --card:#1a1a1e; --line:#2a2a30; --line-soft:#212127;
@@ -370,7 +372,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 11:09 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 11:35 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -401,6 +403,8 @@ h4.sec:first-child{margin-top:0}
     &#128065;&nbsp; Client view &#8599;</button>
   <button class="btn ghost sm" id="btn-clientlink" onclick="copyClientLink()" title="Copy the link you send the client">
     Copy link</button>
+  <button class="btn ghost sm" id="btn-clientmail" onclick="openHandoff()" title="Draft the delivery email">
+    &#9993;&nbsp; Email client</button>
   <div class="spacer"></div>
   <span class="lbl">Event code</span>
   <input class="field" id="event-code" style="width:120px" placeholder="e.g. ULI26"
@@ -793,6 +797,32 @@ h4.sec:first-child{margin-top:0}
       <button class="btn ghost sm" onclick="vimeoFetchVideos(true).then(renderVimeoPick)">Refresh folder</button>
       <div class="spacer"></div>
       <button class="btn ghost" onclick="closeOverlay('ov-vimeo')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Delivery email ===== -->
+<div class="overlay" id="ov-mail">
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>Delivery email</h2>
+        <p>Edit anything you like, then copy it or open it in Mail.</p>
+      </div>
+      <button class="x" onclick="closeOverlay('ov-mail')">&times;</button>
+    </div>
+    <div class="modal-b">
+      <label class="lbl" for="mail-subject">Subject</label>
+      <input class="field" id="mail-subject" style="width:100%;margin-bottom:16px">
+      <label class="lbl" for="mail-body">Message</label>
+      <textarea class="field" id="mail-body" style="width:100%;min-height:330px;resize:vertical;line-height:1.55"></textarea>
+      <p class="help" style="font-size:.78rem;color:var(--muted);margin-top:10px" id="mail-warn"></p>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="mailOpen()">Open in Mail</button>
+      <button class="btn ghost" onclick="mailCopy(this)">Copy message</button>
+      <div class="spacer"></div>
+      <button class="btn ghost" onclick="closeOverlay('ov-mail')">Close</button>
     </div>
   </div>
 </div>
@@ -2758,6 +2788,71 @@ function saveSyncSettings(){
   startPolling();
 }
 
+/* --------- the delivery email --------- */
+function openHandoff(){
+  const p = proj();
+  if (!p.eventSlug) return needSlug();
+
+  const url = clientUrl();
+  const anyReview = p.sessions.some(s => s.reviewOn && s.review);
+
+  const lines = [];
+  lines.push('Hi,');            // a company name is not a first name — leave it for him to fill
+  lines.push('');
+  lines.push(`Your videos from ${p.name} are on your private page here:`);
+  lines.push('');
+  lines.push(url);
+  if (p.clientPassword) lines.push(`Password: ${p.clientPassword}`);
+  lines.push('');
+  // Deliberately evergreen — a count would be out of date the moment you cut
+  // the next session, and the page shows the live figure anyway.
+  lines.push('Sessions appear there as they are finished, so the link stays current — no need to wait for another email.');
+  if (p.eta) lines.push(p.eta);
+  lines.push('');
+  lines.push('A few things worth knowing:');
+  lines.push('');
+  lines.push('• The page keeps itself up to date, so the same link works all the way through. Anything still being edited shows where it has got to.');
+  lines.push('• Click any session to play it in the player at the top, or use Download to save the full-quality file.');
+  lines.push('• Please save the files to your own drive or server. They are guaranteed available for one year from delivery.');
+  if (anyReview) lines.push('• Where you see a Review button, that opens Vimeo so you can leave notes at exact timestamps.');
+  lines.push('• Want a change on something? Use "Add a note" underneath that session and it comes straight to me.');
+  lines.push('');
+  lines.push('Feel free to share the link and password with your team.');
+  lines.push('');
+  lines.push('Any questions, just reply to this email.');
+  lines.push('');
+  lines.push('Thanks,');
+  lines.push('Rob');
+  lines.push('R3 Media Production');
+  lines.push('rob@r3mediapro.com');
+
+  document.getElementById('mail-subject').value = `Your videos from ${p.name}`;
+  document.getElementById('mail-body').value = lines.join('\n');
+  document.getElementById('mail-warn').textContent = p.clientPassword
+    ? ''
+    : 'This event has no client password — anyone with the link can open the page.';
+  show('ov-mail');
+}
+
+function mailOpen(){
+  const subject = document.getElementById('mail-subject').value;
+  const body = document.getElementById('mail-body').value;
+  const href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  if (href.length > 1900){
+    return toast('Too long for a mail link — use Copy message and paste it instead.', true);
+  }
+  window.location.href = href;
+}
+
+function mailCopy(btn){
+  const text = document.getElementById('mail-subject').value + '\n\n' +
+               document.getElementById('mail-body').value;
+  copyText(text).then(ok => {
+    if (!ok) return toast('Copy blocked — select the text and copy manually.', true);
+    btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy message', 1400);
+  });
+}
+
 /* --------- the client's own page --------- */
 const PORTAL_BASE = 'https://r3mediapro.com/portal/event.html';
 
@@ -2791,7 +2886,7 @@ function copyClientLink(){
 // Dim the pair when there's nothing to point at yet.
 function updateClientButtons(){
   const on = !!proj().eventSlug;
-  ['btn-clientview', 'btn-clientlink'].forEach(id => {
+  ['btn-clientview', 'btn-clientlink', 'btn-clientmail'].forEach(id => {
     const b = document.getElementById(id);
     if (b){ b.style.opacity = on ? '' : '.45'; b.title = on ? clientUrl() : 'No event slug set yet'; }
   });
