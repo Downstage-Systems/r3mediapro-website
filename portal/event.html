@@ -30,6 +30,17 @@
     .vmeta{ min-width:0; flex:1; }
     .badge.status{ font-size:.68rem; padding:3px 10px; margin-right:9px; vertical-align:1px; }
     .vt .d .facts{ vertical-align:1px; }
+    .addnote{ margin-top:8px; }
+    .addnote > a{ font-size:.82rem; color:var(--muted); }
+    .addnote > a:hover{ color:var(--red-bright); }
+    .addnote textarea{
+      width:100%; max-width:56ch; margin-top:8px; padding:9px 11px; border-radius:5px;
+      background:var(--bg); border:1px solid var(--line); color:var(--text);
+      font-family:inherit; font-size:.88rem; resize:vertical;
+    }
+    .addnote textarea:focus{ outline:none; border-color:var(--red-bright); }
+    .addnote .row{ display:flex; align-items:center; gap:8px; margin-top:7px; }
+    .addnote .stat{ font-size:.8rem; color:var(--muted); }
     .vt .note{
       margin-top:7px; font-size:.86rem; color:#bcd4f7; line-height:1.45;
       border-left:2px solid rgba(61,139,253,.55); padding-left:10px; max-width:64ch;
@@ -317,6 +328,45 @@ function scrollToPlayer(){
   window.scrollTo({ top: box.top + window.scrollY - gap, behavior: 'smooth' });
 }
 
+function openNote(id){
+  const f = document.getElementById('nf-' + id);
+  if (!f) return;
+  f.style.display = 'block';
+  f.previousElementSibling.style.display = 'none';
+  document.getElementById('nt-' + id).focus();
+}
+function closeNote(id){
+  const f = document.getElementById('nf-' + id);
+  if (!f) return;
+  f.style.display = 'none';
+  f.previousElementSibling.style.display = '';
+}
+
+async function sendNote(id){
+  const box = document.getElementById('nt-' + id);
+  const stat = document.getElementById('ns-' + id);
+  const text = box.value.trim();
+  if (!text) return;
+  stat.textContent = 'Sending…';
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: 'follow',
+      body: JSON.stringify({ mode: 'note', event: EVENT, pw: password, id: id, text: text })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'could not save');
+    box.value = '';
+    stat.style.color = '#2ea86a';
+    stat.textContent = 'Sent — thanks, Rob will see it.';
+    setTimeout(() => { closeNote(id); stat.textContent = ''; stat.style.color = ''; }, 2500);
+  } catch (e){
+    stat.style.color = '#e63946';
+    stat.textContent = 'Didn\u2019t send — try again, or email rob@r3mediapro.com.';
+  }
+}
+
 function render(data){
   const ev = data.event || {};
   document.title = (ev.name || 'Your Event') + ' | R3 Media Production';
@@ -336,7 +386,7 @@ function render(data){
   document.getElementById('dot').style.background = '#2ea86a';
   document.getElementById('live-txt').textContent = 'Live — updated ' + new Date().toLocaleTimeString();
 
-  // group into sections, preserving the order they arrive in
+  // group into sections, in the order the tracker set
   const groups = [];
   const byName = new Map();
   (data.sessions || []).forEach(s => {
@@ -344,6 +394,13 @@ function render(data){
     if (!byName.has(key)){ const g = { name: key, rows: [] }; byName.set(key, g); groups.push(g); }
     byName.get(key).rows.push(s);
   });
+  const wanted = ev.sectionOrder || [];
+  if (wanted.length){
+    groups.sort((a, b) => {
+      const ia = a.name ? wanted.indexOf(a.name) : 1e6, ib = b.name ? wanted.indexOf(b.name) : 1e6;
+      return (ia === -1 ? 1e5 : ia) - (ib === -1 ? 1e5 : ib);
+    });
+  }
 
   document.getElementById('sections').innerHTML = groups.length
     ? groups.map(g => sectionHtml(g, groups.length)).join('')
@@ -418,6 +475,17 @@ function rowHtml(s){
           <div class="t">${esc(s.title || 'Untitled session')}</div>
           <div class="d">${badge}${facts ? '<span class="facts">' + facts + '</span>' : ''}</div>
           ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
+          <div class="addnote">
+            <a href="#" onclick="openNote('${esc(s.id)}'); return false;">&#43; Add a note</a>
+            <form id="nf-${esc(s.id)}" style="display:none" onsubmit="event.preventDefault(); sendNote('${esc(s.id)}');">
+              <textarea id="nt-${esc(s.id)}" rows="2" placeholder="Anything you'd like changed on this one?"></textarea>
+              <div class="row">
+                <button type="submit" class="btn sm">Send</button>
+                <button type="button" class="btn sm ghost" onclick="closeNote('${esc(s.id)}')">Cancel</button>
+                <span id="ns-${esc(s.id)}" class="stat"></span>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </td>
