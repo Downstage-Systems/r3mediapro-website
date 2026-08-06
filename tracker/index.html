@@ -355,7 +355,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build 06 Aug 02:53 UTC</span>
+    <span class="muted" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build 06 Aug 03:05 UTC</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -787,7 +787,8 @@ h4.sec:first-child{margin-top:0}
     </div>
     <div class="modal-b">
       <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:18px">
-        <input class="field" id="new-section" style="flex:1;min-width:170px" placeholder="New section name, e.g. General Session">
+        <input class="field" id="new-section" style="flex:1;min-width:170px" placeholder="New section name, e.g. General Session"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();addSection();}">
         <button class="btn sm" onclick="addSection()">Add section</button>
       </div>
       <div class="prevwrap" style="max-height:46vh">
@@ -2042,7 +2043,7 @@ function sectionList(){
     const k = s.section || '';
     counts.set(k, (counts.get(k) || 0) + 1);
   });
-  const order = (p.sectionOrder || []).filter(n => counts.has(n));
+  const order = (p.sectionOrder || []).filter(Boolean);
   [...counts.keys()].forEach(n => { if (n && !order.includes(n)) order.push(n); });
   const out = order.map(name => ({ name, n: counts.get(name) || 0 }));
   if (counts.has('')) out.push({ name: '', n: counts.get('') });
@@ -2062,9 +2063,13 @@ function renderSections(){
       <td>${r.name
         ? `<input class="cell" value="${esc(r.name)}" onchange="renameSection(${JSON.stringify(r.name).replace(/"/g,'&quot;')}, this.value)">`
         : '<span style="color:var(--muted)">— no section —</span>'}</td>
-      <td style="color:var(--muted);font-variant-numeric:tabular-nums;padding-left:14px">${r.n}</td>
-      <td>${r.name ? `<button class="btn ghost sm" onclick="assignSection(${JSON.stringify(r.name).replace(/"/g,'&quot;')})"
-             title="Put the selected rows in this section">Assign</button>` : ''}</td>
+      <td style="font-variant-numeric:tabular-nums;padding-left:14px;color:${r.n ? 'var(--muted)' : '#5a5a64'}">
+        ${r.n || '<span title="Nothing in this section yet">empty</span>'}</td>
+      <td style="white-space:nowrap">${r.name ? `
+        <button class="btn ghost sm" onclick="assignSection(${JSON.stringify(r.name).replace(/"/g,'&quot;')})"
+                title="Put the ticked rows in this section">Assign</button>
+        <button class="rowx" onclick="removeSection(${JSON.stringify(r.name).replace(/"/g,'&quot;')})"
+                title="Remove this section">&times;</button>` : ''}</td>
     </tr>`).join('') || '<tr><td colspan="4" style="color:var(--muted)">No sessions yet.</td></tr>';
 }
 
@@ -2101,6 +2106,16 @@ function assignSection(name){
   proj().sessions.forEach(s => { if (selected.has(s.id)){ s.section = name; n++; } });
   save(); render(); renderSections();
   toast(`${n} session(s) moved into “${name}”.`);
+}
+
+function removeSection(name){
+  const p = proj();
+  const used = p.sessions.filter(s => (s.section || '') === name).length;
+  if (used && !confirm(`${used} session(s) are in “${name}”. Remove the section and leave them unsectioned?`)) return;
+  p.sessions.forEach(s => { if ((s.section || '') === name) s.section = ''; });
+  p.sectionOrder = (p.sectionOrder || []).filter(x => x !== name);
+  save(); render(); renderSections();
+  toast(`“${name}” removed.`);
 }
 
 function renameSection(from, toRaw){
