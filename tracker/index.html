@@ -336,6 +336,11 @@ table.prev tr:hover td{background:rgba(255,255,255,.035)}
   font-weight:700;letter-spacing:.03em;color:var(--muted);transition:.15s;white-space:nowrap;
 }
 .pill:hover{background:rgba(255,255,255,.04)}
+.pill.pulse{animation:syncpulse 1.1s ease-out}
+@keyframes syncpulse{
+  0%   { background:rgba(46,168,106,.35); }
+  100% { background:transparent; }
+}
 a.vlink{
   display:inline-flex;align-items:center;justify-content:center;width:100%;padding:6px 8px;
   border:1px solid var(--line);border-radius:4px;font-size:.76rem;font-weight:700;
@@ -365,7 +370,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:59 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 11:09 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -2667,21 +2672,46 @@ function startPolling(){
   if (syncOn() && sync.auto) pollTimer = setInterval(() => { if (!document.hidden) syncNow(true); }, 25000);
 }
 
+// "just now", "2 min ago" — enough to see at a glance that it's alive.
+function sinceSync(){
+  if (!sync.lastAt) return '';
+  const secs = Math.max(0, Math.round((Date.now() - new Date(sync.lastAt).getTime()) / 1000));
+  if (secs < 45) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return mins + ' min ago';
+  const hrs = Math.round(mins / 60);
+  return hrs === 1 ? 'an hour ago' : hrs + ' hours ago';
+}
+
 function setSyncState(s){
+  const wasOk = syncState === 'ok';
   syncState = s;
+  paintSyncPill();
+  // a quick green flash so a successful sync is something you can see happen
+  if (s === 'ok'){
+    const el = document.getElementById('sync-pill');
+    el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+  }
+}
+
+function paintSyncPill(){
   const el = document.getElementById('sync-pill');
+  if (!el) return;
+  const ago = sinceSync();
   const map = {
-    off:     ['Not synced',  'var(--muted)'],
-    busy:    ['Syncing…',    '#3d8bfd'],
-    ok:      ['Synced',      'var(--s-delivered)'],
-    error:   ['Sync error',  'var(--red-bright)'],
-    offline: ['Offline',     '#d98324'],
+    off:     ['Not synced', 'var(--muted)'],
+    busy:    ['Syncing…',   '#3d8bfd'],
+    ok:      [ago ? 'Synced ' + ago : 'Synced', 'var(--s-delivered)'],
+    error:   ['Sync error', 'var(--red-bright)'],
+    offline: ['Offline',    '#d98324'],
   };
-  const [label, colour] = map[s] || map.off;
+  const [label, colour] = map[syncState] || map.off;
   el.textContent = label;
   el.style.color = colour;
-  el.style.borderColor = s === 'off' ? 'var(--line)' : colour + '66';
-  el.title = sync.lastAt ? 'Last sync ' + new Date(sync.lastAt).toLocaleTimeString() : 'Not connected yet';
+  el.style.borderColor = syncState === 'off' ? 'var(--line)' : colour + '66';
+  el.title = sync.lastAt
+    ? 'Last synced ' + new Date(sync.lastAt).toLocaleTimeString() + ' — click for sync settings'
+    : 'Not connected yet — click to set it up';
 }
 
 /* --------- sync settings UI --------- */
@@ -3167,6 +3197,7 @@ function init(){
   render();
   setSyncState(syncOn() ? 'busy' : 'off');
   if (syncOn()){ syncNow(true); startPolling(); }
+  setInterval(() => { if (syncState === 'ok') paintSyncPill(); }, 10000);
   window.addEventListener('online',  () => { if (syncOn()) syncNow(true); });
   window.addEventListener('offline', () => setSyncState('offline'));
 }
