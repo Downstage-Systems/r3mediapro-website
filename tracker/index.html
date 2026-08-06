@@ -2385,7 +2385,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 8;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 9;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2453,6 +2453,12 @@ function mergeRemote(data){
     if (dirtyP.has(rp.id)) return;                       // my edit wins; it'll push
     const local = db.projects.find(p => p.id === rp.id);
     if (rp.deleted){ if (local) db.projects = db.projects.filter(p => p.id !== rp.id); return; }
+    // A row with no name and no sessions is debris, not a project.
+    if (!String(rp.name || '').trim() &&
+        !(data.sessions || []).some(s => String(s.projectId) === String(rp.id) && !s.deleted)){
+      db.projects = db.projects.filter(p => p.id !== rp.id);
+      return;
+    }
     const fields = { name: rp.name, eventCode: rp.eventCode || '', eventSlug: rp.eventSlug || '',
                      clientPassword: rp.clientPassword || '', vimeoFolder: rp.vimeoFolder || '',
                      clientName: rp.clientName || '', welcome: rp.welcome || '', details: rp.details || [],
@@ -2487,6 +2493,7 @@ function mergeRemote(data){
   // Drop the empty starter project once real ones arrive.
   db.projects = db.projects.filter(p =>
     !(p.sessions.length === 0 && p.name === 'Untitled Project' && !sync.baseline.p[p.id] && db.projects.length > 1));
+  db.projects = db.projects.filter(p => String(p.name || '').trim() || p.sessions.length);
   if (!db.projects.length) db.projects = [blankProject('Untitled Project')];
   if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
 }

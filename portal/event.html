@@ -28,11 +28,14 @@
     .thumb.empty{ display:flex; align-items:center; justify-content:center; cursor:default;
                   color:#3f3f48; font-size:1.4rem; }
     .vmeta{ min-width:0; flex:1; }
-    .badge.status{ font-size:.68rem; padding:3px 10px; margin-right:9px; vertical-align:1px; }
-    .vt .d .facts{ vertical-align:1px; }
-    .addnote{ margin-top:8px; }
-    .addnote > a{ font-size:.82rem; color:var(--muted); }
-    .addnote > a:hover{ color:var(--red-bright); }
+    .vt .t{ line-height:1.34; }
+    .vt .d{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 9px; margin-top:5px; }
+    .badge.status{ font-size:.68rem; padding:3px 10px; flex:none; }
+    .addnote{ margin-top:7px; }
+    .addnote > a{
+      font-size:.76rem; color:#6f6f79; border-bottom:1px dotted #45454f; padding-bottom:1px;
+    }
+    .addnote > a:hover{ color:var(--red-bright); border-bottom-color:var(--red-bright); }
     .addnote textarea{
       width:100%; max-width:56ch; margin-top:8px; padding:9px 11px; border-radius:5px;
       background:var(--bg); border:1px solid var(--line); color:var(--text);
@@ -49,7 +52,7 @@
       .thumb{ width:92px; }
       .vt-wrap{ overflow-x:visible; }
       table.vt{ min-width:0; }
-      table.vt tr{ display:block; border-bottom:1px solid var(--line); padding:6px 0; }
+      table.vt tr{ display:block; border-bottom:1px solid var(--line); padding:10px 0; }
       table.vt tr:last-child{ border-bottom:0; }
       table.vt td{ display:block; border-bottom:0; padding:10px 0; }
       table.vt td.btns{ width:auto; text-align:left; white-space:normal; padding-top:0; }
@@ -73,8 +76,9 @@
     .actions .badge{ display:flex; align-items:center; justify-content:center; padding:7px 6px; }
     .actions .empty-slot{ height:1px; }
     @media (max-width:1140px){
-      .actions{ grid-template-columns:1fr; gap:6px; }
+      .actions{ display:flex; flex-wrap:wrap; gap:8px; }
       .actions .empty-slot{ display:none; }
+      .actions .btn.sm{ flex:0 0 auto; padding:8px 14px; }
     }
     #player-wrap{ aspect-ratio:16/9; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:#000; }
     #player-wrap .placeholder{
