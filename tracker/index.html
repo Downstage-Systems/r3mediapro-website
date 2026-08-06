@@ -190,6 +190,12 @@ select.status{
 select.status:focus{outline:none}
 .status-dot{position:absolute;width:7px;height:7px;border-radius:50%;margin:11px 0 0 10px;pointer-events:none}
 td.status-cell{position:relative}
+td.status-cell .tgt{
+  display:block;width:100%;margin-top:4px;font-size:.74rem;padding:3px 6px;
+  color:var(--muted);color-scheme:dark;
+}
+td.status-cell .tgt:hover{border-color:var(--line)}
+td.status-cell .tgt:not([value=""]){color:var(--text)}
 .rowx{color:#55555f;font-size:1.05rem;line-height:1;padding:6px 8px;border-radius:4px}
 .rowx:hover{color:var(--red-bright);background:rgba(230,57,70,.1)}
 
@@ -355,7 +361,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:35 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:46 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -456,6 +462,7 @@ h4.sec:first-child{margin-top:0}
   <select class="field" id="bulk-section" style="width:180px" onchange="bulkSectionPick(this.value)">
     <option value="">Set section&hellip;</option>
   </select>
+  <button class="btn ghost sm" onclick="bulkTarget()">Target date</button>
   <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
   <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
   <button class="btn ghost sm" onclick="bulkCopy()">Copy filenames</button>
@@ -1186,6 +1193,8 @@ function rowEl(s){
       <select class="status" data-f="status">
         ${STATUSES.map(o => `<option value="${o.key}" ${o.key === s.status ? 'selected' : ''}>${o.label}</option>`).join('')}
       </select>
+      <input class="cell tgt" type="date" data-f="target" value="${esc(s.target || '')}"
+             title="Optional. Shown to the client as “Expected …” until the video is up.">
     </td>
     <td class="vimeo-cell">${s.vimeo
       ? `<div style="display:flex;align-items:center;gap:4px">
@@ -1359,7 +1368,7 @@ function addRow(){
   p.sessions.push({ id: uid(), room, seq: nextSeq(room), section: last ? last.section || '' : '',
                     day: last ? last.day || '' : '', time: '', title: '', version: 1, status: 'notstarted',
                     notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
-                    review: '', reviewOn: false, feedback: '' });
+                    review: '', reviewOn: false, feedback: '', target: '' });
   reindex();
   save(); render();
   const rows = document.querySelectorAll('#tbody tr');
@@ -1468,6 +1477,20 @@ function bulkSectionPick(v){
   proj().sessions.forEach(s => { if (selected.has(s.id)){ s.section = name; n++; } });
   save(); render();
   toast(name ? `${n} session(s) moved into “${name}”.` : `Section cleared on ${n} session(s).`);
+}
+
+function bulkTarget(){
+  const first = proj().sessions.find(s => selected.has(s.id));
+  const v = prompt('Target date for the ' + selected.size + ' selected session(s) — YYYY-MM-DD.\n' +
+                   'Clients see it as “Expected …” until the video is up. Leave blank to clear.',
+                   first ? first.target || '' : '');
+  if (v === null) return;
+  const d = v.trim();
+  if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) return toast('Use YYYY-MM-DD, e.g. 2026-08-14.', true);
+  let n = 0;
+  proj().sessions.forEach(s => { if (selected.has(s.id)){ s.target = d; n++; } });
+  save(); render();
+  toast(d ? `Target set on ${n} session(s).` : `Target cleared on ${n} session(s).`);
 }
 
 function bulkReview(on){
@@ -1912,7 +1935,7 @@ function commitImport(){
     p.sessions.push({ id: uid(), room: r.room || '', seq: 0, section: '', day: shortDay(r.note || ''),
                       time: r.time || '', title: r.title || '', version: 1, status: 'notstarted',
                       notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
-                      review: '', reviewOn: false, feedback: '' });
+                      review: '', reviewOn: false, feedback: '', target: '' });
   }
   reindex();
   renumber(true);
@@ -2332,11 +2355,11 @@ function applyDupes(){
 /* ---------------- exports ---------------- */
 function exportCSV(){
   const p = proj();
-  const head = ['Room','Session','Day','Time','Title','Filename','Version','Status','Vimeo','Notes','Client note'];
+  const head = ['Room','Section','Session','Day','Time','Title','Filename','Version','Status','Target','Vimeo','Notes','Client note'];
   const rows = p.sessions.map(s => [
-    s.room, cfg().sessPrefix + String(s.seq || 0).padStart(+cfg().sessPad || 2, '0'),
+    s.room, s.section || '', cfg().sessPrefix + String(s.seq || 0).padStart(+cfg().sessPad || 2, '0'),
     s.day || '', timeHuman(s.time), s.title, buildFilename(s, p), 'V' + (s.version || 1),
-    (S_BY_KEY[s.status] || STATUSES[0]).label, s.vimeo || '', s.notes || '', s.clientNote || ''
+    (S_BY_KEY[s.status] || STATUSES[0]).label, s.target || '', s.vimeo || '', s.notes || '', s.clientNote || ''
   ]);
   const csv = [head, ...rows].map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   download(slug(p.name) + '-edits.csv', csv, 'text/csv');
@@ -2438,7 +2461,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 11;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 12;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2455,7 +2478,7 @@ function syncOn(){ return !!(sync.url && sync.token); }
 function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status,
                                           s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
                                           s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
-                                          s.review || '', !!s.reviewOn, s.feedback || '', s.order]); }
+                                          s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', s.order]); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
                                           p.vimeoFolder || '', p.clientName || '', p.welcome || '',
                                           p.details || [], p.sectionOrder || [], p.settings, p.roomNames || {}]); }
@@ -2482,7 +2505,7 @@ function localChanges(){
                             thumb: s.thumb || '', duration: s.duration || 0,
                             download: s.download || '', drive: s.drive || '',
                             review: s.review || '', reviewOn: !!s.reviewOn, feedback: s.feedback || '',
-                            order: s.order,
+                            target: s.target || '', order: s.order,
                             updated: now, deleted: false });
       }
     });
@@ -2538,7 +2561,7 @@ function mergeRemote(data){
                   vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
                   download: rs.download || '', drive: rs.drive || '',
                   review: rs.review || '', reviewOn: !!rs.reviewOn, feedback: rs.feedback || '',
-                  order: rs.order };
+                  target: rs.target || '', order: rs.order };
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
@@ -2985,7 +3008,7 @@ function createFromOrphans(){
       section: '', day: '', time: o.time || '', title: o.title || o.video.name || 'Untitled',
       version: o.version || 1, status: 'uploaded', notes: '', clientNote: '',
       vimeo: o.video.link, thumb: o.video.thumb || '', duration: o.video.duration || 0,
-      download: '', drive: '', review: o.video.review || '', reviewOn: false, vimeoMiss: false
+      download: '', drive: '', review: o.video.review || '', reviewOn: false, target: '', vimeoMiss: false
     });
   });
   reindex();

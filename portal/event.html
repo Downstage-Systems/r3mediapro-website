@@ -99,6 +99,18 @@
       /* the wordmark needs the room more than the header needs the wordmark */
       .site-header .brand .mp-text{ display:none; }
     }
+    .prog{ margin-top:24px; max-width:520px; }
+    .prog-bar{ height:8px; border-radius:5px; background:#232329; overflow:hidden; }
+    .prog-bar i{
+      display:block; height:100%; width:0; border-radius:5px;
+      background:linear-gradient(90deg,#2ea86a,#4fd18c); transition:width .7s ease;
+    }
+    .prog-txt{ margin-top:9px; font-size:.84rem; color:var(--muted); }
+    .prog-txt b{ color:var(--text); font-weight:700; }
+    .expected{
+      display:inline-block; font-size:.78rem; color:#c8b48a; margin-top:6px;
+      border-left:2px solid rgba(217,131,36,.55); padding-left:9px;
+    }
     .live{ display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
     .live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; }
     .muted{ color:var(--muted); }
@@ -189,6 +201,10 @@
          text-transform:uppercase; font-size:0.75rem; margin-bottom:10px; display:none;"></div>
     <h1 id="ev-name">Your Event</h1>
     <p id="ev-welcome"></p>
+    <div class="prog" id="prog" style="display:none">
+      <div class="prog-bar"><i id="prog-fill"></i></div>
+      <div class="prog-txt" id="prog-txt"></div>
+    </div>
   </div></div>
 
   <section class="block">
@@ -208,7 +224,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 5, 10:35 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 5, 10:46 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -294,6 +310,18 @@ function size(bytes){
   const gb = bytes / 1073741824;
   return gb >= 1 ? gb.toFixed(1) + ' GB' : Math.round(bytes / 1048576) + ' MB';
 }
+// "2026-08-14" -> "Thu 14 Aug". Parsed as a plain date, not UTC, so it can't
+// slip a day depending on the reader's timezone.
+function niceDate(ymd){
+  const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return ymd || '';
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  if (isNaN(d)) return ymd;
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${days[d.getDay()]} ${d.getDate()} ${mons[d.getMonth()]}`;
+}
+
 function roomLabel(code, name){
   if (name) return name;
   if (!code) return '';
@@ -483,6 +511,17 @@ function render(data){
 
   document.getElementById('portal-label').style.display = 'none';
   document.getElementById('portal-tools').style.display = 'flex';
+  const prog = document.getElementById('prog');
+  if (data.total){
+    prog.style.display = '';
+    const pct = Math.round((data.delivered / data.total) * 100);
+    document.getElementById('prog-fill').style.width = pct + '%';
+    const left = data.total - data.delivered;
+    document.getElementById('prog-txt').innerHTML =
+      `<b>${data.delivered}</b> of <b>${data.total}</b> delivered` +
+      (left ? ` &middot; ${left} still in production` : ' &mdash; all done');
+  } else prog.style.display = 'none';
+
   const countEl = document.getElementById('hdr-count');
   countEl.innerHTML = data.total ? `<b>${data.delivered}</b> of <b>${data.total}</b> ready` : '';
   if (lastDelivered !== null && data.delivered > lastDelivered){
@@ -598,6 +637,7 @@ function rowHtml(s){
         <div class="vmeta">
           <div class="t">${esc(s.title || 'Untitled session')}</div>
           <div class="d">${badge}${facts ? '<span class="facts">' + facts + '</span>' : ''}</div>
+          ${s.target ? `<div class="expected">Expected ${esc(niceDate(s.target))}</div>` : ''}
           ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
           <div class="addnote">
             <a href="#" onclick="openNote('${esc(s.id)}'); return false;">&#43; Add a note</a>
