@@ -28,6 +28,8 @@
     .thumb.empty{ display:flex; align-items:center; justify-content:center; cursor:default;
                   color:#3f3f48; font-size:1.4rem; }
     .vmeta{ min-width:0; flex:1; }
+    .badge.status{ font-size:.68rem; padding:3px 10px; margin-right:9px; vertical-align:1px; }
+    .vt .d .facts{ vertical-align:1px; }
     .vt .note{
       margin-top:7px; font-size:.86rem; color:#bcd4f7; line-height:1.45;
       border-left:2px solid rgba(61,139,253,.55); padding-left:10px; max-width:64ch;
@@ -384,12 +386,15 @@ function rowHtml(s){
     [roomLabel(s.room, s.roomName), s.day, timeHuman(s.time)].filter(Boolean).join(' &middot; ')
   ].filter(Boolean).join(' &middot; ');
 
+  const badge = `<span class="badge status" style="color:${colour};border:1px solid ${colour}66;` +
+                `background:${colour}1f;">${esc(s.label || s.status)}</span>`;
+
   // Three fixed slots — watch, download, drive — so every row lines up.
   const gap = '<span class="empty-slot"></span>';
   const slots = [
     ready
       ? `<a class="btn sm" href="#" onclick="playVideo('${esc(s.vimeoId)}', ${jsTitle}); return false;">&#9654; Watch</a>`
-      : `<span class="badge" style="color:${colour};border:1px solid ${colour}66;background:${colour}1f;">${esc(s.label || s.status)}</span>`,
+      : gap,
     s.download
       ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
            s.downloadSize ? ' <span style="opacity:.6;font-size:.86em">' + size(s.downloadSize) + '</span>' : ''}</a>`
@@ -411,7 +416,7 @@ function rowHtml(s){
         ${thumb}
         <div class="vmeta">
           <div class="t">${esc(s.title || 'Untitled session')}</div>
-          ${facts ? `<div class="d">${facts}</div>` : ''}
+          <div class="d">${badge}${facts ? '<span class="facts">' + facts + '</span>' : ''}</div>
           ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
         </div>
       </div>
