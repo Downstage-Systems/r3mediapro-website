@@ -372,7 +372,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 11:35 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 11:45 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -407,7 +407,7 @@ h4.sec:first-child{margin-top:0}
     &#9993;&nbsp; Email client</button>
   <div class="spacer"></div>
   <span class="lbl">Event code</span>
-  <input class="field" id="event-code" style="width:120px" placeholder="e.g. ULI26"
+  <input class="field" id="event-code" style="width:120px" placeholder="optional"
          oninput="setEventCode(this.value)" title="Optional. Available as {event} in the filename pattern.">
   <span class="lbl" style="margin-left:6px">Delivery</span>
   <input class="field" id="event-eta" style="flex:1 1 210px;min-width:170px;max-width:330px" placeholder="All sessions delivered by Fri 8 Aug"
@@ -690,7 +690,7 @@ h4.sec:first-child{margin-top:0}
       <div class="setgrid">
         <div>
           <label class="lbl" for="sy-slug">Event slug</label>
-          <input class="field" id="sy-slug" placeholder="starpower-2026" onchange="saveSyncSettings()">
+          <input class="field" id="sy-slug" placeholder="short-name-for-the-url" onchange="saveSyncSettings()">
         </div>
         <div>
           <label class="lbl" for="sy-pw">Client password</label>
@@ -704,7 +704,7 @@ h4.sec:first-child{margin-top:0}
       <div class="setgrid">
         <div class="full">
           <label class="lbl" for="sy-client">Client / company name</label>
-          <input class="field" id="sy-client" placeholder="Acme Corporation" onchange="saveSyncSettings()">
+          <input class="field" id="sy-client" placeholder="the client’s company name" onchange="saveSyncSettings()">
           <div class="help">Shown in small red caps above the event name.</div>
         </div>
         <div class="full">
@@ -2510,7 +2510,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 13;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 14;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2797,11 +2797,12 @@ function openHandoff(){
   const anyReview = p.sessions.some(s => s.reviewOn && s.review);
 
   const lines = [];
-  lines.push('Hi,');            // a company name is not a first name — leave it for him to fill
+  lines.push('Hello!');
   lines.push('');
   lines.push(`Your videos from ${p.name} are on your private page here:`);
   lines.push('');
   lines.push(url);
+  lines.push(`Access code: ${p.eventSlug}`);
   if (p.clientPassword) lines.push(`Password: ${p.clientPassword}`);
   lines.push('');
   // Deliberately evergreen — a count would be out of date the moment you cut
@@ -2821,7 +2822,7 @@ function openHandoff(){
   lines.push('');
   lines.push('Any questions, just reply to this email.');
   lines.push('');
-  lines.push('Thanks,');
+  lines.push('-Cheers');
   lines.push('Rob');
   lines.push('R3 Media Production');
   lines.push('rob@r3mediapro.com');
@@ -2956,6 +2957,15 @@ async function testSync(){
         : no('Download links: ' + esc(d.downloads || 'unknown')));
     }
     lines.push(ok(`${d.projects} project(s), ${d.sessions} session(s) in the Sheet.`));
+
+    // The /exec URL is public, so token strength is what actually protects this.
+    const tok = sync.token || '';
+    const varied = new Set(tok).size;
+    if (tok.length < 20 || varied < 10){
+      lines.push(no('<b>Your token is weak.</b> The Apps Script URL is public, so the token is the only ' +
+                    'thing guarding your data — use 30+ random characters. Change it in Script Properties, ' +
+                    'then here on each machine.'));
+    }
 
     // Is the published client page talking to this same deployment? Every time
     // a new deployment is made instead of a new version, the URL changes and
