@@ -355,7 +355,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:07 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:16 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -2438,7 +2438,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 10;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 11;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2775,7 +2775,8 @@ async function testSync(){
       : no(`Script v${d.version}, but this app expects v${NEEDS_SCRIPT}. Re-paste Code.gs and deploy a new version.`));
     lines.push(d.columnsCurrent
       ? ok('Sheet columns are current.')
-      : no('Sheet is missing the newer columns — run <b>setUp</b> in the script editor.'));
+      : no('Sheet is missing: <b>' + esc((d.missingColumns || []).join(', ') || 'some columns') +
+           '</b> — run <b>setUp</b> in the script editor.'));
     const sp = d.secretsInProperties || {};
     if (sp.token || sp.vimeo){
       lines.push(ok(`Secrets held in Script Properties${sp.token && sp.vimeo ? '' : ' (partly)'} — safe to re-paste the code.`));
