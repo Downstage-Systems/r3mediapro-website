@@ -53,13 +53,13 @@
     /* One slot per action, always the same width, so the buttons line up
        down the page whether or not a given row has that action. */
     .vt td.btns{ width:1%; }
-    .actions{ display:grid; grid-template-columns:108px 156px 82px; gap:8px; align-items:center; }
+    .actions{ display:grid; grid-template-columns:104px 150px 92px 100px 76px; gap:8px; align-items:center; }
     .actions > *{ min-width:0; }
     .actions .btn.sm{ display:flex; align-items:center; justify-content:center; gap:5px;
                       margin-left:0; padding:8px 10px; text-align:center; }
     .actions .badge{ display:flex; align-items:center; justify-content:center; padding:7px 6px; }
     .actions .empty-slot{ height:1px; }
-    @media (max-width:760px){
+    @media (max-width:1080px){
       .actions{ grid-template-columns:1fr; gap:6px; }
       .actions .empty-slot{ display:none; }
     }
@@ -286,12 +286,19 @@ async function refresh(loud){
   }
 }
 
-function playVideo(id, title){
+let firstLoaded = false;
+
+function loadPlayer(id, title, autoplay){
   document.getElementById('player-wrap').innerHTML =
-    '<iframe id="player" src="https://player.vimeo.com/video/' + encodeURIComponent(id) + '?autoplay=1" ' +
-    'style="width:100%;height:100%;border:0;" allow="autoplay; fullscreen; picture-in-picture" ' +
-    'allowfullscreen title="Video player"></iframe>';
+    '<iframe id="player" src="https://player.vimeo.com/video/' + encodeURIComponent(id) +
+    (autoplay ? '?autoplay=1' : '') + '" style="width:100%;height:100%;border:0;" ' +
+    'allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="Video player"></iframe>';
   document.getElementById('now-playing').textContent = title;
+}
+
+function playVideo(id, title){
+  firstLoaded = true;
+  loadPlayer(id, title, true);
   document.getElementById('now-playing').scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
@@ -326,6 +333,11 @@ function render(data){
   document.getElementById('sections').innerHTML = groups.length
     ? groups.map(g => sectionHtml(g, groups.length)).join('')
     : '<div class="vt-section"><p class="muted">Nothing posted yet — check back soon.</p></div>';
+
+  if (!firstLoaded){
+    const first = (data.sessions || []).find(s => s.vimeoId);
+    if (first){ firstLoaded = true; loadPlayer(first.vimeoId, first.title || 'Video', false); }
+  }
 
   const details = ev.details || [];
   document.getElementById('details-block').style.display = details.length ? 'block' : 'none';
@@ -368,6 +380,13 @@ function rowHtml(s){
     s.download
       ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
            s.downloadSize ? ' <span style="opacity:.6">' + size(s.downloadSize) + '</span>' : ''}</a>`
+      : gap,
+    s.review
+      ? `<a class="btn sm ghost" href="${esc(s.review)}" target="_blank" rel="noopener"
+            title="Leave timestamped notes on Vimeo">&#9998; Review</a>`
+      : gap,
+    ready
+      ? `<a class="btn sm ghost" href="${esc(s.vimeo)}" target="_blank" rel="noopener">View on Vimeo</a>`
       : gap,
     s.drive ? `<a class="btn sm ghost" href="${esc(s.drive)}" target="_blank" rel="noopener">Drive</a>` : gap
   ];

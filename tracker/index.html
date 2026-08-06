@@ -107,7 +107,7 @@ details.menu .pop .hint{padding:6px 11px 8px;font-size:.74rem;color:var(--muted)
 
 /* ---------- table ---------- */
 .tablewrap{flex:1;min-height:0;overflow:auto;padding-bottom:90px}
-table.grid{width:100%;border-collapse:collapse;min-width:1820px;table-layout:fixed}
+table.grid{width:100%;border-collapse:collapse;min-width:1916px;table-layout:fixed}
 table.grid th{
   text-align:left;font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
   color:var(--muted);padding:13px 10px;border-bottom:1px solid var(--line);
@@ -122,7 +122,12 @@ table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
 .col-hand{width:30px} .col-chk{width:30px} .col-room{width:116px} .col-sess{width:58px}
 .col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
 .col-notes{width:200px} .col-file{width:290px} .col-vimeo{width:118px} .col-day{width:112px}
-.col-section{width:132px}
+.col-section{width:132px} .col-review{width:96px}
+td.review-cell{text-align:center}
+.revtog{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--muted)}
+.revtog a{color:var(--s-exported);font-weight:600}
+.revtog a:hover{text-decoration:underline}
+.revnone{color:#3f3f48}
 td.notes-cell{padding:4px 10px}
 td.notes-cell .cell{display:block;font-size:.82rem;padding:5px 8px}
 td.notes-cell .cell.client{
@@ -409,6 +414,7 @@ h4.sec:first-child{margin-top:0}
           <th class="col-ver">Ver</th>
           <th class="col-status">Status</th>
           <th class="col-vimeo">Vimeo</th>
+          <th class="col-review" title="Show a Vimeo review link on the client page">Review</th>
           <th class="col-notes">Notes <span style="color:#6f9ad6">/ client note</span></th>
           <th class="col-x"></th>
         </tr>
@@ -430,6 +436,8 @@ h4.sec:first-child{margin-top:0}
   <button class="btn ghost sm" onclick="bulkApplyStatus()">Set status</button>
   <button class="btn ghost sm" onclick="bulkBumpVersion()">Bump version</button>
   <button class="btn ghost sm" onclick="bulkSection()">Set section</button>
+  <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
+  <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
   <button class="btn ghost sm" onclick="bulkCopy()">Copy filenames</button>
   <button class="btn danger sm" onclick="bulkDelete()">Delete</button>
   <button class="btn ghost sm" onclick="clearSel()">Clear</button>
@@ -1128,6 +1136,12 @@ function rowEl(s){
       : s.vimeoMiss
         ? `<button class="vlink miss" data-act="findv" title="Not in the Vimeo folder — search or upload">Not found</button>`
         : `<button class="vlink find" data-act="findv" title="Search the Vimeo folder">Find&hellip;</button>`}</td>
+    <td class="review-cell">${s.review
+      ? `<label class="revtog" title="Show a review link on the client page">
+           <input type="checkbox" data-f="reviewOn" ${s.reviewOn ? 'checked' : ''}>
+           <a href="${esc(s.review)}" target="_blank" rel="noopener" title="Open the Vimeo review page">open &#8599;</a>
+         </label>`
+      : `<span class="revnone" title="${s.vimeo ? 'No review page on this Vimeo video' : 'Not linked to Vimeo yet'}">&mdash;</span>`}</td>
     <td class="notes-cell">
       <input class="cell" data-f="notes" value="${esc(s.notes || '')}" placeholder="internal note">
       <input class="cell client" data-f="clientNote" value="${esc(s.clientNote || '')}" placeholder="note for client" title="Shown to the client on their portal page">
@@ -1172,6 +1186,9 @@ function rowEl(s){
     } else if (f === 'vimeo'){
       rec.vimeo = normalizeVimeo(e.target.value);
       save(); render();
+    } else if (f === 'reviewOn'){
+      rec.reviewOn = e.target.checked;
+      queueSave();
     }
   });
 
@@ -1272,7 +1289,8 @@ function addRow(){
   const room = last ? last.room : '';
   p.sessions.push({ id: uid(), room, seq: nextSeq(room), section: last ? last.section || '' : '',
                     day: last ? last.day || '' : '', time: '', title: '', version: 1, status: 'notstarted',
-                    notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '' });
+                    notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
+                    review: '', reviewOn: false });
   save(); render();
   const rows = document.querySelectorAll('#tbody tr');
   const el = rows[rows.length - 1];
@@ -1304,6 +1322,19 @@ function bulkSection(){
   proj().sessions.forEach(s => { if (selected.has(s.id)) s.section = v.trim(); });
   save(); render();
   toast(v.trim() ? `Section set to "${v.trim()}".` : 'Section cleared.');
+}
+
+function bulkReview(on){
+  const p = proj();
+  let n = 0, noLink = 0;
+  p.sessions.forEach(s => {
+    if (!selected.has(s.id)) return;
+    if (!s.review){ noLink++; return; }
+    s.reviewOn = on; n++;
+  });
+  save(); render();
+  toast(`Review link ${on ? 'shown' : 'hidden'} on ${n} session(s)` +
+        (noLink ? ` — ${noLink} have no Vimeo review page.` : '.'), !n);
 }
 
 function bulkBumpVersion(){
@@ -1733,7 +1764,8 @@ function commitImport(){
   for (const r of add){
     p.sessions.push({ id: uid(), room: r.room || '', seq: 0, section: '', day: shortDay(r.note || ''),
                       time: r.time || '', title: r.title || '', version: 1, status: 'notstarted',
-                      notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '' });
+                      notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
+                      review: '', reviewOn: false });
   }
   renumber(true);
   closeOverlay('ov-import');
@@ -2163,7 +2195,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 5;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 6;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2179,7 +2211,8 @@ function syncOn(){ return !!(sync.url && sync.token); }
 // to push, and is protected from being overwritten by an incoming pull.
 function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status,
                                           s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
-                                          s.thumb || '', s.duration || 0, s.download || '', s.drive || '']); }
+                                          s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
+                                          s.review || '', !!s.reviewOn]); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
                                           p.vimeoFolder || '', p.clientName || '', p.welcome || '',
                                           p.details || [], p.settings, p.roomNames || {}]); }
@@ -2205,6 +2238,7 @@ function localChanges(){
                             notes: s.notes || '', clientNote: s.clientNote || '', vimeo: s.vimeo || '',
                             thumb: s.thumb || '', duration: s.duration || 0,
                             download: s.download || '', drive: s.drive || '',
+                            review: s.review || '', reviewOn: !!s.reviewOn,
                             updated: now, deleted: false });
       }
     });
@@ -2251,7 +2285,8 @@ function mergeRemote(data){
                   title: rs.title || '', version: rs.version || 1, status: rs.status || 'notstarted',
                   section: rs.section || '', notes: rs.notes || '', clientNote: rs.clientNote || '',
                   vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
-                  download: rs.download || '', drive: rs.drive || '' };
+                  download: rs.download || '', drive: rs.drive || '',
+                  review: rs.review || '', reviewOn: !!rs.reviewOn };
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
@@ -2574,6 +2609,7 @@ async function matchVimeo(){
         s.vimeo = found.video.link;
         s.thumb = found.video.thumb || s.thumb || '';
         s.duration = found.video.duration || s.duration || 0;
+        s.review = found.video.review || s.review || '';
         s.vimeoMiss = false;
         if (found.exact) exact++; else loose++;
       } else {
@@ -2689,7 +2725,7 @@ function createFromOrphans(){
       section: '', day: '', time: o.time || '', title: o.title || o.video.name || 'Untitled',
       version: o.version || 1, status: 'uploaded', notes: '', clientNote: '',
       vimeo: o.video.link, thumb: o.video.thumb || '', duration: o.video.duration || 0,
-      download: '', drive: '', vimeoMiss: false
+      download: '', drive: '', review: o.video.review || '', reviewOn: false, vimeoMiss: false
     });
   });
   if (cfg().numberBy === 'global') renumber(true);
