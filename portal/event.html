@@ -57,6 +57,37 @@
       table.vt td{ display:block; border-bottom:0; padding:10px 0; }
       table.vt td.btns{ width:auto; text-align:left; white-space:normal; padding-top:0; }
     }
+    .portal-tools{ display:flex; align-items:center; gap:16px; }
+    .hdr-live{ display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
+    .hdr-live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; flex:none; }
+    .hdr-count{ font-size:.78rem; color:var(--muted); white-space:nowrap; }
+    .hdr-count b{ color:var(--text); font-weight:700; }
+    .hdr-jump{
+      background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:5px;
+      padding:6px 10px; font-size:.8rem; font-family:inherit; max-width:190px; cursor:pointer;
+    }
+    .hdr-jump:focus{ outline:none; border-color:var(--red-bright); }
+    .hdr-link{ font-size:.82rem; color:var(--muted) !important; font-weight:600; }
+    .hdr-link:hover{ color:var(--text) !important; }
+    .hdr-refresh{ cursor:pointer; white-space:nowrap; }
+    .hdr-refresh[disabled]{ opacity:.5; cursor:default; }
+    @media (max-width:900px){
+      .hdr-jump, .hdr-link, .hdr-count{ display:none; }
+      .portal-tools{ gap:10px; }
+    }
+    /* The site's nav collapses into a dropdown panel below 800px. These are
+       controls, not links — keep them inline in the bar. */
+    @media (max-width:800px){
+      .portal-tools{
+        position:static !important; flex-direction:row !important; background:none !important;
+        padding:0 !important; border:0 !important; gap:10px !important; width:auto !important;
+      }
+    }
+    @media (max-width:620px){
+      .hdr-live{ display:none; }
+      /* the wordmark needs the room more than the header needs the wordmark */
+      .site-header .brand .mp-text{ display:none; }
+    }
     .live{ display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
     .live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; }
     .muted{ color:var(--muted); }
@@ -96,7 +127,19 @@
       <img src="../assets/r3-mark.png" alt="R3 Media Production logo">
       <img class="mp-text" src="../assets/mp-text.png" alt="Media Production">
     </a>
-    <nav class="links" style="display:flex;">
+    <nav class="links portal-tools" id="portal-tools" style="display:none;">
+      <span class="hdr-live" id="hdr-live" title="This page updates itself as videos are finished">
+        <i id="dot2"></i><span id="hdr-updated">Live</span>
+      </span>
+      <span class="hdr-count" id="hdr-count"></span>
+      <select class="hdr-jump" id="hdr-jump" onchange="jumpTo(this.value)" title="Jump to a section">
+        <option value="">Jump to&hellip;</option>
+      </select>
+      <a class="hdr-link" href="mailto:rob@r3mediapro.com?subject=Question%20about%20our%20videos">Contact</a>
+      <button class="btn sm ghost hdr-refresh" id="hdr-refresh" onclick="refresh(true)" title="Check for new videos">
+        &#8635;&nbsp; Refresh</button>
+    </nav>
+    <nav class="links" id="portal-label" style="display:flex;">
       <span style="color:var(--muted); font-size:0.85rem; letter-spacing:0.12em; text-transform:uppercase; font-weight:700;">Client Portal</span>
     </nav>
   </div>
@@ -154,10 +197,8 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build 06 Aug 03:05 UTC</span>
+        <span class="muted" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build 06 Aug 03:14 UTC</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
-        <span style="flex:1"></span>
-        <button class="btn sm ghost" style="cursor:pointer;" onclick="refresh(true)">Refresh</button>
       </div>
 
       <p style="color:var(--red-bright); font-size:0.9rem; margin-top:26px; font-weight:600;">
@@ -294,13 +335,20 @@ function showBoard(data){
 
 async function refresh(loud){
   const txt = document.getElementById('live-txt');
-  if (loud) txt.textContent = 'Checking…';
+  const btn = document.getElementById('hdr-refresh');
+  const hdr = document.getElementById('hdr-updated');
+  if (loud){ txt.textContent = 'Checking…'; if (hdr) hdr.textContent = 'Checking…'; }
+  if (btn) btn.disabled = true;
   try {
     const data = await fetchBoard();
     if (data.ok) render(data);
   } catch (e){
     txt.textContent = 'Couldn’t reach the server — showing the last update.';
     document.getElementById('dot').style.background = '#d98324';
+    if (hdr) hdr.textContent = 'Offline';
+    document.getElementById('dot2').style.background = '#d98324';
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -322,6 +370,16 @@ function playVideo(id, title){
 
 // Bring the player just under the sticky header — not the heading above it,
 // and not at all if you can already see the whole thing.
+function jumpTo(id){
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  const head = document.querySelector('header.site-header');
+  const gap = (head ? head.offsetHeight : 68) + 16;
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - gap, behavior: 'smooth' });
+  document.getElementById('hdr-jump').value = '';
+}
+
 function scrollToPlayer(){
   const wrap = document.getElementById('player-wrap');
   if (!wrap) return;
@@ -388,6 +446,14 @@ function render(data){
 
   document.getElementById('ev-sum').textContent =
     data.total ? `${data.delivered} of ${data.total} sessions delivered.` : '';
+
+  document.getElementById('portal-label').style.display = 'none';
+  document.getElementById('portal-tools').style.display = 'flex';
+  document.getElementById('hdr-count').innerHTML =
+    data.total ? `<b>${data.delivered}</b> of <b>${data.total}</b> ready` : '';
+  document.getElementById('dot2').style.background = '#2ea86a';
+  document.getElementById('hdr-updated').textContent =
+    'Updated ' + new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
   document.getElementById('dot').style.background = '#2ea86a';
   document.getElementById('live-txt').textContent = 'Live — updated ' + new Date().toLocaleTimeString();
 
@@ -408,7 +474,7 @@ function render(data){
   }
 
   document.getElementById('sections').innerHTML = groups.length
-    ? groups.map(g => sectionHtml(g, groups.length)).join('')
+    ? groups.map((g, i) => sectionHtml(g, groups.length, i)).join('')
     : '<div class="vt-section"><p class="muted">Nothing posted yet — check back soon.</p></div>';
 
   if (!firstLoaded){
@@ -416,16 +482,22 @@ function render(data){
     if (first){ firstLoaded = true; loadPlayer(first.vimeoId, first.title || 'Video', false); }
   }
 
+  const jump = document.getElementById('hdr-jump');
+  const named = groups.filter(g => g.name);
+  jump.style.display = named.length > 1 ? '' : 'none';
+  jump.innerHTML = '<option value="">Jump to&hellip;</option>' +
+    named.map((g, i) => `<option value="sec-${i}">${esc(g.name)}</option>`).join('');
+
   const details = ev.details || [];
   document.getElementById('details-block').style.display = details.length ? 'block' : 'none';
   document.getElementById('ev-details').innerHTML =
     details.map(d => `<li><strong>${esc(d.label)}:</strong> ${esc(d.value)}</li>`).join('');
 }
 
-function sectionHtml(g, groupCount){
+function sectionHtml(g, groupCount, idx){
   const heading = g.name ? `<h3>${esc(g.name)}</h3>`
                          : (groupCount > 1 ? '<h3>Other</h3>' : '');
-  return `<div class="vt-section">
+  return `<div class="vt-section" id="sec-${idx}">
     ${heading}
     <div class="vt-wrap"><table class="vt">${g.rows.map(rowHtml).join('')}</table></div>
   </div>`;
