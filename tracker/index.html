@@ -361,7 +361,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:46 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 10:54 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -394,8 +394,12 @@ h4.sec:first-child{margin-top:0}
     Copy link</button>
   <div class="spacer"></div>
   <span class="lbl">Event code</span>
-  <input class="field" id="event-code" style="width:130px" placeholder="e.g. ULI26"
+  <input class="field" id="event-code" style="width:120px" placeholder="e.g. ULI26"
          oninput="setEventCode(this.value)" title="Optional. Available as {event} in the filename pattern.">
+  <span class="lbl" style="margin-left:6px">Delivery</span>
+  <input class="field" id="event-eta" style="width:290px" placeholder="All sessions delivered by Fri 8 Aug"
+         oninput="setEta(this.value)"
+         title="Shown to the client under the progress bar. Blank shows nothing.">
 </div>
 
 <div class="strip">
@@ -1140,6 +1144,7 @@ function render(){
   ps.innerHTML = db.projects.map(x =>
     `<option value="${x.id}" ${x.id === db.activeId ? 'selected' : ''}>${esc(x.name)} (${x.sessions.length})</option>`).join('');
   document.getElementById('event-code').value = p.eventCode || '';
+  document.getElementById('event-eta').value = p.eta || '';
 
   const rows = visibleSessions();
   const tbody = document.getElementById('tbody');
@@ -1582,6 +1587,7 @@ function deleteProject(){
   db.activeId = db.projects[0].id; selected.clear(); save(); render();
 }
 function setEventCode(v){ proj().eventCode = v; refreshComputed(); queueSave(); }
+function setEta(v){ proj().eta = v; queueSave(); }
 
 /* ---------------- import ---------------- */
 function openImport(){
@@ -2461,7 +2467,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 12;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 13;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2481,7 +2487,7 @@ function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.
                                           s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', s.order]); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
                                           p.vimeoFolder || '', p.clientName || '', p.welcome || '',
-                                          p.details || [], p.sectionOrder || [], p.settings, p.roomNames || {}]); }
+                                          p.details || [], p.eta || '', p.sectionOrder || [], p.settings, p.roomNames || {}]); }
 
 function localChanges(){
   const now = new Date().toISOString();
@@ -2493,7 +2499,7 @@ function localChanges(){
       out.projects.push({ id: p.id, name: p.name, eventCode: p.eventCode || '', eventSlug: p.eventSlug || '',
                           clientPassword: p.clientPassword || '', vimeoFolder: p.vimeoFolder || '',
                           clientName: p.clientName || '', welcome: p.welcome || '', details: p.details || [],
-                          sectionOrder: p.sectionOrder || [], settings: p.settings, roomNames: p.roomNames || {}, updated: now, deleted: false });
+                          eta: p.eta || '', sectionOrder: p.sectionOrder || [], settings: p.settings, roomNames: p.roomNames || {}, updated: now, deleted: false });
     }
     p.sessions.forEach(s => {
       liveS.add(s.id);
@@ -2539,7 +2545,7 @@ function mergeRemote(data){
     const fields = { name: rp.name, eventCode: rp.eventCode || '', eventSlug: rp.eventSlug || '',
                      clientPassword: rp.clientPassword || '', vimeoFolder: rp.vimeoFolder || '',
                      clientName: rp.clientName || '', welcome: rp.welcome || '', details: rp.details || [],
-                     sectionOrder: rp.sectionOrder || [],
+                     eta: rp.eta || '', sectionOrder: rp.sectionOrder || [],
                      settings: Object.assign({}, DEFAULT_SETTINGS, rp.settings || {}),
                      roomNames: rp.roomNames || {} };
     fields.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, fields.settings.clientLabels || {});
