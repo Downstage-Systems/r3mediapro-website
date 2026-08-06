@@ -130,8 +130,8 @@ table.grid tbody tr.dropafter td{box-shadow:inset 0 -2px 0 var(--red-bright)}
 table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
 .col-hand{width:30px} .col-chk{width:30px} .col-room{width:116px} .col-sess{width:58px}
 .col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
-.col-notes{width:200px} .col-file{width:290px} .col-vimeo{width:118px} .col-day{width:112px}
-.col-section{width:132px} .col-review{width:96px}
+.col-notes{width:186px} .col-file{width:262px} .col-vimeo{width:118px} .col-day{width:110px}
+.col-section{width:176px} .col-review{width:96px}
 td.review-cell{text-align:center}
 .revtog{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--muted)}
 .revtog a{color:var(--s-exported);font-weight:600}
@@ -355,7 +355,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 9:18 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 9:41 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -453,7 +453,9 @@ h4.sec:first-child{margin-top:0}
   <select class="field" id="bulk-status" style="width:160px"></select>
   <button class="btn ghost sm" onclick="bulkApplyStatus()">Set status</button>
   <button class="btn ghost sm" onclick="bulkBumpVersion()">Bump version</button>
-  <button class="btn ghost sm" onclick="bulkSection()">Set section</button>
+  <select class="field" id="bulk-section" style="width:180px" onchange="bulkSectionPick(this.value)">
+    <option value="">Set section&hellip;</option>
+  </select>
   <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
   <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
   <button class="btn ghost sm" onclick="bulkCopy()">Copy filenames</button>
@@ -1171,7 +1173,7 @@ function rowEl(s){
   tr.innerHTML = `
     <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
     <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
-    <td><input class="cell" data-f="section" value="${esc(s.section || '')}" placeholder="&mdash;" list="section-list" title="Groups sessions under a heading on the client page"></td>
+    <td><input class="cell" data-f="section" value="${esc(s.section || '')}" placeholder="&mdash;" list="section-list" title="${esc(s.section || 'Groups sessions under a heading on the client page')}"></td>
     <td><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="BO1" spellcheck="false"></td>
     <td><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
@@ -1337,6 +1339,7 @@ function updateBulk(){
   [...selected].forEach(id => { if (!ids.has(id)) selected.delete(id); });
   document.getElementById('bulk').classList.toggle('show', selected.size > 0);
   document.getElementById('bulk-n').textContent = selected.size;
+  fillBulkSections();
   const vis = visibleSessions();
   const all = document.getElementById('chk-all');
   all.checked = vis.length > 0 && vis.every(s => selected.has(s.id));
@@ -1425,14 +1428,37 @@ function bulkApplyStatus(){
   proj().sessions.forEach(s => { if (selected.has(s.id)) s.status = v; });
   save(); render(); toast(`${selected.size} set to ${S_BY_KEY[v].label}.`);
 }
-function bulkSection(){
-  const first = proj().sessions.find(s => selected.has(s.id));
-  const v = prompt('Section heading for the ' + selected.size + ' selected session(s)\n' +
-                   '(this is the heading they appear under on the client page)', first ? first.section || '' : '');
-  if (v === null) return;
-  proj().sessions.forEach(s => { if (selected.has(s.id)) s.section = v.trim(); });
+function fillBulkSections(){
+  const sel = document.getElementById('bulk-section');
+  if (!sel) return;
+  const p = proj();
+  const names = sectionList().map(r => r.name).filter(Boolean);
+  sel.innerHTML = '<option value="">Set section&hellip;</option>' +
+    names.map(n => `<option value="s:${esc(n)}">${esc(n)}</option>`).join('') +
+    '<option value="__new">+ New section&hellip;</option>' +
+    (names.length ? '<option value="__clear">&mdash; No section &mdash;</option>' : '');
+}
+
+function bulkSectionPick(v){
+  const sel = document.getElementById('bulk-section');
+  if (sel) sel.value = '';
+  if (!v || !selected.size) return;
+
+  let name;
+  if (v === '__new'){
+    name = (prompt('Name the new section — this is the heading it gets on the client page') || '').trim();
+    if (!name) return;
+    proj().sectionOrder = [...new Set([...(proj().sectionOrder || []), name])];
+  } else if (v === '__clear'){
+    name = '';
+  } else {
+    name = v.slice(2);
+  }
+
+  let n = 0;
+  proj().sessions.forEach(s => { if (selected.has(s.id)){ s.section = name; n++; } });
   save(); render();
-  toast(v.trim() ? `Section set to "${v.trim()}".` : 'Section cleared.');
+  toast(name ? `${n} session(s) moved into “${name}”.` : `Section cleared on ${n} session(s).`);
 }
 
 function bulkReview(on){
@@ -3048,6 +3074,9 @@ function closeMenus(){ document.querySelectorAll('details.menu[open]').forEach(d
 
 /* ---------------- wiring ---------------- */
 function init(){
+  // the placeholder only survives in an unstamped working copy
+  const bs = document.getElementById('buildstamp');
+  if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = 'working copy';
   load();
   loadSync();
 
