@@ -62,6 +62,17 @@
     .hdr-live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; flex:none; }
     .hdr-count{ font-size:.78rem; color:var(--muted); white-space:nowrap; }
     .hdr-count b{ color:var(--text); font-weight:700; }
+    .hdr-count.just-changed{ animation:pop 1.6s ease-out 2; }
+    @keyframes pop{
+      0%   { color:var(--muted); }
+      15%  { color:#7fd6a8; }
+      100% { color:var(--muted); }
+    }
+    .new-note{
+      font-size:.8rem; font-weight:700; color:#7fd6a8;
+      background:rgba(46,168,106,.12); border:1px solid rgba(46,168,106,.4);
+      border-radius:20px; padding:4px 12px;
+    }
     .hdr-jump{
       background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:5px;
       padding:6px 10px; font-size:.8rem; font-family:inherit; max-width:190px; cursor:pointer;
@@ -197,8 +208,9 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 5, 10:16 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 5, 10:35 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
+        <span id="new-note" class="new-note" style="display:none"></span>
       </div>
 
       <p style="color:var(--red-bright); font-size:0.9rem; margin-top:26px; font-weight:600;">
@@ -258,6 +270,8 @@ const params = new URLSearchParams(location.search);
 const EVENT = (params.get('event') || '').toLowerCase();
 let password = sessionStorage.getItem('r3-pw-' + EVENT) || '';
 let timer = null;
+let lastFetch = 0;
+let lastDelivered = null;
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -300,6 +314,7 @@ async function fetchBoard(){
     throw new Error('This page hasn’t been connected to the tracker yet (setup step 4). ' +
                     'Contact rob@r3mediapro.com.');
   }
+  lastFetch = Date.now();
   const url = API + '?mode=portal&event=' + encodeURIComponent(EVENT) + '&pw=' + encodeURIComponent(password);
   let res;
   try { res = await fetch(url, { redirect: 'follow' }); }
@@ -329,9 +344,25 @@ function showBoard(data){
   document.getElementById('gate').style.display = 'none';
   document.getElementById('board').style.display = 'block';
   render(data);
-  clearInterval(timer);
-  timer = setInterval(() => refresh(false), 60000);
+  startPolling();
 }
+
+// Poll only while the page is actually being looked at, and check straight
+// away when someone comes back to the tab rather than making them wait out
+// the rest of a minute.
+function startPolling(){
+  clearInterval(timer);
+  timer = setInterval(() => { if (!document.hidden) refresh(false); }, 60000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (Date.now() - lastFetch > 15000) refresh(false);   // don't hammer on tab flicking
+});
+window.addEventListener('focus', () => {
+  if (Date.now() - lastFetch > 15000) refresh(false);
+});
+window.addEventListener('online', () => refresh(false));
 
 async function refresh(loud){
   const txt = document.getElementById('live-txt');
@@ -452,8 +483,20 @@ function render(data){
 
   document.getElementById('portal-label').style.display = 'none';
   document.getElementById('portal-tools').style.display = 'flex';
-  document.getElementById('hdr-count').innerHTML =
-    data.total ? `<b>${data.delivered}</b> of <b>${data.total}</b> ready` : '';
+  const countEl = document.getElementById('hdr-count');
+  countEl.innerHTML = data.total ? `<b>${data.delivered}</b> of <b>${data.total}</b> ready` : '';
+  if (lastDelivered !== null && data.delivered > lastDelivered){
+    const added = data.delivered - lastDelivered;
+    countEl.classList.remove('just-changed');
+    void countEl.offsetWidth;                        // restart the animation
+    countEl.classList.add('just-changed');
+    const note = document.getElementById('new-note');
+    note.textContent = `${added} new video${added === 1 ? '' : 's'} just landed`;
+    note.style.display = '';
+    clearTimeout(window.__noteTimer);
+    window.__noteTimer = setTimeout(() => { note.style.display = 'none'; }, 12000);
+  }
+  lastDelivered = data.delivered;
   document.getElementById('dot2').style.background = '#2ea86a';
   document.getElementById('hdr-updated').textContent =
     'Updated ' + new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
