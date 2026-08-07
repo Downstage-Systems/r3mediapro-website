@@ -371,6 +371,15 @@ select.vpick{
 select.vpick:hover{border-color:var(--red-bright);color:var(--text)}
 select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,.1)}
 
+.lblhead,.lblrow{display:grid;grid-template-columns:12px 1fr 16px 1fr;align-items:center;gap:9px}
+.lblhead{margin-bottom:6px}
+.lblhead span{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.lblrow{margin-bottom:7px}
+.lblrow .swatch{width:10px;height:10px;border-radius:50%}
+.lblrow .arrow{color:var(--muted);text-align:center;font-size:.8rem}
+.lblrow.off .swatch{opacity:.6}
+.lblrow .field:disabled{opacity:.4;cursor:not-allowed}
+
 h4.sec{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red-bright);
   font-weight:800;margin:26px 0 14px}
 h4.sec:first-child{margin-top:0}
@@ -386,7 +395,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:15 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:33 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -627,9 +636,11 @@ h4.sec:first-child{margin-top:0}
         </div>
       </div>
 
-      <h4 class="sec">Client-facing status labels</h4>
-      <p class="help" style="margin:-8px 0 14px">What clients see in the exported status block. Your internal statuses stay as they are.</p>
-      <div class="setgrid" id="client-labels"></div>
+      <h4 class="sec">Status labels</h4>
+      <p class="help" style="margin:-8px 0 14px">Rename any status. The colours and the order of the pipeline stay put &mdash;
+      this is wording only, so nothing already saved gets disturbed.</p>
+      <div class="lblhead"><span></span><span>You see</span><span></span><span>Client sees</span></div>
+      <div id="client-labels"></div>
     </div>
     <div class="modal-f">
       <button class="btn ghost" onclick="resetSettings()">Reset to defaults</button>
@@ -979,6 +990,13 @@ const STATUSES = [
 const PIPELINE = STATUSES.filter(s => !s.off);
 const S_BY_KEY = Object.fromEntries(STATUSES.map(s => [s.key, s]));
 
+/** What this status is called on your side. The key is what's stored and
+    what the portal maps, so renaming is display-only and safe. */
+function sLabel(key){
+  const c = (db && db.projects && db.projects.length) ? cfg() : null;
+  return (c && c.editorLabels && c.editorLabels[key]) || (S_BY_KEY[key] || {}).label || key;
+}
+
 const DEFAULT_SETTINGS = {
   pattern: '{room}_{sess}_{title}_{time}_{ver}',
   titleStyle: 'pascal',
@@ -987,6 +1005,7 @@ const DEFAULT_SETTINGS = {
   numberBy: 'room',
   sessPrefix: 'S',
   sessPad: 2,
+  editorLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.label])),
   clientLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.client])),
 };
 
@@ -1013,7 +1032,8 @@ function load(){
   }
   if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
   db.projects.forEach(p => { p.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings || {});
-                             p.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, p.settings.clientLabels || {});
+                             p.settings.editorLabels = Object.assign({}, DEFAULT_SETTINGS.editorLabels, p.settings.editorLabels || {});
+  p.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, p.settings.clientLabels || {});
                              p.roomNames = p.roomNames || {}; });
 }
 
@@ -1228,6 +1248,7 @@ function render(){
   updateDupeBadge();
   updateClientButtons();
   paintSortArrows();
+  paintStatusMenus();
   warmVimeo();
 }
 
@@ -1274,7 +1295,7 @@ function rowEl(s){
     <td class="status-cell">
       <span class="status-dot" style="background:${st.hex}"></span>
       <select class="status" data-f="status">
-        ${STATUSES.map(o => `<option value="${o.key}" ${o.key === s.status ? 'selected' : ''}>${o.label}</option>`).join('')}
+        ${STATUSES.map(o => `<option value="${o.key}" ${o.key === s.status ? 'selected' : ''}>${esc(sLabel(o.key))}</option>`).join('')}
       </select>
       <input class="cell tgt" type="date" data-f="target" value="${esc(s.target || '')}"
              title="Optional. Shown to the client as “Expected …” until the video is up.">
@@ -1414,6 +1435,18 @@ function rowEl(s){
   return tr;
 }
 
+/** The two standalone status menus. Rebuilt with the table because the
+    wording is per project, so switching projects has to reword them. */
+function paintStatusMenus(){
+  const f = document.getElementById('filter-status');
+  const b = document.getElementById('bulk-status');
+  const keepF = f.value, keepB = b.value;
+  f.innerHTML = '<option value="">All statuses</option>' +
+    STATUSES.map(s => `<option value="${s.key}">${esc(sLabel(s.key))}</option>`).join('');
+  b.innerHTML = STATUSES.map(s => `<option value="${s.key}">${esc(sLabel(s.key))}</option>`).join('');
+  f.value = keepF; b.value = keepB;
+}
+
 function paintStatus(tr, st){
   // 9% is enough to read as a colour band without fighting the text
   tr.style.setProperty('--stripe', st.hex);
@@ -1460,7 +1493,7 @@ function updateStrip(){
   const done = counts.delivered;
   document.getElementById('legend').innerHTML =
     STATUSES.filter(s => counts[s.key] || !s.off)
-      .map(s => `<span class="k"><span class="dot" style="background:${s.hex}"></span>${s.label} <b>${counts[s.key]}</b></span>`).join('') +
+      .map(s => `<span class="k"><span class="dot" style="background:${s.hex}"></span>${esc(sLabel(s.key))} <b>${counts[s.key]}</b></span>`).join('') +
     `<span class="done"><b>${done}</b> of <b>${total}</b> delivered${total ? ' &nbsp;&middot;&nbsp; ' + Math.round(done/total*100) + '%' : ''}</span>`;
 }
 
@@ -1582,7 +1615,7 @@ function clearSel(){ selected.clear(); render(); }
 function bulkApplyStatus(){
   const v = document.getElementById('bulk-status').value;
   proj().sessions.forEach(s => { if (selected.has(s.id)) s.status = v; });
-  save(); render(); toast(`${selected.size} set to ${S_BY_KEY[v].label}.`);
+  save(); render(); toast(`${selected.size} set to ${sLabel(v)}.`);
 }
 function fillBulkSections(){
   const sel = document.getElementById('bulk-section');
@@ -2185,9 +2218,14 @@ function openSettings(){
   document.getElementById('s-sessprefix').value = c.sessPrefix;
   document.getElementById('s-sesspad').value = c.sessPad;
   document.getElementById('client-labels').innerHTML = STATUSES.map(s => `
-    <div>
-      <label class="lbl">${s.label}</label>
-      <input class="field" data-client="${s.key}" value="${esc(c.clientLabels[s.key])}" onchange="onSettingChange()">
+    <div class="lblrow ${s.off ? 'off' : ''}">
+      <span class="swatch" style="background:${s.hex}"></span>
+      <input class="field" data-editor="${s.key}" value="${esc(c.editorLabels[s.key])}"
+             placeholder="${esc(s.label)}" onchange="onSettingChange()">
+      <span class="arrow">&rarr;</span>
+      <input class="field" data-client="${s.key}" value="${esc(c.clientLabels[s.key])}"
+             placeholder="${esc(s.client)}" onchange="onSettingChange()"
+             ${s.hideFromClient ? 'disabled title="Clients never see this one"' : ''}>
     </div>`).join('');
   document.getElementById('token-list').innerHTML =
     ['{room}','{sess}','{title}','{time}','{ver}','{event}']
@@ -2208,8 +2246,20 @@ function onSettingChange(){
   const changed = nb !== c.numberBy;
   c.numberBy = nb;
   document.querySelectorAll('[data-client]').forEach(i => c.clientLabels[i.dataset.client] = i.value);
+
+  // Blank falls back to the built-in name rather than leaving an unlabelled status.
+  let relabelled = false;
+  document.querySelectorAll('[data-editor]').forEach(i => {
+    const key = i.dataset.editor;
+    const want = i.value.trim() || (S_BY_KEY[key] || {}).label || key;
+    if (want !== c.editorLabels[key]){ c.editorLabels[key] = want; relabelled = true; }
+    i.value = want;
+  });
+
   patternPreview();
-  if (changed) renumber(true); else { refreshComputed(); queueSave(); }
+  if (changed) renumber(true);
+  else if (relabelled){ save(); render(); }
+  else { refreshComputed(); queueSave(); }
 }
 
 function insertToken(t){
@@ -2455,7 +2505,7 @@ function renderDupes(groups){
           <span class="dupe-meta">${s.day ? `<b style="color:var(--text)">${esc(s.day)}</b> &middot; ` : ''}${esc(s.room || '—')}
             &middot; ${esc(timeHuman(s.time) || 'no time')} &middot; #${p.sessions.indexOf(s) + 1}</span>
           <code>${esc(buildFilename(s, p))}</code>
-          <span class="dupe-st" style="color:${st.hex}">${st.label}</span>
+          <span class="dupe-st" style="color:${st.hex}">${esc(sLabel(st.key))}</span>
         </label>`;
       }).join('')}
     </div>`).join('') : '<p style="color:var(--muted)">Every session title in this project is unique.</p>';
@@ -2498,7 +2548,7 @@ function exportCSV(){
   const rows = p.sessions.map(s => [
     s.room, s.section || '', cfg().sessPrefix + String(s.seq || 0).padStart(+cfg().sessPad || 2, '0'),
     s.day || '', timeHuman(s.time), s.title, buildFilename(s, p), 'V' + (s.version || 1),
-    (S_BY_KEY[s.status] || STATUSES[0]).label, s.target || '', s.vimeo || '', s.notes || '', s.clientNote || ''
+    sLabel(s.status), s.target || '', s.vimeo || '', s.notes || '', s.clientNote || ''
   ]);
   const csv = [head, ...rows].map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   download(slug(p.name) + '-edits.csv', csv, 'text/csv');
@@ -2681,7 +2731,8 @@ function mergeRemote(data){
                      eta: rp.eta || '', sectionOrder: rp.sectionOrder || [],
                      settings: Object.assign({}, DEFAULT_SETTINGS, rp.settings || {}),
                      roomNames: rp.roomNames || {} };
-    fields.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, fields.settings.clientLabels || {});
+    fields.settings.editorLabels = Object.assign({}, DEFAULT_SETTINGS.editorLabels, fields.settings.editorLabels || {});
+  fields.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, fields.settings.clientLabels || {});
     if (local) Object.assign(local, fields);
     else db.projects.push(Object.assign({ id: rp.id, sessions: [] }, fields));
   });
@@ -3462,11 +3513,6 @@ function init(){
   if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = 'working copy';
   load();
   loadSync();
-
-  document.getElementById('filter-status').innerHTML =
-    '<option value="">All statuses</option>' + STATUSES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
-  document.getElementById('bulk-status').innerHTML =
-    STATUSES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
 
   wirePreview();
   document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
