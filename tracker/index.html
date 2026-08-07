@@ -399,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 11:08 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 11:29 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -2664,7 +2664,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 16;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 17;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -3202,6 +3202,7 @@ async function matchVimeo(){
     const videos = await vimeoFetchVideos(true);
     if (!videos.length) return toast('That Vimeo folder came back empty.', true);
     const p = proj();
+    const settled = settleUploads(videos, p);
     let exact = 0, loose = 0, missing = 0, promoted = 0;
     p.sessions.forEach(s => {
       // Issue and Deleted are deliberate states — a sweep doesn't even link
@@ -3215,7 +3216,7 @@ async function matchVimeo(){
         s.duration = found.video.duration || s.duration || 0;
         s.review = found.video.review || s.review || '';
         s.vimeoMiss = false;
-        if (promoteOnLink(s)) promoted++;
+        if (promoteOnLink(s, false, statusForVideo(found.video))) promoted++;
         if (found.exact) exact++; else loose++;
       } else {
         s.vimeoMiss = true;
@@ -3229,7 +3230,8 @@ async function matchVimeo(){
             `to the filenames here. Comparing them side by side.`, true);
     } else {
       toast(`${exact} matched exactly${loose ? `, ${loose} by close name` : ''}` +
-            `${promoted ? `, ${promoted} set to ${sLabel('delivered')}` : ''}` +
+            `${promoted ? `, ${promoted} restated` : ''}` +
+            `${settled.length ? `, ${settled.length} finished processing` : ''}` +
             `${missing ? `, ${missing} not found` : ''}` +
             `${orphans.length ? `, ${orphans.length} spare video${orphans.length === 1 ? '' : 's'} in the folder` : ''}.`);
     }
@@ -3393,6 +3395,26 @@ function toggleAutoMatch(on){
 }
 
 /**
+ * Rows already linked to a video that Vimeo hadn't finished with. Once it
+ * reports the video available, they graduate. This is what turns an upload
+ * that landed mid-transcode into a delivered session without a second visit.
+ */
+function settleUploads(videos, p){
+  const byLink = new Map(videos.map(v => [v.link, v]));
+  const done = [];
+  p.sessions.forEach(s => {
+    if (!s.vimeo || s.status !== 'uploaded') return;
+    const v = byLink.get(s.vimeo);
+    if (!v) return;
+    const want = statusForVideo(v);
+    if (want === 'uploaded') return;             // still working
+    s.status = want;
+    done.push({ title: s.title, want });
+  });
+  return done;
+}
+
+/**
  * The background half of Match Vimeo. Runs off the sync poll, so it costs a
  * Vimeo call at most every couple of minutes (vimeoFetchVideos caches for
  * 120s). Deliberately narrower than the manual sweep: exact filename matches
@@ -3404,28 +3426,35 @@ async function autoMatchVimeo(){
   const p = proj();
   if (autoMatching || !syncOn() || !cfg().autoMatch || !p.vimeoFolder) return;
   const waiting = p.sessions.filter(s => !s.vimeo && !(S_BY_KEY[s.status] || {}).off);
-  if (!waiting.length) return;
+  const settling = p.sessions.some(s => s.vimeo && s.status === 'uploaded');
+  if (!waiting.length && !settling) return;
 
   autoMatching = true;
   try {
     const videos = await vimeoFetchVideos(false);
     if (!videos.length) return;
+
+    // Rows waiting on a transcode graduate first — that costs nothing extra,
+    // and it has to happen even when there's nothing new to link.
+    const settled = settleUploads(videos, p);
     const byName = new Map();
     videos.forEach(v => { const k = matchKey(v.name); if (k && !byName.has(k)) byName.set(k, v); });
 
-    const hits = [];
+    const fresh = [], busy = [];
     waiting.forEach(s => {
       const v = byName.get(matchKey(buildFilename(s, p)));
       if (!v) return;
       attachVideo(s, v.link);
-      hits.push(s.title || v.name);
+      (s.status === 'uploaded' ? busy : fresh).push(s.title || v.name);
     });
-    if (!hits.length) return;
+    if (!fresh.length && !busy.length && !settled.length) return;
 
     save(); render();
-    toast(hits.length === 1
-      ? `“${hits[0]}” just landed on Vimeo — linked and set to ${sLabel('delivered')}.`
-      : `${hits.length} new videos linked and set to ${sLabel('delivered')}.`);
+    const say = [];
+    if (busy.length)    say.push(`${busy.length} still uploading &mdash; ${sLabel('uploaded')}`);
+    if (fresh.length)   say.push(`${fresh.length} linked &mdash; ${sLabel('delivered')}`);
+    if (settled.length) say.push(`${settled.length} finished processing &mdash; ${sLabel('delivered')}`);
+    toast(say.join(', ') + '.');
   } catch (err){
     /* offline, or Vimeo hiccuped — the manual button still reports properly */
   } finally {
@@ -3465,8 +3494,9 @@ function vimeoOptions(s){
   return `<option value="">${head}</option>` +
     list.slice(0, 60).map(v => {
       const near = score(v.name, want) >= 60 ? '\u2713 ' : '';
+      const busy = v.ready === false ? '\u231B ' : '';
       const mins = v.duration ? '  (' + Math.floor(v.duration / 60) + 'm)' : '';
-      return `<option value="${esc(v.link)}">${near}${esc(v.name || '(untitled)')}${mins}</option>`;
+      return `<option value="${esc(v.link)}">${busy}${near}${esc(v.name || '(untitled)')}${mins}</option>`;
     }).join('') +
     (list.length > 60 ? `<option value="__more">&hellip; ${list.length - 60} more &mdash; search&hellip;</option>` : '') +
     `<option value="__search">&#128269; Search / upload&hellip;</option>`;
@@ -3521,12 +3551,23 @@ function score(name, want){
  * 'deleted' are deliberate states, and a stray filename match shouldn't
  * quietly undo either of them.
  */
-function promoteOnLink(s, byHand){
+/** Where a video is in Vimeo's pipeline decides which status it earns. */
+function statusForVideo(v){
+  if (!v) return 'delivered';                       // older script, no state reported
+  if (v.failed) return 'issue';
+  return v.ready === false ? 'uploaded' : 'delivered';
+}
+
+function promoteOnLink(s, byHand, key){
   if (!s) return false;
+  key = key || 'delivered';
   const st = S_BY_KEY[s.status];
   if (!byHand && st && st.off) return false;   // a sweep never touches issue / deleted
-  if (s.status === 'delivered') return false;
-  s.status = 'delivered';
+  // Never walk a session backwards: something already delivered stays
+  // delivered even if Vimeo briefly reports the file as busy again.
+  if (key === 'uploaded' && s.status === 'delivered') return false;
+  if (s.status === key) return false;
+  s.status = key;
   return true;
 }
 
@@ -3541,7 +3582,7 @@ function attachVideo(s, url, byHand){
     s.duration = v.duration || s.duration || 0;
     s.review = v.review || s.review || '';
   }
-  promoteOnLink(s, byHand);
+  promoteOnLink(s, byHand, statusForVideo(v));
 }
 
 function linkVimeo(url){
