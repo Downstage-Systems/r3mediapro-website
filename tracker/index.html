@@ -379,6 +379,10 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
 .lblrow .arrow{color:var(--muted);text-align:center;font-size:.8rem}
 .lblrow.off .swatch{opacity:.6}
 .lblrow .field:disabled{opacity:.4;cursor:not-allowed}
+.autom{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--muted);
+  cursor:pointer;user-select:none;margin-left:-4px}
+.autom input{cursor:pointer}
+.autom:hover{color:var(--text)}
 
 h4.sec{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red-bright);
   font-weight:800;margin:26px 0 14px}
@@ -395,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:33 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 10:29 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -453,6 +457,9 @@ h4.sec:first-child{margin-top:0}
   <button class="btn ghost sm" onclick="openRooms()">Rooms</button>
   <button class="btn ghost sm" id="btn-dupes" onclick="openDupes()">Duplicates</button>
   <button class="btn ghost sm" onclick="matchVimeo()" title="Match every session to a video in the Vimeo folder">Match Vimeo</button>
+          <label class="autom" title="Keep watching the folder and link new uploads on their own. Exact filename matches only &mdash; anything looser waits for you to press Match Vimeo.">
+            <input type="checkbox" id="auto-match" onchange="toggleAutoMatch(this.checked)"> Auto
+          </label>
   <div class="sep"></div>
   <input class="field" id="search" placeholder="Search title, room, filename&hellip;" style="width:250px" oninput="render()">
   <select class="field" id="filter-status" onchange="render()" style="width:170px"></select>
@@ -805,7 +812,7 @@ h4.sec:first-child{margin-top:0}
         </div>
       </details>
       <p class="help" style="font-size:.78rem;color:var(--muted);margin-top:12px">
-        Anything you add comes in already linked and marked <b>Uploaded</b>. Leave a video unticked to ignore it &mdash;
+        Anything you add or link comes in marked <b id="or-status">Delivered</b>. Leave a video unticked to ignore it &mdash;
         it'll show up here again next time you run Match Vimeo.
       </p>
     </div>
@@ -1005,6 +1012,7 @@ const DEFAULT_SETTINGS = {
   numberBy: 'room',
   sessPrefix: 'S',
   sessPad: 2,
+  autoMatch: true,
   editorLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.label])),
   clientLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.client])),
 };
@@ -1249,6 +1257,7 @@ function render(){
   updateClientButtons();
   paintSortArrows();
   paintStatusMenus();
+  paintAutoMatch();
   warmVimeo();
 }
 
@@ -1437,6 +1446,11 @@ function rowEl(s){
 
 /** The two standalone status menus. Rebuilt with the table because the
     wording is per project, so switching projects has to reword them. */
+function paintAutoMatch(){
+  const box = document.getElementById('auto-match');
+  if (box) box.checked = !!cfg().autoMatch;
+}
+
 function paintStatusMenus(){
   const f = document.getElementById('filter-status');
   const b = document.getElementById('bulk-status');
@@ -2840,7 +2854,11 @@ function queuePush(){
 
 function startPolling(){
   clearInterval(pollTimer);
-  if (syncOn() && sync.auto) pollTimer = setInterval(() => { if (!document.hidden) syncNow(true); }, 25000);
+  if (syncOn() && sync.auto) pollTimer = setInterval(() => {
+    if (document.hidden) return;
+    syncNow(true);
+    autoMatchVimeo();
+  }, 25000);
 }
 
 // "just now", "2 min ago" — enough to see at a glance that it's alive.
@@ -3180,7 +3198,7 @@ async function matchVimeo(){
     const videos = await vimeoFetchVideos(true);
     if (!videos.length) return toast('That Vimeo folder came back empty.', true);
     const p = proj();
-    let exact = 0, loose = 0, missing = 0;
+    let exact = 0, loose = 0, missing = 0, promoted = 0;
     p.sessions.forEach(s => {
       if (s.status === 'deleted') return;
       if (s.vimeo){ s.vimeoMiss = false; return; }
@@ -3191,6 +3209,7 @@ async function matchVimeo(){
         s.duration = found.video.duration || s.duration || 0;
         s.review = found.video.review || s.review || '';
         s.vimeoMiss = false;
+        if (promoteOnLink(s)) promoted++;
         if (found.exact) exact++; else loose++;
       } else {
         s.vimeoMiss = true;
@@ -3204,6 +3223,7 @@ async function matchVimeo(){
             `to the filenames here. Comparing them side by side.`, true);
     } else {
       toast(`${exact} matched exactly${loose ? `, ${loose} by close name` : ''}` +
+            `${promoted ? `, ${promoted} set to ${sLabel('delivered')}` : ''}` +
             `${missing ? `, ${missing} not found` : ''}` +
             `${orphans.length ? `, ${orphans.length} spare video${orphans.length === 1 ? '' : 's'} in the folder` : ''}.`);
     }
@@ -3288,6 +3308,7 @@ function renderOrphans(){
       </tr>`).join('')
     : '<tr><td colspan="2" style="color:var(--muted)">Every session already has a video.</td></tr>';
   document.getElementById('or-add').disabled = !vimeoOrphans.filter(o => o.pick).length;
+  document.getElementById('or-status').textContent = sLabel('delivered');
   document.getElementById('or-expected').open = !p.sessions.some(s => s.vimeo);
   document.getElementById('or-sub').textContent =
     `${vimeoOrphans.length} video${vimeoOrphans.length === 1 ? '' : 's'} in this folder don't belong to any session yet.`;
@@ -3324,9 +3345,10 @@ function linkOrphanTo(i, sessionId){
   rec.duration = o.video.duration || rec.duration || 0;
   rec.review = o.video.review || rec.review || '';
   rec.vimeoMiss = false;
+  const up = promoteOnLink(rec);
   vimeoOrphans.splice(i, 1);
   save(); render(); renderOrphans();
-  toast(`Linked to “${rec.title || 'that session'}”.`);
+  toast(`Linked to “${rec.title || 'that session'}”${up ? ` and set to ${sLabel('delivered')}` : ''}.`);
   if (!vimeoOrphans.length) closeOverlay('ov-orphans');
 }
 
@@ -3344,7 +3366,7 @@ function createFromOrphans(){
     p.sessions.push({
       id: uid(), room, seq: cfg().numberBy === 'global' ? 0 : counters[room],
       section: '', day: '', time: o.time || '', title: o.title || o.video.name || 'Untitled',
-      version: o.version || 1, status: 'uploaded', notes: '', clientNote: '',
+      version: o.version || 1, status: 'delivered', notes: '', clientNote: '',
       vimeo: o.video.link, thumb: o.video.thumb || '', duration: o.video.duration || 0,
       download: '', drive: '', review: o.video.review || '', reviewOn: false, target: '', vimeoMiss: false
     });
@@ -3353,7 +3375,56 @@ function createFromOrphans(){
   if (cfg().numberBy === 'global') renumber(true);
   save(); render();
   closeOverlay('ov-orphans');
-  toast(`${picked.length} session${picked.length === 1 ? '' : 's'} added from Vimeo, marked Uploaded.`);
+  toast(`${picked.length} session${picked.length === 1 ? '' : 's'} added from Vimeo, marked ${sLabel('delivered')}.`);
+}
+
+function toggleAutoMatch(on){
+  cfg().autoMatch = !!on;
+  save();
+  toast(on ? 'Watching the Vimeo folder — new uploads will link themselves.'
+           : 'Auto-matching off. Use Match Vimeo when you want a sweep.');
+  if (on) autoMatchVimeo();
+}
+
+/**
+ * The background half of Match Vimeo. Runs off the sync poll, so it costs a
+ * Vimeo call at most every couple of minutes (vimeoFetchVideos caches for
+ * 120s). Deliberately narrower than the manual sweep: exact filename matches
+ * only. A loose match is a guess, and a guess here would publish a wrong
+ * video to the client page without anyone pressing anything.
+ */
+let autoMatching = false;
+async function autoMatchVimeo(){
+  const p = proj();
+  if (autoMatching || !syncOn() || !cfg().autoMatch || !p.vimeoFolder) return;
+  const waiting = p.sessions.filter(s => !s.vimeo && s.status !== 'deleted');
+  if (!waiting.length) return;
+
+  autoMatching = true;
+  try {
+    const videos = await vimeoFetchVideos(false);
+    if (!videos.length) return;
+    const byName = new Map();
+    videos.forEach(v => { const k = matchKey(v.name); if (k && !byName.has(k)) byName.set(k, v); });
+
+    const hits = [];
+    waiting.forEach(s => {
+      const v = byName.get(matchKey(buildFilename(s, p)));
+      if (!v) return;
+      attachVideo(s, v.link);
+      hits.push(s.title || v.name);
+    });
+    if (!hits.length) return;
+
+    save(); render();
+    toast(hits.length === 1
+      ? `“${hits[0]}” just landed on Vimeo — linked and set to ${sLabel('delivered')}.`
+      : `${hits.length} new videos linked and set to ${sLabel('delivered')}.`);
+  } catch (err){
+    /* offline, or Vimeo hiccuped — the manual button still reports properly */
+  } finally {
+    autoMatching = false;
+  }
 }
 
 /** Read the folder once in the background so every unlinked row gets its
@@ -3438,6 +3509,21 @@ function score(name, want){
   return n;
 }
 
+/**
+ * A video existing in the folder is the signal that the session is done, so
+ * linking one promotes it. Off-pipeline rows are left alone: 'issue' and
+ * 'deleted' are deliberate states, and a stray filename match shouldn't
+ * quietly undo either of them.
+ */
+function promoteOnLink(s){
+  if (!s) return false;
+  const st = S_BY_KEY[s.status];
+  if (st && st.off) return false;            // issue / deleted stay put
+  if (s.status === 'delivered') return false;
+  s.status = 'delivered';
+  return true;
+}
+
 /** Copy a folder video's details onto a session — thumbnail and all. */
 function attachVideo(s, url){
   if (!s) return;
@@ -3449,6 +3535,7 @@ function attachVideo(s, url){
     s.duration = v.duration || s.duration || 0;
     s.review = v.review || s.review || '';
   }
+  promoteOnLink(s);
 }
 
 function linkVimeo(url){
