@@ -17,7 +17,7 @@
     /* thumbnail + text, side by side */
     .vrow{ display:flex; gap:14px; align-items:flex-start; }
     .thumb{
-      flex:none; width:132px; aspect-ratio:16/9; border-radius:5px; overflow:hidden;
+      flex:none; width:168px; aspect-ratio:16/9; border-radius:5px; overflow:hidden;
       background:linear-gradient(135deg,#1c1c21,#26262c); border:1px solid var(--line);
       position:relative; cursor:pointer;
     }
@@ -52,7 +52,7 @@
       border-left:2px solid rgba(61,139,253,.55); padding-left:10px; max-width:64ch;
     }
     @media (max-width:620px){
-      .thumb{ width:92px; }
+      .thumb{ width:128px; }
       .vt-wrap{ overflow-x:visible; }
       table.vt{ min-width:0; }
       table.vt tr{ display:block; border-bottom:1px solid var(--line); padding:10px 0; }
@@ -232,7 +232,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 10:58 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 11:08 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
