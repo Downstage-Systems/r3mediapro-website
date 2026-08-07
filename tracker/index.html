@@ -379,7 +379,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:47 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:41 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -772,6 +772,18 @@ h4.sec:first-child{margin-top:0}
           <tbody id="or-body"></tbody>
         </table>
       </div>
+
+      <details id="or-expected" style="margin-top:14px">
+        <summary style="cursor:pointer;font-size:.84rem;color:var(--muted)">
+          What the tracker was looking for &mdash; rename a Vimeo video to one of these and it'll match
+        </summary>
+        <div class="prevwrap" style="margin-top:10px;max-height:30vh">
+          <table class="prev">
+            <thead><tr><th>Session</th><th style="width:44%">Expected Vimeo title</th></tr></thead>
+            <tbody id="or-wanted"></tbody>
+          </table>
+        </div>
+      </details>
       <p class="help" style="font-size:.78rem;color:var(--muted);margin-top:12px">
         Anything you add comes in already linked and marked <b>Uploaded</b>. Leave a video unticked to ignore it &mdash;
         it'll show up here again next time you run Match Vimeo.
@@ -3105,10 +3117,15 @@ async function matchVimeo(){
     });
     save(); render();
     const orphans = computeOrphans(videos, p);
-    toast(`${exact} matched exactly${loose ? `, ${loose} by close name` : ''}` +
-          `${missing ? `, ${missing} not found` : ''}` +
-          `${orphans.length ? `, ${orphans.length} spare video${orphans.length === 1 ? '' : 's'} in the folder` : ''}.`);
-    if (orphans.length) openOrphans(orphans);
+    if (!exact && !loose){
+      toast(`Nothing matched — the ${videos.length} video(s) in that folder are named differently ` +
+            `to the filenames here. Comparing them side by side.`, true);
+    } else {
+      toast(`${exact} matched exactly${loose ? `, ${loose} by close name` : ''}` +
+            `${missing ? `, ${missing} not found` : ''}` +
+            `${orphans.length ? `, ${orphans.length} spare video${orphans.length === 1 ? '' : 's'} in the folder` : ''}.`);
+    }
+    if (orphans.length || (!exact && !loose)) openOrphans(orphans);
   } catch (err){
     toast('Vimeo lookup failed: ' + err.message, true);
   }
@@ -3178,6 +3195,17 @@ function openOrphans(list){
 
 function renderOrphans(){
   const n = vimeoOrphans.filter(o => o.pick).length;
+
+  // the other half of the comparison: what each unlinked session wants to see
+  const p = proj();
+  const wanted = p.sessions.filter(s => !s.vimeo && s.status !== 'deleted');
+  document.getElementById('or-wanted').innerHTML = wanted.length
+    ? wanted.map(s => `<tr>
+        <td>${esc(s.title || '(untitled)')}</td>
+        <td><code style="font-family:var(--mono);font-size:.76rem;color:#f0b45f">${esc(buildFilename(s, p))}</code></td>
+      </tr>`).join('')
+    : '<tr><td colspan="2" style="color:var(--muted)">Every session already has a video.</td></tr>';
+  document.getElementById('or-expected').open = !p.sessions.some(s => s.vimeo);
   document.getElementById('or-sub').textContent =
     `${vimeoOrphans.length} video${vimeoOrphans.length === 1 ? '' : 's'} in this folder don't belong to any session yet.`;
   document.getElementById('or-body').innerHTML = vimeoOrphans.map((o, i) => `
