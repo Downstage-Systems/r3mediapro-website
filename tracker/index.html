@@ -138,7 +138,7 @@ table.grid tbody tr.dropafter td{box-shadow:inset 0 -2px 0 var(--red-bright)}
 table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
 .col-hand{width:30px} .col-chk{width:30px} .col-room{width:116px} .col-sess{width:58px}
 .col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
-.col-notes{width:186px} .col-file{width:262px} .col-vimeo{width:118px} .col-day{width:110px}
+.col-notes{width:186px} .col-file{width:262px} .col-vimeo{width:152px} .col-day{width:110px}
 .col-section{width:176px} .col-review{width:96px}
 select.cell.sectionsel{
   appearance:none;cursor:pointer;padding-right:22px;
@@ -363,6 +363,13 @@ button.vlink.miss{
   color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,.1);
 }
 button.vlink.miss:hover{border-color:#f0b45f}
+select.vpick{
+  width:100%;max-width:100%;padding:3px 4px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--line);background:var(--field);color:var(--muted);
+  font:inherit;font-size:.76rem;
+}
+select.vpick:hover{border-color:var(--red-bright);color:var(--text)}
+select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,.1)}
 
 h4.sec{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red-bright);
   font-weight:800;margin:26px 0 14px}
@@ -379,7 +386,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:41 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:59 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -748,7 +755,7 @@ h4.sec:first-child{margin-top:0}
 
 <!-- ===== Spare Vimeo videos ===== -->
 <div class="overlay" id="ov-orphans">
-  <div class="modal">
+  <div class="modal" style="max-width:1040px">
     <div class="modal-h">
       <div>
         <h2>Videos with no session</h2>
@@ -758,7 +765,8 @@ h4.sec:first-child{margin-top:0}
     </div>
     <div class="modal-b tall">
       <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-        <span style="font-size:.82rem;color:var(--muted)">Room, time and title are guessed from the Vimeo title &mdash; fix anything that came out wrong.</span>
+        <span style="font-size:.82rem;color:var(--muted)">Pick a session in <b>Link to a session</b> to attach a video you've already got a row for &mdash;
+        or tick it and add it as a new one. Room, time and title are guessed from the Vimeo title.</span>
         <div class="spacer"></div>
         <button class="btn ghost sm" onclick="orphansPick(true)">All</button>
         <button class="btn ghost sm" onclick="orphansPick(false)">None</button>
@@ -766,8 +774,9 @@ h4.sec:first-child{margin-top:0}
       <div class="prevwrap">
         <table class="prev">
           <thead><tr>
-            <th style="width:32px"></th><th style="width:220px">Vimeo title</th>
-            <th style="width:96px">Room</th><th style="width:104px">Time</th><th>Session title</th>
+            <th style="width:32px"></th><th style="width:190px">Vimeo title</th>
+            <th style="width:210px">Link to a session</th>
+            <th style="width:88px">Room</th><th style="width:96px">Time</th><th>New session title</th>
           </tr></thead>
           <tbody id="or-body"></tbody>
         </table>
@@ -1219,6 +1228,7 @@ function render(){
   updateDupeBadge();
   updateClientButtons();
   paintSortArrows();
+  warmVimeo();
 }
 
 function updateDupeBadge(){
@@ -1274,9 +1284,14 @@ function rowEl(s){
            <a class="vlink" href="${esc(s.vimeo)}" target="_blank" rel="noopener" title="${esc(s.vimeo)}">Watch &#8599;</a>
            <button class="rowx" data-act="clearv" title="Remove link">&times;</button>
          </div>`
-      : s.vimeoMiss
-        ? `<button class="vlink miss" data-act="findv" title="Not in the Vimeo folder — search or upload">Not found</button>`
-        : `<button class="vlink find" data-act="findv" title="Search the Vimeo folder">Find&hellip;</button>`}</td>
+      : vimeoCache.videos.length && vimeoCache.folder === (proj().vimeoFolder || '')
+        ? `<select class="vpick ${s.vimeoMiss ? 'miss' : ''}" data-act="pickv"
+                   title="Every video in the Vimeo folder, closest name first">
+             ${vimeoOptions(s)}
+           </select>`
+        : s.vimeoMiss
+          ? `<button class="vlink miss" data-act="findv" title="Not in the Vimeo folder — search or upload">Not found</button>`
+          : `<button class="vlink find" data-act="findv" title="Search the Vimeo folder">Find&hellip;</button>`}</td>
     <td class="review-cell">${s.review
       ? `<label class="revtog" title="Show a review link on the client page">
            <input type="checkbox" data-f="reviewOn" ${s.reviewOn ? 'checked' : ''}>
@@ -1313,6 +1328,15 @@ function rowEl(s){
   tr.addEventListener('change', e => {
     const f = e.target.dataset.f;
     const rec = find(s.id); if (!rec) return;
+    if (e.target.dataset.act === 'pickv'){
+      const v = e.target.value;
+      if (!v) return;
+      if (v === '__search' || v === '__more'){ e.target.value = ''; return openVimeoPick(s.id); }
+      attachVideo(rec, v);
+      save(); render();
+      toast('Linked.');
+      return;
+    }
     if (f === 'time'){
       const parsed = parseTime(e.target.value);
       rec.time = parsed;
@@ -3205,22 +3229,47 @@ function renderOrphans(){
         <td><code style="font-family:var(--mono);font-size:.76rem;color:#f0b45f">${esc(buildFilename(s, p))}</code></td>
       </tr>`).join('')
     : '<tr><td colspan="2" style="color:var(--muted)">Every session already has a video.</td></tr>';
+  document.getElementById('or-add').disabled = !vimeoOrphans.filter(o => o.pick).length;
   document.getElementById('or-expected').open = !p.sessions.some(s => s.vimeo);
   document.getElementById('or-sub').textContent =
     `${vimeoOrphans.length} video${vimeoOrphans.length === 1 ? '' : 's'} in this folder don't belong to any session yet.`;
+  const unlinked = p.sessions.filter(s => !s.vimeo && s.status !== 'deleted');
+  const linkOptions = `<option value="">&mdash; add as new &mdash;</option>` +
+    unlinked.map(s => `<option value="${esc(s.id)}">${esc(s.title || '(untitled)')}${
+      s.room ? ' · ' + esc(s.room) : ''}</option>`).join('');
+
   document.getElementById('or-body').innerHTML = vimeoOrphans.map((o, i) => `
     <tr>
       <td><input type="checkbox" ${o.pick ? 'checked' : ''} onchange="vimeoOrphans[${i}].pick=this.checked;renderOrphans()"></td>
-      <td><span class="sbadge" title="${esc(o.video.name)}">${esc((o.video.name || '').slice(0, 34))}</span></td>
+      <td><span class="sbadge" title="${esc(o.video.name)}">${esc((o.video.name || '').slice(0, 30))}</span></td>
+      <td><select class="cell sectionsel" onchange="linkOrphanTo(${i}, this.value)"
+                  title="Attach this video to a session you already have">${linkOptions}</select></td>
       <td><input class="cell mono" value="${esc(o.room)}" placeholder="—"
                  onchange="vimeoOrphans[${i}].room=normalizeRoom(this.value);this.value=vimeoOrphans[${i}].room"></td>
       <td><input class="cell" value="${esc(timeHuman(o.time))}" placeholder="—"
                  onchange="vimeoOrphans[${i}].time=parseTime(this.value);this.value=timeHuman(vimeoOrphans[${i}].time)"></td>
       <td><input class="cell" value="${esc(o.title)}" oninput="vimeoOrphans[${i}].title=this.value"></td>
-    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--muted)">Nothing left over — every video is accounted for.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="6" style="color:var(--muted)">Nothing left over — every video is accounted for.</td></tr>';
   const btn = document.getElementById('or-add');
   btn.textContent = n ? `Add ${n} session${n === 1 ? '' : 's'}` : 'Add sessions';
   btn.disabled = !n;
+}
+
+// Attach a spare video to a session that's already in the list.
+function linkOrphanTo(i, sessionId){
+  if (!sessionId) return;
+  const o = vimeoOrphans[i];
+  const rec = find(sessionId);
+  if (!o || !rec) return;
+  rec.vimeo = o.video.link;
+  rec.thumb = o.video.thumb || rec.thumb || '';
+  rec.duration = o.video.duration || rec.duration || 0;
+  rec.review = o.video.review || rec.review || '';
+  rec.vimeoMiss = false;
+  vimeoOrphans.splice(i, 1);
+  save(); render(); renderOrphans();
+  toast(`Linked to “${rec.title || 'that session'}”.`);
+  if (!vimeoOrphans.length) closeOverlay('ov-orphans');
 }
 
 function orphansPick(on){ vimeoOrphans.forEach(o => o.pick = on); renderOrphans(); }
@@ -3247,6 +3296,45 @@ function createFromOrphans(){
   save(); render();
   closeOverlay('ov-orphans');
   toast(`${picked.length} session${picked.length === 1 ? '' : 's'} added from Vimeo, marked Uploaded.`);
+}
+
+/** Read the folder once in the background so every unlinked row gets its
+    dropdown without waiting for a Match run. Quiet on failure — the Find…
+    button is still there, and Match Vimeo reports properly. */
+let vimeoWarming = false;
+function warmVimeo(){
+  const folder = proj().vimeoFolder || '';
+  if (!folder || !syncOn() || vimeoWarming) return;
+  if (vimeoCache.folder === folder && vimeoCache.videos.length) return;
+  vimeoWarming = true;
+  vimeoFetchVideos(false)
+    .then(v => { if (v.length) render(); })
+    .catch(() => {})
+    .finally(() => { vimeoWarming = false; });
+}
+
+/** The folder's videos as <option>s for one session, likeliest first.
+    Videos already sitting on another session are left out — the search
+    picker is there if you really do want to point two rows at one video. */
+function vimeoOptions(s){
+  const p = proj();
+  const want = matchKey(buildFilename(s, p));
+  const taken = new Set(p.sessions.filter(x => x.id !== s.id && x.vimeo).map(x => x.vimeo));
+  const list = vimeoCache.videos.filter(v => !taken.has(v.link))
+    .sort((a, b) => score(b.name, want) - score(a.name, want));
+  const head = s.vimeoMiss ? 'Not found &mdash; pick' : 'Link a video&hellip;';
+  if (!list.length){
+    return `<option value="">All linked already</option>` +
+           `<option value="__search">&#128269; Search / upload&hellip;</option>`;
+  }
+  return `<option value="">${head}</option>` +
+    list.slice(0, 60).map(v => {
+      const near = score(v.name, want) >= 60 ? '\u2713 ' : '';
+      const mins = v.duration ? '  (' + Math.floor(v.duration / 60) + 'm)' : '';
+      return `<option value="${esc(v.link)}">${near}${esc(v.name || '(untitled)')}${mins}</option>`;
+    }).join('') +
+    (list.length > 60 ? `<option value="__more">&hellip; ${list.length - 60} more &mdash; search&hellip;</option>` : '') +
+    `<option value="__search">&#128269; Search / upload&hellip;</option>`;
 }
 
 /* --------- picker for the ones that didn't match --------- */
@@ -3292,9 +3380,22 @@ function score(name, want){
   return n;
 }
 
+/** Copy a folder video's details onto a session — thumbnail and all. */
+function attachVideo(s, url){
+  if (!s) return;
+  const v = vimeoCache.videos.find(x => x.link === url);
+  s.vimeo = url;
+  s.vimeoMiss = false;
+  if (v){
+    s.thumb = v.thumb || s.thumb || '';
+    s.duration = v.duration || s.duration || 0;
+    s.review = v.review || s.review || '';
+  }
+}
+
 function linkVimeo(url){
-  const s = find(vimeoPickFor);
-  if (s){ s.vimeo = url; s.vimeoMiss = false; save(); render(); }
+  attachVideo(find(vimeoPickFor), url);
+  save(); render();
   closeOverlay('ov-vimeo');
   toast('Linked.');
 }
