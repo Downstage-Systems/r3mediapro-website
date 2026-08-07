@@ -399,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 10:29 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 10:42 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1362,9 +1362,9 @@ function rowEl(s){
       const v = e.target.value;
       if (!v) return;
       if (v === '__search' || v === '__more'){ e.target.value = ''; return openVimeoPick(s.id); }
-      attachVideo(rec, v);
+      attachVideo(rec, v, true);
       save(); render();
-      toast('Linked.');
+      toast(`Linked and set to ${sLabel('delivered')}.`);
       return;
     }
     if (f === 'time'){
@@ -3200,7 +3200,9 @@ async function matchVimeo(){
     const p = proj();
     let exact = 0, loose = 0, missing = 0, promoted = 0;
     p.sessions.forEach(s => {
-      if (s.status === 'deleted') return;
+      // Issue and Deleted are deliberate states — a sweep doesn't even link
+      // them, let alone restate them. Pick one by hand if you want it linked.
+      if ((S_BY_KEY[s.status] || {}).off) return;
       if (s.vimeo){ s.vimeoMiss = false; return; }
       const found = bestVideoFor(s, videos, p);
       if (found){
@@ -3345,7 +3347,7 @@ function linkOrphanTo(i, sessionId){
   rec.duration = o.video.duration || rec.duration || 0;
   rec.review = o.video.review || rec.review || '';
   rec.vimeoMiss = false;
-  const up = promoteOnLink(rec);
+  const up = promoteOnLink(rec, true);
   vimeoOrphans.splice(i, 1);
   save(); render(); renderOrphans();
   toast(`Linked to “${rec.title || 'that session'}”${up ? ` and set to ${sLabel('delivered')}` : ''}.`);
@@ -3397,7 +3399,7 @@ let autoMatching = false;
 async function autoMatchVimeo(){
   const p = proj();
   if (autoMatching || !syncOn() || !cfg().autoMatch || !p.vimeoFolder) return;
-  const waiting = p.sessions.filter(s => !s.vimeo && s.status !== 'deleted');
+  const waiting = p.sessions.filter(s => !s.vimeo && !(S_BY_KEY[s.status] || {}).off);
   if (!waiting.length) return;
 
   autoMatching = true;
@@ -3515,17 +3517,17 @@ function score(name, want){
  * 'deleted' are deliberate states, and a stray filename match shouldn't
  * quietly undo either of them.
  */
-function promoteOnLink(s){
+function promoteOnLink(s, byHand){
   if (!s) return false;
   const st = S_BY_KEY[s.status];
-  if (st && st.off) return false;            // issue / deleted stay put
+  if (!byHand && st && st.off) return false;   // a sweep never touches issue / deleted
   if (s.status === 'delivered') return false;
   s.status = 'delivered';
   return true;
 }
 
 /** Copy a folder video's details onto a session — thumbnail and all. */
-function attachVideo(s, url){
+function attachVideo(s, url, byHand){
   if (!s) return;
   const v = vimeoCache.videos.find(x => x.link === url);
   s.vimeo = url;
@@ -3535,11 +3537,11 @@ function attachVideo(s, url){
     s.duration = v.duration || s.duration || 0;
     s.review = v.review || s.review || '';
   }
-  promoteOnLink(s);
+  promoteOnLink(s, byHand);
 }
 
 function linkVimeo(url){
-  attachVideo(find(vimeoPickFor), url);
+  attachVideo(find(vimeoPickFor), url, true);
   save(); render();
   closeOverlay('ov-vimeo');
   toast('Linked.');
