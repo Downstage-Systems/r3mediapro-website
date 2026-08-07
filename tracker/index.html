@@ -399,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 12:13 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 1:45 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -3673,6 +3673,13 @@ function init(){
   setSyncState(syncOn() ? 'busy' : 'off');
   if (syncOn()){ syncNow(true); startPolling(); }
   setInterval(() => { if (syncState === 'ok') paintSyncPill(); }, 10000);
+  // Coming back to the tab shouldn't mean waiting out the rest of a 25s tick
+  // before you see what the other machines did while you were away.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !syncOn()) return;
+    syncNow(true);
+    autoMatchVimeo();
+  });
   window.addEventListener('online',  () => { if (syncOn()) syncNow(true); });
   window.addEventListener('offline', () => setSyncState('offline'));
 }
