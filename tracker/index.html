@@ -127,7 +127,9 @@ table.grid th.sort-asc i::after{content:'\2191'}
 table.grid th.sort-desc i::after{content:'\2193'}
 table.grid tbody tr{background:var(--tint, transparent);transition:background .12s}
 table.grid tbody tr:hover{background:var(--tint-hover, rgba(255,255,255,.018))}
-table.grid tbody tr.sel,table.grid tbody tr.sel:hover{background:rgba(193,18,31,.10)}
+table.grid tbody tr.sel,table.grid tbody tr.sel:hover{background:rgba(193,18,31,.20)}
+table.grid tbody tr.sel td{border-top:1px solid rgba(230,57,70,.45);border-bottom:1px solid rgba(230,57,70,.45)}
+table.grid tbody tr.sel td.handle{box-shadow:inset 3px 0 0 var(--red-bright)}
 table.grid tbody td.handle{box-shadow:inset 3px 0 0 var(--stripe, transparent)}
 table.grid tbody tr.gone{--tint:transparent;--tint-hover:rgba(255,255,255,.018)}
 table.grid tbody tr.gone td.handle{box-shadow:inset 3px 0 0 #3a3a44}
@@ -138,6 +140,11 @@ table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
 .col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
 .col-notes{width:186px} .col-file{width:262px} .col-vimeo{width:118px} .col-day{width:110px}
 .col-section{width:176px} .col-review{width:96px}
+select.cell.sectionsel{
+  appearance:none;cursor:pointer;padding-right:22px;
+  background-repeat:no-repeat;background-position:right 7px center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%239d9da6'/%3E%3C/svg%3E");
+}
 td.review-cell{text-align:center}
 .revtog{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--muted)}
 .revtog a{color:var(--s-exported);font-weight:600}
@@ -372,7 +379,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 5, 11:50 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:47 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -420,7 +427,6 @@ h4.sec:first-child{margin-top:0}
   <div class="legend" id="legend"></div>
 </div>
 
-<datalist id="section-list"></datalist>
 <div class="toolbar">
   <button class="btn" onclick="openImport()">&#8593;&nbsp; Import sessions</button>
   <button class="btn ghost" onclick="addRow()">+ Add row</button>
@@ -479,6 +485,7 @@ h4.sec:first-child{margin-top:0}
   <select class="field" id="bulk-section" style="width:180px" onchange="bulkSectionPick(this.value)">
     <option value="">Set section&hellip;</option>
   </select>
+  <button class="btn ghost sm" onclick="addRowBelow()">Add row below</button>
   <button class="btn ghost sm" onclick="bulkTarget()">Target date</button>
   <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
   <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
@@ -1190,8 +1197,6 @@ function render(){
   tbody.innerHTML = '';
   document.getElementById('empty').style.display = p.sessions.length ? 'none' : 'block';
   document.getElementById('tablewrap').style.display = p.sessions.length ? 'block' : 'none';
-  document.getElementById('section-list').innerHTML =
-    [...new Set(p.sessions.map(x => x.section).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('');
   document.getElementById('count-label').textContent =
     rows.length === p.sessions.length ? `${p.sessions.length} sessions` : `${rows.length} of ${p.sessions.length}`;
 
@@ -1212,6 +1217,16 @@ function updateDupeBadge(){
   btn.style.color = n ? '#f0b45f' : '';
 }
 
+// Every section, always — a datalist only suggests, and hides anything that
+// doesn't match what's already typed.
+function sectionOptions(current){
+  const names = sectionList().map(r => r.name).filter(Boolean);
+  if (current && !names.includes(current)) names.push(current);
+  return `<option value="">&mdash;</option>` +
+    names.map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('') +
+    `<option value="__new">+ New section&hellip;</option>`;
+}
+
 function rowEl(s){
   const tr = document.createElement('tr');
   tr.dataset.id = s.id;
@@ -1224,7 +1239,9 @@ function rowEl(s){
   tr.innerHTML = `
     <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
     <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
-    <td><input class="cell" data-f="section" value="${esc(s.section || '')}" placeholder="&mdash;" list="section-list" title="${esc(s.section || 'Groups sessions under a heading on the client page')}"></td>
+    <td><select class="cell sectionsel" data-f="section" title="${esc(s.section || 'Groups sessions under a heading on the client page')}">
+      ${sectionOptions(s.section)}
+    </select></td>
     <td><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="BO1" spellcheck="false"></td>
     <td><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
@@ -1302,10 +1319,30 @@ function rowEl(s){
     } else if (f === 'vimeo'){
       rec.vimeo = normalizeVimeo(e.target.value);
       save(); render();
+    } else if (f === 'section'){
+      if (e.target.value === '__new'){
+        const name = (prompt('Name the new section') || '').trim();
+        if (name){
+          proj().sectionOrder = [...new Set([...(proj().sectionOrder || []), name])];
+          rec.section = name;
+        }
+        save(); render();
+        return;
+      }
+      rec.section = e.target.value;
+      save(); render();
     } else if (f === 'reviewOn'){
       rec.reviewOn = e.target.checked;
       queueSave();
     }
+  });
+
+  // clicking the row itself selects it; fields and buttons still behave
+  tr.addEventListener('mousedown', e => {
+    if (e.target.closest('input, select, button, a, textarea, .handle')) return;
+    const box = tr.querySelector('[data-act="sel"]');
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('click', { bubbles: true }));
   });
 
   tr.addEventListener('click', e => {
@@ -1473,6 +1510,23 @@ function paintSortArrows(){
     th.classList.toggle('sort-asc',  !!mine && mine[1] === sortState.key && sortState.dir === 1);
     th.classList.toggle('sort-desc', !!mine && mine[1] === sortState.key && sortState.dir === -1);
   });
+}
+
+function addRowBelow(){
+  const p = proj();
+  const idx = p.sessions.reduce((last, s, i) => selected.has(s.id) ? i : last, -1);
+  if (idx === -1) return toast('Tick a row first — the new one goes under it.', true);
+  const above = p.sessions[idx];
+  const row = { id: uid(), room: above.room || '', seq: 0, section: above.section || '',
+                day: above.day || '', time: '', title: '', version: 1, status: 'notstarted',
+                notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '',
+                drive: '', review: '', reviewOn: false, feedback: '', target: '' };
+  p.sessions.splice(idx + 1, 0, row);
+  reindex();
+  if (cfg().numberBy === 'room') renumber(true); else { save(); render(); }
+  const tr = document.querySelector(`#tbody tr[data-id="${row.id}"]`);
+  if (tr){ tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); tr.querySelector('[data-f="title"]').focus(); }
+  toast('Row added below.');
 }
 
 function sortByRoomTime(){
