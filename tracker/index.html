@@ -386,7 +386,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:59 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:15 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -2600,7 +2600,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 14;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 15;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -3045,6 +3045,13 @@ async function testSync(){
       lines.push(d.downloads === 'available'
         ? ok(`Download links available (${d.downloadsFound} of the first 5 videos offer one).`)
         : no('Download links: ' + esc(d.downloads || 'unknown')));
+      if (d.thumbnails){
+        lines.push(/^\d+ of/.test(d.thumbnails)
+          ? ok('Thumbnails: ' + esc(d.thumbnails) + '.')
+          : no('Thumbnails: ' + esc(d.thumbnails)));
+      } else {
+        lines.push(no('This script is too old to check thumbnails &mdash; deploy a new version.'));
+      }
     }
     lines.push(ok(`${d.projects} project(s), ${d.sessions} session(s) in the Sheet.`));
 
