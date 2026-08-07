@@ -33,6 +33,7 @@
     .vt .t{ line-height:1.34; }
     .vt .d{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 9px; margin-top:5px; }
     .badge.status{ font-size:.68rem; padding:3px 10px; flex:none; }
+.prepping{ opacity:.5; cursor:default; border-style:dashed; }
     .addnote{ margin-top:7px; }
     .addnote > a{
       font-size:.76rem; color:#6f6f79; border-bottom:1px dotted #45454f; padding-bottom:1px;
@@ -231,7 +232,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 10:42 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 10:58 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -632,7 +633,9 @@ function rowHtml(s){
     s.download
       ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
            s.downloadSize ? ' <span style="opacity:.6;font-size:.86em">' + size(s.downloadSize) + '</span>' : ''}</a>`
-      : gap,
+      : ready
+        ? `<span class="btn sm ghost prepping" title="Vimeo is still preparing the download file. Streaming works now; this appears on its own when it's ready.">&#8987; Preparing&hellip;</span>`
+        : gap,
     s.review
       ? `<a class="btn sm ghost" href="${esc(s.review)}" target="_blank" rel="noopener"
             title="Leave timestamped notes on Vimeo">&#9998; Review</a>`
