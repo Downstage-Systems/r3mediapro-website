@@ -399,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:26 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:34 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1236,7 +1236,37 @@ function visibleSessions(){
   });
 }
 
+/**
+ * A sync re-renders the table, which destroys whatever field you're typing
+ * in. Remember where the caret was and put it back.
+ *
+ * The value matters as much as the focus: 'time' is only committed to the
+ * record on change, not on input, so a re-render mid-keystroke would other-
+ * wise redraw the field from the record and swallow what you'd typed.
+ */
+function focusSnapshot(){
+  const el = document.activeElement;
+  if (!el || !el.closest || !el.closest('#tbody')) return null;
+  const tr = el.closest('tr');
+  const snap = { id: tr && tr.dataset.id, f: el.dataset.f, act: el.dataset.act, value: el.value };
+  try { snap.start = el.selectionStart; snap.end = el.selectionEnd; } catch (e){}
+  return snap;
+}
+
+function focusRestore(snap){
+  if (!snap || !snap.id) return;
+  const tr = document.querySelector(`#tbody tr[data-id="${snap.id}"]`);
+  if (!tr) return;
+  const sel = snap.f ? `[data-f="${snap.f}"]` : snap.act ? `[data-act="${snap.act}"]` : null;
+  const el = sel && tr.querySelector(sel);
+  if (!el) return;
+  if (snap.value !== undefined && el.value !== snap.value && el.tagName === 'INPUT') el.value = snap.value;
+  el.focus();
+  try { if (snap.start != null) el.setSelectionRange(snap.start, snap.end); } catch (e){}
+}
+
 function render(){
+  const keepFocus = focusSnapshot();
   const p = proj();
   // project picker
   const ps = document.getElementById('proj-select');
@@ -1262,6 +1292,7 @@ function render(){
   paintSortArrows();
   paintStatusMenus();
   paintAutoMatch();
+  focusRestore(keepFocus);
   warmVimeo();
 }
 
@@ -1348,6 +1379,7 @@ function rowEl(s){
   tr.addEventListener('dragend', () => { tr.draggable = false; });
 
   tr.addEventListener('input', e => {
+    lastEditAt = Date.now();
     const f = e.target.dataset.f; if (!f) return;
     const rec = find(s.id); if (!rec) return;
     if (f === 'seq' || f === 'version'){
@@ -1360,6 +1392,7 @@ function rowEl(s){
   });
 
   tr.addEventListener('change', e => {
+    lastEditAt = Date.now();
     const f = e.target.dataset.f;
     const rec = find(s.id); if (!rec) return;
     if (e.target.dataset.act === 'pickv'){
@@ -2671,7 +2704,7 @@ const SYNC_KEY = 'r3-vet-sync-v1';
 const NEEDS_SCRIPT = 18;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
-let pushTimer = null, pollTimer = null, syncing = false;
+let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
 
 function loadSync(){
   try { Object.assign(sync, JSON.parse(localStorage.getItem(SYNC_KEY) || '{}')); } catch(e){}
@@ -2692,11 +2725,12 @@ function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || ''
 
 function localChanges(){
   const now = new Date().toISOString();
-  const out = { projects: [], sessions: [] };
+  const out = { projects: [], sessions: [], hashes: { p: {}, s: {} } };
   const liveP = new Set(), liveS = new Set();
   db.projects.forEach(p => {
     liveP.add(p.id);
-    if (sync.baseline.p[p.id] !== pHash(p)){
+    out.hashes.p[p.id] = pHash(p);
+    if (sync.baseline.p[p.id] !== out.hashes.p[p.id]){
       out.projects.push({ id: p.id, name: p.name, eventCode: p.eventCode || '', eventSlug: p.eventSlug || '',
                           clientPassword: p.clientPassword || '', vimeoFolder: p.vimeoFolder || '',
                           clientName: p.clientName || '', welcome: p.welcome || '', details: p.details || [],
@@ -2704,7 +2738,8 @@ function localChanges(){
     }
     p.sessions.forEach(s => {
       liveS.add(s.id);
-      if (sync.baseline.s[s.id] !== sHash(s)){
+      out.hashes.s[s.id] = sHash(s);
+      if (sync.baseline.s[s.id] !== out.hashes.s[s.id]){
         out.sessions.push({ id: s.id, projectId: p.id, room: s.room || '', seq: s.seq || 0, day: s.day || '',
                             time: s.time || '', title: s.title || '', version: s.version || 1,
                             status: s.status || 'notstarted', section: s.section || '',
@@ -2747,6 +2782,33 @@ function healBaseline(){
   });
   if (healed) saveSync();
   return healed;
+}
+
+/**
+ * Baseline only the rows that were unchanged for the whole round trip.
+ *
+ * setBaseline() fingerprinted the db as it stood *after* the push returned,
+ * which silently adopted anything typed while the request was in flight —
+ * marking it synced when it had never been sent. The next pull then saw a
+ * clean row and overwrote it with the server's older copy. That's how fast
+ * edits went missing.
+ *
+ * Anything that moved during the cycle keeps its previous baseline, stays
+ * dirty, and goes out on the next push instead.
+ */
+function commitBaseline(sent){
+  const b = { p: {}, s: {} };
+  db.projects.forEach(p => {
+    const h = pHash(p);
+    b.p[p.id] = (sent.p[p.id] === h) ? h : sync.baseline.p[p.id];
+    p.sessions.forEach(s => {
+      const sh = sHash(s);
+      b.s[s.id] = (sent.s[s.id] === sh) ? sh : sync.baseline.s[s.id];
+    });
+  });
+  sync.baseline = b;
+  sync.lastAt = new Date().toISOString();
+  saveSync();
 }
 
 function setBaseline(){
@@ -2869,7 +2931,7 @@ async function syncNow(quiet){
     if (mine.projects.length || mine.sessions.length){
       await api({ mode: 'push', token: sync.token, projects: mine.projects, sessions: mine.sessions });
     }
-    setBaseline();
+    commitBaseline(mine.hashes);
     save(); render();
     setSyncState('ok');
     if (!quiet) toast('Synced with the Sheet.');
@@ -2877,7 +2939,13 @@ async function syncNow(quiet){
     setSyncState(navigator.onLine ? 'error' : 'offline');
     if (!quiet) toast('Sync failed: ' + err.message, true);
     console.error(err);
-  } finally { syncing = false; }
+  } finally {
+    syncing = false;
+    // Anything typed mid-flight is still dirty — send it rather than leaving
+    // it to sit until the next 25s poll.
+    const left = localChanges();
+    if (left.projects.length || left.sessions.length) queuePush();
+  }
 }
 
 function queuePush(){
@@ -2891,6 +2959,9 @@ function startPolling(){
   clearInterval(pollTimer);
   if (syncOn() && sync.auto) pollTimer = setInterval(() => {
     if (document.hidden) return;
+    // Mid-edit: leave it alone. The debounced push carries the work anyway,
+    // and a pull here would redraw the table under your hands.
+    if (Date.now() - lastEditAt < 3000) return;
     syncNow(true);
     autoMatchVimeo();
   }, 25000);
