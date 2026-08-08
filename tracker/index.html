@@ -141,7 +141,11 @@ table.grid tbody tr.gone td.handle{box-shadow:inset 3px 0 0 #3a3a44}
 table.grid tbody tr.dragging{opacity:.35}
 table.grid tbody tr.dropafter td{box-shadow:inset 0 -2px 0 var(--red-bright)}
 table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
-.col-hand{width:30px} .col-chk{width:30px} .col-room{width:116px} .col-sess{width:58px}
+.col-hand{width:30px} .col-chk{width:30px} /* Rooms and session numbers are an event idea. For a client you're just
+   cutting video for, the columns are noise — and an empty column invites
+   someone to fill it in. */
+body.no-rooms .col-room, body.no-rooms .col-sess{display:none}
+.col-room{width:116px} .col-sess{width:58px}
 .col-time{width:118px} .col-ver{width:56px} .col-status{width:162px} .col-x{width:38px}
 .col-notes{width:186px} .col-file{width:262px} .col-vimeo{width:152px} .col-day{width:110px}
 .col-section{width:176px} .col-review{width:96px}
@@ -413,7 +417,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:22 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:29 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -662,6 +666,14 @@ h4.sec:first-child{margin-top:0}
           <input class="field" id="s-sesspad" type="number" min="1" max="4" onchange="onSettingChange()">
         </div>
       </div>
+
+      <h4 class="sec">Project type</h4>
+      <label class="tick" style="margin-bottom:6px">
+        <input type="checkbox" id="s-eventmode" onchange="onSettingChange()">
+        This is an event &mdash; track rooms and session numbers
+      </label>
+      <p class="help" style="margin:0 0 16px">Off for straight editing work: the Room and Sess columns
+      disappear, and <code>{room}</code> / <code>{sess}</code> drop out of the filename with them.</p>
 
       <h4 class="sec">Status labels</h4>
       <p class="help" style="margin:-8px 0 14px">Rename any status. The colours and the order of the pipeline stay put &mdash;
@@ -1054,6 +1066,7 @@ const DEFAULT_SETTINGS = {
   numberBy: 'room',
   sessPrefix: 'S',
   sessPad: 2,
+  eventMode: true,
   autoMatch: true,
   editorLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.label])),
   clientLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.client])),
@@ -1228,10 +1241,14 @@ function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
 
 function buildFilename(s, p){
   const c = p.settings;
+  // Outside an event these mean nothing, so they resolve empty and the
+  // pattern's separator collapse takes the gap with them. Any values already
+  // on the rows stay put, ready if the project is switched back.
+  const ev = c.eventMode !== false;
   const vals = {
     event: (p.eventCode || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
-    room:  s.room || '',
-    sess:  s.seq ? c.sessPrefix + String(s.seq).padStart(+c.sessPad || 2, '0') : '',
+    room:  ev ? (s.room || '') : '',
+    sess:  ev && s.seq ? c.sessPrefix + String(s.seq).padStart(+c.sessPad || 2, '0') : '',
     title: titleToken(s.title, c.titleStyle, +c.titleWords || 0),
     time:  timeToken(s.time, c.timeStyle),
     ver:   'V' + (s.version || 1),
@@ -1334,6 +1351,7 @@ function render(){
   paintSortArrows();
   paintStatusMenus();
   paintAutoMatch();
+  paintEventMode();
   focusRestore(keepFocus);
   warmVimeo();
 }
@@ -1371,10 +1389,10 @@ function rowEl(s){
     <td><select class="cell sectionsel" data-f="section" title="${esc(s.section || 'Groups sessions under a heading on the client page')}">
       ${sectionOptions(s.section)}
     </select></td>
-    <td><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="BO1" spellcheck="false"></td>
-    <td><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
+    <td class="col-room"><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="&mdash;" spellcheck="false"></td>
+    <td class="col-sess"><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
-    <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="9:30 AM" spellcheck="false"></td>
+    <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
     <td class="title-cell"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"></td>
     <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
     <td><input class="cell num" data-f="version" value="${s.version || 1}" inputmode="numeric"></td>
@@ -1525,6 +1543,10 @@ function rowEl(s){
 
 /** The two standalone status menus. Rebuilt with the table because the
     wording is per project, so switching projects has to reword them. */
+function paintEventMode(){
+  document.body.classList.toggle('no-rooms', cfg().eventMode === false);
+}
+
 function paintAutoMatch(){
   const box = document.getElementById('auto-match');
   if (box) box.checked = !!cfg().autoMatch;
@@ -2345,6 +2367,7 @@ function openSettings(){
   document.getElementById('s-numberby').value = c.numberBy;
   document.getElementById('s-sessprefix').value = c.sessPrefix;
   document.getElementById('s-sesspad').value = c.sessPad;
+  document.getElementById('s-eventmode').checked = c.eventMode !== false;
   document.getElementById('client-labels').innerHTML = STATUSES.map(s => `
     <div class="lblrow ${s.off ? 'off' : ''}">
       <span class="swatch" style="background:${s.hex}"></span>
@@ -2370,6 +2393,9 @@ function onSettingChange(){
   c.timeStyle   = document.getElementById('s-timestyle').value;
   c.sessPrefix  = document.getElementById('s-sessprefix').value;
   c.sessPad     = Math.min(4, Math.max(1, parseInt(document.getElementById('s-sesspad').value, 10) || 2));
+  const wasEvent = c.eventMode !== false;
+  c.eventMode = document.getElementById('s-eventmode').checked;
+  const modeChanged = wasEvent !== (c.eventMode !== false);
   const nb = document.getElementById('s-numberby').value;
   const changed = nb !== c.numberBy;
   c.numberBy = nb;
@@ -2386,7 +2412,7 @@ function onSettingChange(){
 
   patternPreview();
   if (changed) renumber(true);
-  else if (relabelled){ save(); render(); }
+  else if (relabelled || modeChanged){ save(); render(); }
   else { refreshComputed(); queueSave(); }
 }
 
