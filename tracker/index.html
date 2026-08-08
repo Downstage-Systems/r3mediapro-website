@@ -408,7 +408,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:10 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:12 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1023,7 +1023,7 @@ const STATUSES = [
   {key:'notstarted', label:'Not Started', hex:'#6b6b74', client:'Scheduled'},
   {key:'editing',    label:'Editing',     hex:'#d98324', client:'In Edit'},
   {key:'exported',   label:'Exported',    hex:'#3d8bfd', client:'In Review'},
-  {key:'uploaded',   label:'Uploaded',    hex:'#8b5cf6', client:'Ready'},
+  {key:'uploaded',   label:'Uploaded',    hex:'#8b5cf6', client:'Processing'},
   {key:'delivered',  label:'Delivered',   hex:'#2ea86a', client:'Available'},
   {key:'issue',      label:'Issue',       hex:'#e63946', client:'Delayed',    off:true},
   {key:'deleted',    label:'Deleted',     hex:'#4a4a55', client:'Not recorded', off:true, hideFromClient:true},
@@ -3029,8 +3029,13 @@ function startPolling(){
 // "just now", "2 min ago" — enough to see at a glance that it's alive.
 function clockTime(iso){
   const d = new Date(iso);
-  return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit',
-                                                    second: '2-digit', hour12: false });
+  if (isNaN(d)) return '';
+  // 12-hour to match the session times everywhere else in the app; the
+  // am/pm marker is dropped since a sync is always minutes old, never twelve
+  // hours, so there's nothing to disambiguate.
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit',
+                                    second: '2-digit', hour12: true })
+          .replace(/\s*[AaPp]\.?[Mm]\.?$/, '');
 }
 
 function sinceSync(){
