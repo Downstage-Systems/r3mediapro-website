@@ -410,6 +410,10 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
 }
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
+.btn.done{
+  color:var(--s-delivered);border-color:color-mix(in srgb, var(--s-delivered) 45%, transparent);
+  background:color-mix(in srgb, var(--s-delivered) 12%, transparent);
+}
 .autom{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--muted);
   cursor:pointer;user-select:none;margin-left:-4px}
 .autom input{cursor:pointer}
@@ -430,7 +434,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 9:54 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 10:05 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1383,8 +1387,12 @@ function render(){
   tbody.innerHTML = '';
   document.getElementById('empty').style.display = p.sessions.length ? 'none' : 'block';
   document.getElementById('tablewrap').style.display = p.sessions.length ? 'block' : 'none';
+  const d = deliverables();
+  const base = rows.length === p.sessions.length
+    ? `${p.sessions.length} sessions` : `${rows.length} of ${p.sessions.length}`;
+  // Only worth splitting the two apart when something isn't being delivered.
   document.getElementById('count-label').textContent =
-    rows.length === p.sessions.length ? `${p.sessions.length} sessions` : `${rows.length} of ${p.sessions.length}`;
+    d.spare.length ? `${base} · ${d.total} deliverables` : base;
 
   for (const s of rows) tbody.appendChild(rowEl(s));
   refreshComputed();
@@ -3397,6 +3405,20 @@ function saveSyncSettings(){
 }
 
 /* --------- the delivery email --------- */
+/** What's on the hook, ignoring anything that can't or won't be delivered. */
+function deliverables(){
+  const p = proj();
+  const rows = p.sessions.filter(s => s.status !== 'deleted' && !notCounted(s));
+  const done = rows.filter(s => s.status === 'delivered');
+  return { rows, done, total: rows.length, complete: rows.length > 0 && done.length === rows.length,
+           spare: p.sessions.filter(s => s.status !== 'deleted' && notCounted(s)) };
+}
+
+/** Titles in running order, numbered, for pasting into an email. */
+function deliverableList(rows){
+  return rows.map((s, i) => `${String(i + 1).padStart(2, ' ')}. ${s.title || 'Untitled session'}`);
+}
+
 function openHandoff(){
   const p = proj();
   if (!p.eventSlug) return needSlug();
@@ -3404,23 +3426,42 @@ function openHandoff(){
   const url = clientUrl();
   const anyReview = p.sessions.some(s => s.reviewOn && s.review);
 
+  const d = deliverables();
   const lines = [];
   lines.push('Hello!');
   lines.push('');
-  lines.push(`Your videos from ${p.name} are on your private page here:`);
+  if (d.complete){
+    lines.push(`All ${d.total} video${d.total === 1 ? '' : 's'} from ${p.name} are finished and uploaded.`);
+    lines.push('They are on your private page here:');
+  } else {
+    lines.push(`Your videos from ${p.name} are on your private page here:`);
+  }
   lines.push('');
   lines.push(url);
   lines.push(`Access code: ${p.eventSlug}`);
   if (p.clientPassword) lines.push(`Password: ${p.clientPassword}`);
   lines.push('');
-  // Deliberately evergreen — a count would be out of date the moment you cut
-  // the next session, and the page shows the live figure anyway.
-  lines.push('Sessions appear there as they are finished, so the link stays current — no need to wait for another email.');
-  if (p.eta) lines.push(p.eta);
+  if (d.complete){
+    lines.push(`Here is everything that's there — ${d.total} in total:`);
+    lines.push('');
+    deliverableList(d.rows).forEach(l => lines.push(l));
+    if (d.spare.length){
+      lines.push('');
+      lines.push(d.spare.length === 1
+        ? 'One session on the running order isn\'t included, and is marked on the page with the reason:'
+        : `${d.spare.length} sessions on the running order aren't included, and are marked on the page with the reason:`);
+      d.spare.forEach(sx => lines.push(`   • ${sx.title || 'Untitled session'}`));
+    }
+  } else {
+    // Deliberately evergreen while work is outstanding — a count would be out
+    // of date the moment you cut the next session, and the page is live.
+    lines.push('Sessions appear there as they are finished, so the link stays current — no need to wait for another email.');
+    if (p.eta) lines.push(p.eta);
+  }
   lines.push('');
   lines.push('A few things worth knowing:');
   lines.push('');
-  lines.push('• The page keeps itself up to date, so the same link works all the way through. Anything still being edited shows where it has got to.');
+  if (!d.complete) lines.push('• The page keeps itself up to date, so the same link works all the way through. Anything still being edited shows where it has got to.');
   lines.push('• Click any session to play it in the player at the top, or use Download to save the full-quality file.');
   lines.push('• Please save the files to your own drive or server. They are guaranteed available for one year from delivery.');
   if (anyReview) lines.push('• Where you see a Review button, that opens Vimeo so you can leave notes at exact timestamps.');
@@ -3435,7 +3476,9 @@ function openHandoff(){
   lines.push('R3 Media Production');
   lines.push('rob@r3mediapro.com');
 
-  document.getElementById('mail-subject').value = `Your videos from ${p.name}`;
+  document.getElementById('mail-subject').value = d.complete
+    ? `All ${d.total} video${d.total === 1 ? '' : 's'} ready — ${p.name}`
+    : `Your videos from ${p.name}`;
   document.getElementById('mail-body').value = lines.join('\n');
   document.getElementById('mail-warn').textContent = p.clientPassword
     ? ''
@@ -3499,6 +3542,17 @@ function updateClientButtons(){
     const b = document.getElementById(id);
     if (b){ b.style.opacity = on ? '' : '.45'; b.title = on ? clientUrl() : 'No event slug set yet'; }
   });
+
+  // Once everything's delivered the wrap-up email is the obvious next move,
+  // so the button says so rather than waiting to be remembered.
+  const mail = document.getElementById('btn-clientmail');
+  const d = deliverables();
+  if (!mail) return;
+  mail.innerHTML = d.complete
+    ? '&#10003;&nbsp; Email &mdash; all done'
+    : '&#9993;&nbsp; Email client';
+  mail.classList.toggle('done', d.complete);
+  if (on && d.complete) mail.title = `Draft the wrap-up email — all ${d.total} delivered`;
 }
 
 function paintDriveLink(){
