@@ -49,6 +49,19 @@
     .vt .d{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 9px; margin-top:5px; }
     .badge.status{ font-size:.68rem; padding:3px 10px; flex:none; }
 .prepping{ opacity:.5; cursor:default; border-style:dashed; }
+.older{ margin-top:8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.older .olabel{
+  font-size:.68rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); opacity:.75; margin-right:2px;
+}
+.vchip{
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 9px; border-radius:20px; border:1px solid var(--line);
+  font-size:.72rem; font-weight:700; letter-spacing:.02em;
+  color:var(--muted) !important; text-decoration:none; white-space:nowrap;
+  transition:border-color .15s, color .15s, background .15s;
+}
+.vchip:hover{ border-color:var(--red-bright); color:var(--text) !important; background:rgba(224,49,49,.06); }
 .dropbox{
   border:2px dashed var(--line); border-radius:10px; padding:30px 20px; text-align:center;
   color:var(--muted); transition:border-color .15s, background .15s; cursor:pointer;
@@ -269,7 +282,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 8:56 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:11 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -624,7 +637,7 @@ function render(data){
   // group into sections, in the order the tracker set
   const groups = [];
   const byName = new Map();
-  (data.sessions || []).forEach(s => {
+  foldVersions(data.sessions || []).forEach(s => {
     const key = s.section || '';
     if (!byName.has(key)){ const g = { name: key, rows: [] }; byName.set(key, g); groups.push(g); }
     byName.get(key).rows.push(s);
@@ -792,6 +805,66 @@ function sectionHtml(g, groupCount, idx){
   </div>`;
 }
 
+/**
+ * Two cuts of one session are one line item, not two.
+ *
+ * A re-cut is uploaded to Vimeo as its own video and kept as its own row, so
+ * the client page would otherwise list "Opening Keynote" twice with no clue
+ * which to download. Room plus title identifies the session; version says
+ * which cut. The newest becomes the row, the rest hang off it — still one
+ * click away, because a client asking for the previous cut is routine.
+ */
+function versionKey(s){
+  const t = String(s.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return t ? (s.room || '') + '|' + t : '';
+}
+
+function foldVersions(rows){
+  const out = [], primary = new Map();
+  const bare = x => { const c = Object.assign({}, x); delete c.older; return c; };
+
+  rows.forEach(s => {
+    const key = versionKey(s);
+    if (!key){ out.push(s); return; }
+    const cur = primary.get(key);
+    if (!cur){
+      const n = Object.assign({}, s, { older: [] });
+      primary.set(key, n); out.push(n); return;
+    }
+    const cv = cur.version || 1, sv = s.version || 1;
+    // Same title AND same version is a genuine duplicate, not a version pair —
+    // leave both visible rather than quietly hiding one.
+    if (sv === cv){ out.push(s); return; }
+    if (sv > cv){
+      const at = out.indexOf(cur);
+      const merged = Object.assign({}, s, { older: cur.older.concat([bare(cur)]) });
+      out[at] = merged; primary.set(key, merged);
+    } else {
+      cur.older.push(bare(s));
+    }
+  });
+
+  out.forEach(r => { if (r.older) r.older.sort((a, b) => (b.version || 1) - (a.version || 1)); });
+  return out;
+}
+
+function olderHtml(s){
+  const list = (s.older || []).filter(o => o.vimeo);
+  if (!list.length) return '';
+  const chips = list.map(o => {
+    const v = o.version || 1;
+    const t = JSON.stringify((o.title || 'Video') + ' (v' + v + ')').replace(/"/g, '&quot;');
+    const watch = `<a class="vchip" href="#" title="Play version ${v}"
+        onclick="playVideo('${esc(o.vimeoId)}', ${t}, '${esc(o.vimeoHash || '')}'); return false;">&#9654; v${v}</a>`;
+    const dl = o.download
+      ? `<a class="vchip" href="${esc(o.download)}" target="_blank" rel="noopener"
+           title="Download version ${v}">&#11015;</a>`
+      : '';
+    return watch + dl;
+  }).join('');
+  return `<div class="older"><span class="olabel">Also available</span>${chips}</div>`;
+}
+
 function rowHtml(s){
   const colour = COLOURS[s.status] || '#6b6b74';
   const ready  = !!s.vimeo;
@@ -805,6 +878,7 @@ function rowHtml(s){
        </div>`
     : `<div class="thumb empty">&#127916;</div>`;
 
+  const older = olderHtml(s);
   const facts = [
     dur(s.duration),
     [roomLabel(s.room, s.roomName), s.day, timeHuman(s.time)].filter(Boolean).join(' &middot; ')
@@ -845,6 +919,7 @@ function rowHtml(s){
           <div class="d">${badge}${facts ? '<span class="facts">' + facts + '</span>' : ''}</div>
           ${s.target ? `<div class="expected">Expected ${esc(niceDate(s.target))}</div>` : ''}
           ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
+          ${older}
           <div class="addnote">
             <a href="#" onclick="openNote('${esc(s.id)}'); return false;">&#43; Add a note</a>
             <form id="nf-${esc(s.id)}" style="display:none" onsubmit="event.preventDefault(); sendNote('${esc(s.id)}');">
