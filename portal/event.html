@@ -175,7 +175,17 @@
     .live{ display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
     .live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; }
     .muted{ color:var(--muted); }
-    .gate-logo{ display:flex; flex-direction:column; align-items:center; gap:9px; margin-bottom:24px; }
+    .gate-code{
+  display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+  margin:18px auto 0;padding:8px 14px;border-radius:20px;
+  border:1px solid var(--line);background:rgba(255,255,255,.03);
+}
+.gate-code .k{
+  font-size:.64rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700;
+}
+.gate-code code{ font-size:.86rem; color:var(--text); }
+.gate-code .ok{ font-size:.74rem; color:#7fd6a8; }
+.gate-logo{ display:flex; flex-direction:column; align-items:center; gap:9px; margin-bottom:24px; }
     .gate-logo img{ height:56px; width:auto; }
     .gate-logo .mp{ height:13px; filter:invert(1) brightness(1.6); opacity:.92; }
     .btn.sm.ghost{ background:transparent; border:1px solid var(--line); color:var(--text) !important; }
@@ -237,14 +247,21 @@
       <img class="mp" src="../assets/mp-text.png" alt="Media Production">
     </div>
     <h1 style="font-size:clamp(1.6rem,3.5vw,2.2rem);">This page is password protected</h1>
-    <p style="margin:12px auto 0; max-width:44ch;">Enter the password from your delivery email to see your videos.</p>
+    <p style="margin:12px auto 0; max-width:46ch;">Your access code is already in this link. Enter the
+    <b>password</b> from your delivery email to see your videos.</p>
+    <div id="gate-code" class="gate-code" style="display:none">
+      <span class="k">Access code</span>
+      <code id="gate-code-v"></code>
+      <span class="ok">&#10003; already applied</span>
+    </div>
   </div></div>
   <div class="block" style="padding:50px 0 80px;">
     <div class="wrap" style="max-width:420px;">
       <form class="quote" style="grid-template-columns:1fr;" onsubmit="event.preventDefault(); unlock();">
         <div>
           <label for="pw">Password</label>
-          <input type="password" id="pw" autocomplete="current-password" required>
+          <input type="password" id="pw" autocomplete="current-password" required
+                 placeholder="Not the access code above">
         </div>
         <div>
           <button id="unlock-btn" type="submit" class="btn" style="border:0; cursor:pointer; font-size:1rem; width:100%;">Unlock</button>
@@ -286,7 +303,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 10:51 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 11:34 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -986,6 +1003,12 @@ function rowHtml(s){
   const bs = document.getElementById('buildstamp');
   if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = '';
 
+  // The code is the one thing the link already tells us — showing it stops
+  // people typing it into the password box and bouncing off.
+  if (EVENT){
+    document.getElementById('gate-code-v').textContent = EVENT;
+    document.getElementById('gate-code').style.display = 'inline-flex';
+  }
   if (!EVENT){
     document.getElementById('err').textContent = 'This link is missing its event code. Use the link from your delivery email.';
     document.getElementById('err').style.display = 'block';
