@@ -178,6 +178,27 @@
       .portal-tools{ gap:10px; }
     }
     @media (max-width:556px){ .site-header .brand .mp-text{ display:none; } }
+
+    /* The gate is one heading, one chip and one field, but desktop spacing
+       stretched it over a full screen and a half — 101px of nothing between
+       the access code and the password box, and a wordmark pulled to the
+       full content width. Tighten it so the field is reachable without a
+       scroll. */
+    @media (max-width:620px){
+      /* The CLIENT PORTAL label is the site nav's mobile panel — absolutely
+         positioned, ~70px tall, painting over whatever follows the header.
+         The hero has to clear it, so the top padding stays generous; the
+         savings come from everywhere below. */
+      #gate .page-hero{ padding-top:96px; padding-bottom:24px; }
+      #gate .block{ padding:22px 0 52px !important; }
+      .gate-logo{ margin-bottom:14px; }
+      .gate-logo img{ max-width:148px; }
+      .gate-logo img.mp{ max-width:224px; }
+      #gate h1{ font-size:1.45rem; line-height:1.25; }
+      #gate .page-hero p{ margin-top:10px; font-size:.94rem; }
+      .gate-code{ margin-top:14px; padding:7px 12px; gap:8px; }
+      .gate-code code{ font-size:.82rem; }
+    }
     /* The site's nav collapses into a dropdown panel below 800px. These are
        controls, not links — keep them inline in the bar. */
     @media (max-width:800px){
@@ -345,7 +366,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 12:25 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 2:34 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
