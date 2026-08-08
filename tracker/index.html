@@ -413,7 +413,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:22 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:56 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -527,6 +527,8 @@ h4.sec:first-child{margin-top:0}
     <option value="">Set section&hellip;</option>
   </select>
   <button class="btn ghost sm" onclick="addRowBelow()">Add row below</button>
+  <button class="btn ghost sm" onclick="duplicateRows()"
+          title="Copy each ticked row as the next version, unlinked and back in progress">Duplicate as next version</button>
   <button class="btn ghost sm" onclick="bulkTarget()">Target date</button>
   <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
   <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
@@ -1672,6 +1674,41 @@ function paintSortArrows(){
   });
 }
 
+/**
+ * Copy each ticked row directly beneath itself as the next version.
+ *
+ * A new cut has no video yet, so the copy comes through unlinked and back in
+ * Editing — carrying the Vimeo link over would point the client at the old
+ * cut, and leaving it Delivered would say a video exists that doesn't.
+ */
+function duplicateRows(){
+  const p = proj();
+  const picked = p.sessions.map((s, i) => ({ s, i })).filter(x => selected.has(x.s.id));
+  if (!picked.length) return toast('Tick the rows you want a new version of.', true);
+
+  const made = [];
+  // back to front, so each splice leaves the earlier indexes alone
+  picked.reverse().forEach(({ s, i }) => {
+    const copy = Object.assign({}, s, {
+      id: uid(),
+      version: (s.version || 1) + 1,
+      status: 'editing',
+      vimeo: '', thumb: '', duration: 0, download: '', review: '', reviewOn: false,
+      feedback: '',                       // notes the client left were about the old cut
+      vimeoMiss: false
+    });
+    p.sessions.splice(i + 1, 0, copy);
+    made.push(copy);
+  });
+
+  reindex(); save(); render();
+  selected.clear(); made.forEach(r => selected.add(r.id));
+  render(); updateBulk();
+  const first = document.querySelector(`#tbody tr[data-id="${made[made.length - 1].id}"]`);
+  if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  toast(`${made.length} new version${made.length === 1 ? '' : 's'} added — unlinked and set to ${sLabel('editing')}.`);
+}
+
 function addRowBelow(){
   const p = proj();
   const idx = p.sessions.reduce((last, s, i) => selected.has(s.id) ? i : last, -1);
@@ -2554,7 +2591,12 @@ function dupeGroups(){
     if (!g){ g = { key, label, kind, rows: [] }; byKey.set(key, g); groups.push(g); }
     g.rows.push(s);
   };
-  p.sessions.forEach(s => { const k = normTitle(s.title); if (k) push('t:' + k, s.title, 'title', s); });
+  // Version is part of the identity: V2 of a session is a re-cut of it, not a
+  // second copy of it. Two V1s with the same title still group together.
+  p.sessions.forEach(s => {
+    const k = normTitle(s.title);
+    if (k) push('t:' + k + '|v' + (s.version || 1), `${s.title}  ·  V${s.version || 1}`, 'title', s);
+  });
   const titleDupes = new Set();
   groups.forEach(g => { if (g.rows.length > 1) g.rows.forEach(s => titleDupes.add(s.id)); });
   p.sessions.forEach(s => {
