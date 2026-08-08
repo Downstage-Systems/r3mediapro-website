@@ -295,6 +295,11 @@ table.prev tr:hover td{background:rgba(255,255,255,.035)}
 .chip.on{border-color:var(--s-delivered);color:#7fd6a8;background:rgba(46,168,106,.12)}
 .chip b{font-variant-numeric:tabular-nums;font-size:.74rem;opacity:.8}
 .tick{display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--muted);cursor:pointer}
+/* '.set label{display:block}' and '.set input{width:100%}' are for stacked
+   form rows. A tick is a checkbox beside its text, so it opts out of both —
+   otherwise the box stretches the full panel width and the text drops below. */
+.set label.tick{display:flex;margin-bottom:0}
+.set label.tick input[type=checkbox]{width:15px;height:15px;flex:none}
 
 /* duplicates */
 .dupe{border:1px solid var(--line);border-radius:8px;margin-bottom:14px;overflow:hidden}
@@ -408,7 +413,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:12 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 8:22 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
