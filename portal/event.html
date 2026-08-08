@@ -165,14 +165,19 @@
     .hdr-link:hover{ color:var(--text) !important; }
     .hdr-refresh{ cursor:pointer; white-space:nowrap; }
     .hdr-refresh[disabled]{ opacity:.5; cursor:default; }
-    /* Shed one thing at a time, well before anything can collide. */
-    @media (max-width:1080px){ .hdr-count{ display:none; } }
-    @media (max-width:980px){
-      .hdr-jump, .hdr-link{ display:none; }
+    /* Thresholds measured rather than guessed. Widths at 1400px: brand 354
+       (mark alone 113), clock 122, count 70, jump 139, contact 60, refresh
+       111, 16px gaps, 48px wrap padding — plus 24px so nothing is ever
+       shoulder to shoulder. Each item leaves at the width where keeping it
+       would start the squeeze, and not a pixel earlier. */
+    @media (max-width:1010px){ .hdr-count{ display:none; } }
+    @media (max-width:925px){ .hdr-link{ display:none; } }
+    @media (max-width:850px){ .hdr-live{ display:none; } }
+    @media (max-width:710px){
+      .hdr-jump{ display:none; }
       .portal-tools{ gap:10px; }
     }
-    @media (max-width:860px){ .hdr-live{ display:none; } }
-    @media (max-width:760px){ .site-header .brand .mp-text{ display:none; } }
+    @media (max-width:556px){ .site-header .brand .mp-text{ display:none; } }
     /* The site's nav collapses into a dropdown panel below 800px. These are
        controls, not links — keep them inline in the bar. */
     @media (max-width:800px){
@@ -340,7 +345,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 12:20 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 12:25 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
