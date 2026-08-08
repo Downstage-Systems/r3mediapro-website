@@ -410,6 +410,11 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
 }
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
+.dupe-r.hid{opacity:.5}
+.dupe-r.hid .dupe-meta::after{
+  content:'hidden';margin-left:9px;font-size:.62rem;letter-spacing:.09em;text-transform:uppercase;
+  padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);
+}
 .btn.done{
   color:var(--s-delivered);border-color:color-mix(in srgb, var(--s-delivered) 45%, transparent);
   background:color-mix(in srgb, var(--s-delivered) 12%, transparent);
@@ -434,7 +439,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 10:05 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 10:51 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1054,7 +1059,7 @@ h4.sec:first-child{margin-top:0}
       <button class="btn ghost sm" onclick="dupesKeepFirst()">Keep the first of each</button>
       <div class="spacer"></div>
       <span id="dupes-count" style="font-size:.82rem;color:var(--muted)"></span>
-      <button class="btn" id="dupes-apply" onclick="applyDupes()">Delete the rest</button>
+      <button class="btn" id="dupes-apply" onclick="applyDupes()">Hide the rest</button>
     </div>
   </div>
 </div>
@@ -1336,6 +1341,10 @@ function visibleSessions(){
   const f = document.getElementById('filter-status').value;
   const p = proj();
   return p.sessions.filter(s => {
+    // The 'hidden' filter is the only way back to a discarded duplicate
+    // outside the Duplicates panel.
+    if (f === '__hidden') return !!s.hidden;
+    if (s.hidden) return false;
     if (f && s.status !== f) return false;
     if (!q) return true;
     return (s.title + ' ' + s.room + ' ' + (s.day || '') + ' ' + (s.section || '') + ' ' +
@@ -1609,8 +1618,10 @@ function paintStatusMenus(){
   const f = document.getElementById('filter-status');
   const b = document.getElementById('bulk-status');
   const keepF = f.value, keepB = b.value;
+  const hid = hiddenCount();
   f.innerHTML = '<option value="">All statuses</option>' +
-    STATUSES.map(s => `<option value="${s.key}">${esc(sLabel(s.key))}</option>`).join('');
+    STATUSES.map(s => `<option value="${s.key}">${esc(sLabel(s.key))}</option>`).join('') +
+    (hid ? `<option value="__hidden">Hidden duplicates (${hid})</option>` : '');
   b.innerHTML = STATUSES.map(s => `<option value="${s.key}">${esc(sLabel(s.key))}</option>`).join('');
   f.value = keepF; b.value = keepB;
 }
@@ -1649,8 +1660,10 @@ function refreshComputed(){
 /** Nothing that can't be delivered belongs in the progress total. The old
     per-row flag is still read so anything marked before the status existed
     keeps behaving the same. */
+function hiddenCount(){ return proj().sessions.filter(s => s.hidden).length; }
+
 function notCounted(s){
-  return s.status === 'undeliverable' || !!s.uncounted;
+  return s.status === 'undeliverable' || !!s.uncounted || !!s.hidden;
 }
 
 function updateStrip(){
@@ -1658,7 +1671,7 @@ function updateStrip(){
   const counts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
   const barCounts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
   p.sessions.forEach(s => {
-    if (counts[s.status] === undefined) return;
+    if (counts[s.status] === undefined || s.hidden) return;
     counts[s.status]++;
     if (!notCounted(s)) barCounts[s.status]++;
   });
@@ -1666,8 +1679,9 @@ function updateStrip(){
   // undeliverable — a session nobody can finish would otherwise hold the bar
   // under 100% for as long as it's stuck. Both are still listed and counted
   // in the legend, so nothing quietly vanishes.
-  const spare = p.sessions.filter(x => notCounted(x) && x.status !== 'deleted').length;
-  const total = p.sessions.length - counts.deleted - spare;
+  const hid = p.sessions.filter(x => x.hidden).length;
+  const spare = p.sessions.filter(x => notCounted(x) && !x.hidden && x.status !== 'deleted').length;
+  const total = p.sessions.length - counts.deleted - spare - hid;
 
   document.getElementById('bar').innerHTML = total
     ? STATUSES.filter(s => s.key !== 'deleted' && s.key !== 'undeliverable')
@@ -1809,7 +1823,7 @@ function addRowBelow(){
   const row = { id: uid(), room: above.room || '', seq: 0, section: above.section || '',
                 day: above.day || '', time: '', title: '', version: 1, status: 'notstarted',
                 notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '',
-                drive: '', review: '', reviewOn: false, feedback: '', target: '', uncounted: false };
+                drive: '', review: '', reviewOn: false, feedback: '', target: '', uncounted: false, hidden: false };
   p.sessions.splice(idx + 1, 0, row);
   reindex();
   if (cfg().numberBy === 'room') renumber(true); else { save(); render(); }
@@ -2774,12 +2788,14 @@ function dupeGroups(){
   return groups.filter(g => g.rows.length > 1);
 }
 
-function dupeCount(){ return dupeGroups().reduce((n, g) => n + g.rows.length - 1, 0); }
+function dupeCount(){
+  return dupeGroups().reduce((n, g) => n + Math.max(0, g.rows.filter(s => !s.hidden).length - 1), 0);
+}
 
 function openDupes(){
   const groups = dupeGroups();
   dupKeep = {};
-  groups.forEach(g => { dupKeep[g.key] = g.rows[0].id; });
+  groups.forEach(g => { dupKeep[g.key] = (g.rows.find(s => !s.hidden) || g.rows[0]).id; });
   renderDupes(groups);
   show('ov-dupes');
 }
@@ -2788,19 +2804,19 @@ function renderDupes(groups){
   groups = groups || dupeGroups();
   const p = proj();
   document.getElementById('dupes-sub').textContent = groups.length
-    ? `${groups.length} title${groups.length === 1 ? '' : 's'} appear more than once. Pick the one to keep in each.`
+    ? `${groups.length} title${groups.length === 1 ? '' : 's'} appear more than once. Pick the one to show — the rest are hidden, not deleted.`
     : 'Nothing repeated in this project.';
   document.getElementById('dupes-body').innerHTML = groups.length ? groups.map(g => `
     <div class="dupe">
       <div class="dupe-h">
         <span class="dupe-t">${esc(g.label || 'Untitled')}</span>
         <span class="dupe-n">${g.rows.length} copies${g.kind === 'filename' ? ' &middot; same filename' : ''}</span>
-        <button class="btn ghost sm" onclick="setDupKeep(${JSON.stringify(g.key).replace(/"/g,'&quot;')}, 'all')">Keep all</button>
+        <button class="btn ghost sm" onclick="setDupKeep(${JSON.stringify(g.key).replace(/"/g,'&quot;')}, 'all')">Show all</button>
       </div>
       ${g.rows.map(s => {
         const st = S_BY_KEY[s.status] || STATUSES[0];
         const on = dupKeep[g.key] === s.id;
-        return `<label class="dupe-r ${on ? 'on' : ''} ${dupKeep[g.key] === 'all' ? 'neutral' : ''}">
+        return `<label class="dupe-r ${on ? 'on' : ''} ${dupKeep[g.key] === 'all' ? 'neutral' : ''} ${s.hidden ? 'hid' : ''}">
           <input type="radio" name="d-${esc(g.key)}" ${on ? 'checked' : ''}
                  onchange="setDupKeep(${JSON.stringify(g.key).replace(/"/g,'&quot;')}, ${JSON.stringify(s.id).replace(/"/g,'&quot;')})">
           <span class="dupe-meta">${s.day ? `<b style="color:var(--text)">${esc(s.day)}</b> &middot; ` : ''}${esc(s.room || '—')}
@@ -2825,21 +2841,33 @@ function setDupKeep(key, id){ dupKeep[key] = id; renderDupes(); }
 function dupesKeepAll(){ dupeGroups().forEach(g => dupKeep[g.key] = 'all'); renderDupes(); }
 function dupesKeepFirst(){ dupeGroups().forEach(g => dupKeep[g.key] = g.rows[0].id); renderDupes(); }
 
+/**
+ * Put the copies you didn't pick out of the way — don't destroy them.
+ *
+ * The one you discard is often the one you end up needing: a file turns out
+ * to be corrupt and the other day's recording is suddenly the good take.
+ * Hidden rows keep every field, stay listed here, and come straight back by
+ * picking them instead. Delete is still there in the bulk bar for real
+ * rubbish.
+ */
 function applyDupes(){
   const groups = dupeGroups();
-  const kill = new Set();
+  let hid = 0, back = 0;
   groups.forEach(g => {
-    if (dupKeep[g.key] === 'all') return;
-    g.rows.forEach(s => { if (s.id !== dupKeep[g.key]) kill.add(s.id); });
+    const keep = dupKeep[g.key];
+    g.rows.forEach(s => {
+      const want = keep === 'all' ? false : s.id !== keep;
+      if (!!s.hidden === want) return;
+      s.hidden = want;
+      if (want){ selected.delete(s.id); hid++; } else back++;
+    });
   });
-  if (!kill.size) return;
-  if (!confirm(`Delete ${kill.size} duplicate session${kill.size === 1 ? '' : 's'}? The ones you picked are kept.`)) return;
-  proj().sessions = proj().sessions.filter(s => !kill.has(s.id));
-  kill.forEach(id => selected.delete(id));
-  save(); render();
-  toast(`${kill.size} deleted. Session numbers left as they were — hit Renumber if you want them tightened up.`);
-  const left = dupeGroups();
-  if (!left.length) closeOverlay('ov-dupes'); else { dupKeep = {}; left.forEach(g => dupKeep[g.key] = g.rows[0].id); renderDupes(left); }
+  if (!hid && !back) return;
+  save(); render(); renderDupes();
+  const bits = [];
+  if (hid) bits.push(`${hid} hidden`);
+  if (back) bits.push(`${back} brought back`);
+  toast(bits.join(', ') + '. Nothing deleted — pick a different copy any time.');
 }
 
 /* ---------------- exports ---------------- */
@@ -2951,7 +2979,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 22;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 23;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
@@ -2965,7 +2993,7 @@ let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
  * the Sheet as authoritative for rows it already has, while genuinely
  * local-only rows still push. Safe by construction rather than by care.
  */
-const HASH_VERSION = 3;
+const HASH_VERSION = 4;
 
 function checkHashVersion(){
   if (sync.hashVersion === HASH_VERSION) return false;
@@ -3013,7 +3041,7 @@ function syncOn(){ return !!(sync.url && sync.token); }
 
 // Row fingerprints — anything that differs from the last agreed state is ours
 // to push, and is protected from being overwritten by an incoming pull.
-function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status, !!s.uncounted,
+function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status, !!s.uncounted, !!s.hidden,
                                           s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
                                           s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
                                           s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', s.order]); }
@@ -3048,7 +3076,7 @@ function localChanges(){
                             thumb: s.thumb || '', duration: s.duration || 0,
                             download: s.download || '', drive: s.drive || '',
                             review: s.review || '', reviewOn: !!s.reviewOn, feedback: s.feedback || '',
-                            target: s.target || '', order: s.order, uncounted: !!s.uncounted,
+                            target: s.target || '', order: s.order, uncounted: !!s.uncounted, hidden: !!s.hidden,
                             updated: now, deleted: false });
       }
     });
@@ -3165,7 +3193,7 @@ function mergeRemote(data){
                   vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
                   download: rs.download || '', drive: rs.drive || '',
                   review: rs.review || '', reviewOn: !!rs.reviewOn, feedback: rs.feedback || '',
-                  target: rs.target || '', order: rs.order, uncounted: !!rs.uncounted };
+                  target: rs.target || '', order: rs.order, uncounted: !!rs.uncounted, hidden: !!rs.hidden };
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
@@ -3408,10 +3436,10 @@ function saveSyncSettings(){
 /** What's on the hook, ignoring anything that can't or won't be delivered. */
 function deliverables(){
   const p = proj();
-  const rows = p.sessions.filter(s => s.status !== 'deleted' && !notCounted(s));
+  const rows = p.sessions.filter(s => s.status !== 'deleted' && !s.hidden && !notCounted(s));
   const done = rows.filter(s => s.status === 'delivered');
   return { rows, done, total: rows.length, complete: rows.length > 0 && done.length === rows.length,
-           spare: p.sessions.filter(s => s.status !== 'deleted' && notCounted(s)) };
+           spare: p.sessions.filter(s => s.status !== 'deleted' && !s.hidden && notCounted(s)) };
 }
 
 /** Titles in running order, numbered, for pasting into an email. */
@@ -3756,7 +3784,7 @@ async function matchVimeo(){
     p.sessions.forEach(s => {
       // Issue and Deleted are deliberate states — a sweep doesn't even link
       // them, let alone restate them. Pick one by hand if you want it linked.
-      if ((S_BY_KEY[s.status] || {}).off) return;
+      if (s.hidden || (S_BY_KEY[s.status] || {}).off) return;
       if (s.vimeo){ s.vimeoMiss = false; return; }
       const found = bestVideoFor(s, videos, p);
       if (found){
@@ -3838,7 +3866,7 @@ function deCamel(s){
 
 function computeOrphans(videos, p){
   const linked = new Set(p.sessions.filter(s => s.vimeo).map(s => s.vimeo));
-  const claimed = new Set(p.sessions.filter(s => s.status !== 'deleted').map(s => matchKey(buildFilename(s, p))));
+  const claimed = new Set(p.sessions.filter(s => s.status !== 'deleted' && !s.hidden).map(s => matchKey(buildFilename(s, p))));
   return videos.filter(v => !linked.has(v.link) && !claimed.has(matchKey(v.name)));
 }
 
@@ -3974,7 +4002,7 @@ let autoMatching = false;
 async function autoMatchVimeo(){
   const p = proj();
   if (autoMatching || !syncOn() || !cfg().autoMatch || !p.vimeoFolder) return;
-  const waiting = p.sessions.filter(s => !s.vimeo && !(S_BY_KEY[s.status] || {}).off);
+  const waiting = p.sessions.filter(s => !s.vimeo && !s.hidden && !(S_BY_KEY[s.status] || {}).off);
   const settling = p.sessions.some(s => s.vimeo && s.status === 'uploaded');
   if (!waiting.length && !settling) return;
 
