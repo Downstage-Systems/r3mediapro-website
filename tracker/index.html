@@ -427,6 +427,118 @@ tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
 h4.sec{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red-bright);
   font-weight:800;margin:26px 0 14px}
 h4.sec:first-child{margin-top:0}
+
+/* =====================================================================
+   Mobile — the table becomes cards.
+   One render path: these rules restyle the same rows the desktop grid
+   uses, so there is no second UI to drift out of sync. Cards show what
+   a phone visit is for (title, status, Vimeo, when/where); the ⋯ button
+   or a tap on the card opens the rest.
+   ===================================================================== */
+.mexp{display:none}
+#menu-mtools{display:none}
+
+@media (max-width:720px){
+  /* chrome slims down */
+  .topbar-in .wordmark, #buildstamp, .brand .mp-text{display:none}
+  .projbar{padding:8px 12px;gap:7px}
+  .projbar > .lbl{display:none}
+  .toolbar{padding:10px 12px;gap:8px}
+  .toolbar .sep{display:none}
+  #search{width:100% !important;font-size:16px}
+  #filter-status{flex:1}
+
+  /* the four table-management buttons live in Tools ▾ here */
+  .toolbar > button[onclick="sortByRoomTime()"],
+  .toolbar > button[onclick="renumber()"],
+  .toolbar > button[onclick="openSections()"],
+  .toolbar > button[onclick="openRooms()"]{display:none}
+  #menu-mtools{display:block;position:relative}
+
+  /* ---- table → cards ---- */
+  .tablewrap{overflow-x:hidden;padding:10px 10px 130px}
+  table.grid{min-width:0;display:block;table-layout:auto}
+  .grid thead{display:none}
+  .grid tbody{display:block}
+  .grid tbody tr{
+    display:flex;flex-wrap:wrap;align-items:center;row-gap:2px;column-gap:8px;
+    border:1px solid var(--line);border-radius:10px;
+    margin:0 0 10px;padding:10px 12px 10px 14px;
+    position:relative;overflow:hidden;
+  }
+  .grid tbody tr::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:var(--stripe, transparent);
+  }
+  .grid tbody tr.sel{border-color:rgba(230,57,70,.55)}
+  .grid td{
+    display:block;border:0 !important;box-shadow:none !important;padding:0;
+  }
+  /* iOS zooms into anything smaller — 16px stops the lurch */
+  .grid .cell, .grid select.status, .grid select.sectionsel, .grid select.vpick{font-size:16px}
+
+  /* row 1 — select, title, expand */
+  td.handle{display:none}
+  .grid td:nth-child(2){order:0;flex:0 0 auto}
+  .title-cell{order:1;flex:1 1 calc(100% - 40px);display:flex;align-items:center;gap:4px;min-width:0}
+  .title-cell .cell{font-weight:600;padding:7px 6px;min-width:0;flex:1 1 auto;width:auto}
+  .mexp{
+    display:inline-flex;flex:none;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:7px;border:1px solid transparent;
+    background:none;color:var(--muted);font-size:1.05rem;cursor:pointer;
+  }
+  .mexp:active, tr.mopen .mexp{color:var(--text);border-color:var(--line)}
+
+  /* row 2 — status and vimeo, the two things that change from a phone */
+  .status-cell{order:2;flex:1 1 52%;display:flex;align-items:center;gap:6px;margin-top:6px}
+  .status-cell select.status{flex:1;min-width:0}
+  td.status-cell .tgt{display:none;margin:0;width:auto;flex:0 0 128px}
+  tr.mopen td.status-cell .tgt{display:block}
+  .vimeo-cell{order:3;flex:1 1 34%;margin-top:6px}
+
+  /* row 3 — where and when, labelled so bare values aren't cryptic */
+  .grid td:nth-child(4), .grid td:nth-child(6), .grid td:nth-child(7){
+    order:4;flex:1 1 26%;margin-top:8px;min-width:0;
+  }
+  .grid td:nth-child(4)::before{content:'Room'}
+  .grid td:nth-child(6)::before{content:'Day'}
+  .grid td:nth-child(7)::before{content:'Time'}
+  .grid td:nth-child(4)::before, .grid td:nth-child(6)::before, .grid td:nth-child(7)::before,
+  .grid td:nth-child(3)::before, .grid td:nth-child(5)::before, .grid td:nth-child(10)::before,
+  .grid td:nth-child(9)::before, .notes-cell::before{
+    display:block;font-size:.58rem;font-weight:800;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 2px 2px;
+  }
+
+  /* everything else waits behind ⋯ */
+  /* .grid td{display:block} above is (0,1,1), so these need .grid too */
+  .grid td:nth-child(3), .grid td:nth-child(5), .grid td:nth-child(9),
+  .grid td:nth-child(10), .grid .review-cell, .grid .notes-cell,
+  .grid td:nth-child(15){display:none}
+  tr.mopen .grid-show, tr.mopen td:nth-child(3), tr.mopen td:nth-child(5),
+  tr.mopen td:nth-child(9), tr.mopen td:nth-child(10), tr.mopen .review-cell,
+  tr.mopen .notes-cell, tr.mopen td:nth-child(15){display:block}
+
+  tr.mopen td:nth-child(3){order:5;flex:1 1 60%;margin-top:8px}
+  tr.mopen td:nth-child(3)::before{content:'Section'}
+  tr.mopen td:nth-child(5){order:6;flex:1 1 16%;margin-top:8px}
+  tr.mopen td:nth-child(5)::before{content:'Sess'}
+  tr.mopen td:nth-child(10){order:7;flex:1 1 14%;margin-top:8px}
+  tr.mopen td:nth-child(10)::before{content:'Ver'}
+  tr.mopen td:nth-child(9){order:8;flex:1 1 100%;margin-top:8px}
+  tr.mopen td:nth-child(9)::before{content:'Filename'}
+  tr.mopen td:nth-child(9) .fname code{
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;
+  }
+  tr.mopen .review-cell{order:9;flex:1 1 40%;margin-top:8px;align-self:end}
+  tr.mopen .notes-cell{order:10;flex:1 1 100%;margin-top:8px;padding:0}
+  .notes-cell::before{content:'Notes'}
+  tr.mopen td:nth-child(15){order:11;flex:1 1 100%;margin-top:6px;text-align:right}
+
+  /* the bulk bar hugs the bottom edge on a phone */
+  .bulk{bottom:12px;max-width:calc(100vw - 16px)}
+}
+
 </style>
 </head>
 <body>
@@ -439,7 +551,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 2:34 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 2:46 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -504,6 +616,15 @@ h4.sec:first-child{margin-top:0}
           <label class="autom" title="Keep watching the folder and link new uploads on their own. Exact filename matches only &mdash; anything looser waits for you to press Match Vimeo.">
             <input type="checkbox" id="auto-match" onchange="toggleAutoMatch(this.checked)"> Auto
           </label>
+  <details class="menu" id="menu-mtools">
+    <summary><span class="btn ghost sm">Tools &#9662;</span></summary>
+    <div class="pop">
+      <button onclick="closeMenus();sortByRoomTime()">Sort by room &amp; time</button>
+      <button onclick="closeMenus();renumber()">Renumber</button>
+      <button onclick="closeMenus();openSections()">Sections</button>
+      <button onclick="closeMenus();openRooms()">Rooms</button>
+    </div>
+  </details>
   <div class="sep"></div>
   <input class="field" id="search" placeholder="Search title, room, filename&hellip;" style="width:250px" oninput="render()">
   <select class="field" id="filter-status" onchange="render()" style="width:170px"></select>
@@ -1455,7 +1576,7 @@ function rowEl(s){
     <td class="col-sess"><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
     <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
-    <td class="title-cell"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"></td>
+    <td class="title-cell"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
     <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
     <td><input class="cell num" data-f="version" value="${s.version || 1}" inputmode="numeric"></td>
     <td class="status-cell">
@@ -1562,9 +1683,15 @@ function rowEl(s){
     }
   });
 
-  // clicking the row itself selects it; fields and buttons still behave
+  // clicking the row itself selects it; fields and buttons still behave.
+  // On a phone the same tap expands the card instead — selection keeps its
+  // checkbox, and an accidental select is the worse surprise there.
   tr.addEventListener('mousedown', e => {
     if (e.target.closest('input, select, button, a, textarea, .handle')) return;
+    if (window.matchMedia('(max-width:720px)').matches){
+      tr.classList.toggle('mopen');
+      return;
+    }
     const box = tr.querySelector('[data-act="sel"]');
     box.checked = !box.checked;
     box.dispatchEvent(new Event('click', { bubbles: true }));
@@ -1572,6 +1699,10 @@ function rowEl(s){
 
   tr.addEventListener('click', e => {
     const act = e.target.dataset.act;
+    if (act === 'mexp'){
+      tr.classList.toggle('mopen');
+      return;
+    }
     if (act === 'del'){
       const rec = find(s.id);
       if (rec && rec.title && !confirm(`Delete "${rec.title}"?`)) return;
