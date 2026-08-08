@@ -421,7 +421,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:50 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 10:06 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -631,10 +631,12 @@ h4.sec:first-child{margin-top:0}
         <label class="lbl" for="s-pattern">Filename pattern <span id="s-pattern-mode" class="patmode"></span></label>
         <input class="field" id="s-pattern" oninput="onSettingChange()">
         <div class="help">Click a token above to insert it. Empty tokens are dropped along with their separator.
-        Each project type keeps its own pattern, so switching between them doesn't overwrite the other.</div>
+        Each project type keeps its own pattern, so switching between them doesn't overwrite the other.
+        <b>Set as default</b> saves this whole panel &mdash; both patterns, the pieces below, and your status
+        labels &mdash; as the starting point for new projects, on every machine.</div>
         <div style="display:flex;align-items:center;gap:9px;margin-top:9px;flex-wrap:wrap">
           <button class="btn ghost sm" onclick="saveNamingDefault()"
-                  title="Start new projects of this type with this pattern">Set as default</button>
+                  title="New projects start with this whole panel — both patterns, the pieces, and your status labels">Set as default</button>
           <button class="btn ghost sm" id="s-default-clear" style="display:none"
                   onclick="clearNamingDefault()">Clear</button>
           <span class="help" id="s-default-note" style="margin:0"></span>
@@ -1133,10 +1135,7 @@ function save(){
 
 function blankProject(name){
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-  ['pattern', 'patternSimple'].forEach(k => {
-    const v = prefGet('naming.' + k, null);
-    if (v) settings[k] = v;
-  });
+  Object.assign(settings, savedDefaults());
   return { id: uid(), name, eventCode: '', roomNames: {}, settings, sessions: [] };
 }
 function proj(){ return db.projects.find(p => p.id === db.activeId); }
@@ -2464,21 +2463,45 @@ function insertToken(t){
  * editing job's naming don't have to agree. Held in this browser rather than
  * the Sheet — set it once per machine.
  */
+/* Everything on this panel that describes how you work rather than what this
+   particular event is. eventMode is left out on purpose: whether a job is an
+   event is a fact about the job, not a habit. */
+const DEFAULTABLE = ['pattern', 'patternSimple', 'titleStyle', 'titleWords',
+                     'timeStyle', 'numberBy', 'sessPrefix', 'sessPad'];
+const DEFAULTABLE_JSON = ['editorLabels', 'clientLabels'];
+
+const DEFAULTABLE_NUM = ['titleWords', 'sessPad'];
+
+function savedDefaults(){
+  const out = {};
+  DEFAULTABLE.forEach(k => {
+    const v = prefGet('naming.' + k, null);
+    if (v === null) return;
+    // prefs are stored as text; keep numbers numeric so they behave like the
+    // built-in defaults rather than only working because of loose coercion
+    out[k] = DEFAULTABLE_NUM.includes(k) ? (parseInt(v, 10) || DEFAULT_SETTINGS[k]) : v;
+  });
+  DEFAULTABLE_JSON.forEach(k => {
+    const v = prefGet('naming.' + k, null);
+    if (v){ try { out[k] = JSON.parse(v); } catch (e){} }
+  });
+  return out;
+}
+
 function saveNamingDefault(){
   const c = cfg();
-  const key = c.eventMode === false ? 'patternSimple' : 'pattern';
-  prefSet('naming.' + key, activePattern(c));
+  const c2 = cfg();
+  DEFAULTABLE.forEach(k => prefSet('naming.' + k, c2[k]));
+  DEFAULTABLE_JSON.forEach(k => prefSet('naming.' + k, JSON.stringify(c2[k] || {})));
   paintPatternMode();
-  toast(`Saved as the default for ${c.eventMode === false ? 'non-event' : 'event'} projects.`);
+  toast('New projects will start like this one — on every machine.');
 }
 
 function clearNamingDefault(){
   const c = cfg();
-  const key = c.eventMode === false ? 'patternSimple' : 'pattern';
-  if (!prefGet('naming.' + key, null)) return;
-  prefClear('naming.' + key);
+  DEFAULTABLE.concat(DEFAULTABLE_JSON).forEach(k => prefClear('naming.' + k));
   paintPatternMode();
-  toast('Back to the built-in default for new projects.');
+  toast('New projects go back to the built-in settings.');
 }
 
 function paintPatternMode(){
@@ -2487,19 +2510,17 @@ function paintPatternMode(){
   const el = document.getElementById('s-pattern-mode');
   if (el) el.textContent = simple ? 'NON-EVENT' : 'EVENT';
 
-  const key = simple ? 'patternSimple' : 'pattern';
-  const saved = prefGet('naming.' + key, null);
+  const saved = savedDefaults();
+  const has = Object.keys(saved).length;
   const note = document.getElementById('s-default-note');
   const clear = document.getElementById('s-default-clear');
   if (!note) return;
-  if (!saved){
-    note.textContent = 'New ' + (simple ? 'non-event' : 'event') + ' projects use the built-in pattern.';
-  } else if (saved === activePattern(c)){
-    note.textContent = 'This is the default for new ' + (simple ? 'non-event' : 'event') + ' projects.';
-  } else {
-    note.textContent = 'Default for new projects: ' + saved;
-  }
-  clear.style.display = saved ? '' : 'none';
+  const same = has && DEFAULTABLE.every(k => String(saved[k]) === String(c[k])) &&
+               DEFAULTABLE_JSON.every(k => JSON.stringify(saved[k] || {}) === JSON.stringify(c[k] || {}));
+  note.textContent = !has ? 'New projects use the built-in settings.'
+    : same ? 'New projects start exactly like this.'
+           : 'A different default is saved — press to replace it with these.';
+  clear.style.display = has ? '' : 'none';
 }
 
 function patternPreview(){
