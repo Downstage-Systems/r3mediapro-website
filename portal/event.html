@@ -282,7 +282,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:11 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:18 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -860,7 +860,13 @@ function olderHtml(s){
       ? `<a class="vchip" href="${esc(o.download)}" target="_blank" rel="noopener"
            title="Download version ${v}">&#11015;</a>`
       : '';
-    return watch + dl;
+    // review is only present when the toggle was on for that cut, so an old
+    // version keeps its notes page exactly as long as it had one
+    const rev = o.review
+      ? `<a class="vchip" href="${esc(o.review)}" target="_blank" rel="noopener"
+           title="Leave timestamped notes on version ${v}">&#9998;</a>`
+      : '';
+    return watch + dl + rev;
   }).join('');
   return `<div class="older"><span class="olabel">Also available</span>${chips}</div>`;
 }
