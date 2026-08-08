@@ -410,11 +410,6 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
 }
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
-tr.uncounted .status-cell::after{
-  content:'undeliverable';position:absolute;right:6px;bottom:2px;
-  font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);opacity:.8;
-}
-tr.uncounted .status-cell{position:relative}
 .autom{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--muted);
   cursor:pointer;user-select:none;margin-left:-4px}
 .autom input{cursor:pointer}
@@ -435,7 +430,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 8:47 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 8:56 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -556,7 +551,6 @@ h4.sec:first-child{margin-top:0}
       <button onclick="closeMenus();bulkBumpVersion()">Bump version</button>
       <button onclick="closeMenus();bulkTarget()">Set target date&hellip;</button>
       <hr>
-      <button onclick="closeMenus();bulkUncounted()">Undeliverable &mdash; leave out of the count</button>
       <button onclick="closeMenus();bulkReview(true)">Show review link to client</button>
       <button onclick="closeMenus();bulkReview(false)">Hide review link</button>
       <hr>
@@ -1081,6 +1075,7 @@ const STATUSES = [
   {key:'uploaded',   label:'Uploaded',    hex:'#8b5cf6', client:'Processing'},
   {key:'delivered',  label:'Delivered',   hex:'#2ea86a', client:'Available'},
   {key:'issue',      label:'Issue',       hex:'#e63946', client:'Delayed',    off:true},
+  {key:'undeliverable', label:'Undeliverable', hex:'#7a6552', client:'Not available', off:true},
   {key:'deleted',    label:'Deleted',     hex:'#4a4a55', client:'Not recorded', off:true, hideFromClient:true},
 ];
 // 'off' statuses sit outside the pipeline: they don't count toward progress.
@@ -1432,7 +1427,7 @@ function rowEl(s){
   const st = S_BY_KEY[s.status] || STATUSES[0];
   if (s.status === 'deleted') tr.classList.add('gone');
   if (s.vimeoMiss && !s.vimeo) tr.classList.add('nolink');
-  if (s.uncounted) tr.classList.add('uncounted');
+  if (notCounted(s)) tr.classList.add('uncounted');
   tr.innerHTML = `
     <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
     <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
@@ -1643,6 +1638,13 @@ function refreshComputed(){
   });
 }
 
+/** Nothing that can't be delivered belongs in the progress total. The old
+    per-row flag is still read so anything marked before the status existed
+    keeps behaving the same. */
+function notCounted(s){
+  return s.status === 'undeliverable' || !!s.uncounted;
+}
+
 function updateStrip(){
   const p = proj();
   const counts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
@@ -1650,17 +1652,17 @@ function updateStrip(){
   p.sessions.forEach(s => {
     if (counts[s.status] === undefined) return;
     counts[s.status]++;
-    if (!s.uncounted) barCounts[s.status]++;
+    if (!notCounted(s)) barCounts[s.status]++;
   });
   // Deleted rows aren't part of the job, and neither is anything marked
   // undeliverable — a session nobody can finish would otherwise hold the bar
   // under 100% for as long as it's stuck. Both are still listed and counted
   // in the legend, so nothing quietly vanishes.
-  const spare = p.sessions.filter(x => x.uncounted && x.status !== 'deleted').length;
+  const spare = p.sessions.filter(x => notCounted(x) && x.status !== 'deleted').length;
   const total = p.sessions.length - counts.deleted - spare;
 
   document.getElementById('bar').innerHTML = total
-    ? STATUSES.filter(s => s.key !== 'deleted')
+    ? STATUSES.filter(s => s.key !== 'deleted' && s.key !== 'undeliverable')
         .map(s => barCounts[s.key] ? `<i style="width:${barCounts[s.key]/total*100}%;background:${s.hex}"></i>` : '').join('')
     : '<i style="width:100%;background:#232329"></i>';
 
@@ -1763,27 +1765,6 @@ function paintSortArrows(){
  * Editing — carrying the Vimeo link over would point the client at the old
  * cut, and leaving it Delivered would say a video exists that doesn't.
  */
-/**
- * Take rows out of the progress count without hiding them.
- *
- * Something you can't finish — missing audio, a session that was never
- * recorded — would otherwise hold the bar under 100% indefinitely. The row
- * stays, the client still sees it with its status, it just stops being
- * counted as something outstanding. Toggles, so ticking a mix turns them all
- * off the count and pressing again brings them all back.
- */
-function bulkUncounted(){
-  const p = proj();
-  const picked = p.sessions.filter(s => selected.has(s.id));
-  if (!picked.length) return toast('Tick the rows you want left out of the count.', true);
-  const turningOff = picked.some(s => !s.uncounted);
-  picked.forEach(s => s.uncounted = turningOff);
-  save(); render();
-  toast(turningOff
-    ? `${picked.length} marked undeliverable — out of the progress count.`
-    : `${picked.length} back in the progress count.`);
-}
-
 function duplicateRows(){
   const p = proj();
   const picked = p.sessions.map((s, i) => ({ s, i })).filter(x => selected.has(x.s.id));

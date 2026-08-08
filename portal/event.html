@@ -286,7 +286,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 8:47 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 8:56 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -612,8 +612,9 @@ function render(data){
   // Rows marked undeliverable in the tracker keep their place and their
   // status here, they just don't count towards the total — otherwise one
   // session nobody can finish pins the bar below 100% forever.
-  const onHold = folded.filter(r => r.uncounted);
-  const counted = folded.filter(r => !r.uncounted);
+  const cantDeliver = r => r.status === 'undeliverable' || r.uncounted;
+  const onHold = folded.filter(cantDeliver);
+  const counted = folded.filter(r => !cantDeliver(r));
 
   const total = counted.length;
   const delivered = counted.filter(isDone).length;
