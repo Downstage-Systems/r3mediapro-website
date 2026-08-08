@@ -421,7 +421,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:37 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:50 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1133,7 +1133,10 @@ function save(){
 
 function blankProject(name){
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-  Object.assign(settings, sync.namingDefaults || {});
+  ['pattern', 'patternSimple'].forEach(k => {
+    const v = prefGet('naming.' + k, null);
+    if (v) settings[k] = v;
+  });
   return { id: uid(), name, eventCode: '', roomNames: {}, settings, sessions: [] };
 }
 function proj(){ return db.projects.find(p => p.id === db.activeId); }
@@ -2464,9 +2467,7 @@ function insertToken(t){
 function saveNamingDefault(){
   const c = cfg();
   const key = c.eventMode === false ? 'patternSimple' : 'pattern';
-  sync.namingDefaults = Object.assign({}, sync.namingDefaults);
-  sync.namingDefaults[key] = activePattern(c);
-  saveSync();
+  prefSet('naming.' + key, activePattern(c));
   paintPatternMode();
   toast(`Saved as the default for ${c.eventMode === false ? 'non-event' : 'event'} projects.`);
 }
@@ -2474,9 +2475,8 @@ function saveNamingDefault(){
 function clearNamingDefault(){
   const c = cfg();
   const key = c.eventMode === false ? 'patternSimple' : 'pattern';
-  if (!(sync.namingDefaults || {})[key]) return;
-  delete sync.namingDefaults[key];
-  saveSync();
+  if (!prefGet('naming.' + key, null)) return;
+  prefClear('naming.' + key);
   paintPatternMode();
   toast('Back to the built-in default for new projects.');
 }
@@ -2488,7 +2488,7 @@ function paintPatternMode(){
   if (el) el.textContent = simple ? 'NON-EVENT' : 'EVENT';
 
   const key = simple ? 'patternSimple' : 'pattern';
-  const saved = (sync.namingDefaults || {})[key];
+  const saved = prefGet('naming.' + key, null);
   const note = document.getElementById('s-default-note');
   const clear = document.getElementById('s-default-clear');
   if (!note) return;
@@ -2887,7 +2887,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 20;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 21;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
@@ -2911,9 +2911,38 @@ function checkHashVersion(){
   return true;
 }
 
+/* Preferences that follow you between machines rather than living in one
+   browser. Stored a key at a time with its own timestamp, so two machines
+   changing different keys never fight. */
+function prefGet(key, fallback){
+  const r = (sync.prefs || {})[key];
+  return r && r.value !== undefined && r.value !== '' ? r.value : fallback;
+}
+function prefSet(key, value){
+  sync.prefs = sync.prefs || {};
+  sync.prefs[key] = { value: String(value === undefined ? '' : value),
+                      updated: new Date().toISOString() };
+  saveSync();
+  if (syncOn() && sync.auto) queuePush();
+}
+function prefClear(key){
+  if (!(sync.prefs || {})[key]) return;
+  prefSet(key, '');                    // an empty value is the tombstone
+}
+
 function loadSync(){
   try { Object.assign(sync, JSON.parse(localStorage.getItem(SYNC_KEY) || '{}')); } catch(e){}
   sync.baseline = sync.baseline || { p: {}, s: {} };
+  sync.prefs = sync.prefs || {};
+  // carry over anything saved before prefs synced
+  if (sync.namingDefaults){
+    Object.keys(sync.namingDefaults).forEach(k => {
+      const key = 'naming.' + k;
+      if (!sync.prefs[key]) sync.prefs[key] = { value: sync.namingDefaults[k], updated: '1970-01-01T00:00:00.000Z' };
+    });
+    delete sync.namingDefaults;
+    saveSync();
+  }
 }
 function saveSync(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch(e){} }
 function syncOn(){ return !!(sync.url && sync.token); }
@@ -3079,6 +3108,17 @@ function mergeRemote(data){
     } else owner.sessions.push(rec);
   });
 
+  // Prefs merge key by key on their own timestamps, so two machines editing
+  // different settings both survive the round trip.
+  Object.entries(data.prefs || {}).forEach(([k, r]) => {
+    const mineP = (sync.prefs || {})[k];
+    if (!mineP || String(r.updated || '') > String(mineP.updated || '')){
+      sync.prefs = sync.prefs || {};
+      sync.prefs[k] = { value: r.value || '', updated: r.updated || '' };
+    }
+  });
+  saveSync();
+
   // Drop the empty starter project once real ones arrive.
   db.projects = db.projects.filter(p =>
     !(p.sessions.length === 0 && p.name === 'Untitled Project' && !sync.baseline.p[p.id] && db.projects.length > 1));
@@ -3138,8 +3178,9 @@ async function syncNow(quiet){
     }
     mergeRemote(remote);
     const mine = localChanges();
-    if (mine.projects.length || mine.sessions.length){
-      await api({ mode: 'push', token: sync.token, projects: mine.projects, sessions: mine.sessions });
+    if (mine.projects.length || mine.sessions.length || Object.keys(sync.prefs || {}).length){
+      await api({ mode: 'push', token: sync.token, projects: mine.projects,
+                  sessions: mine.sessions, prefs: sync.prefs || {} });
     }
     commitBaseline(mine.hashes);
     save(); render();

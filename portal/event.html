@@ -49,6 +49,10 @@
     .vt .d{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 9px; margin-top:5px; }
     .badge.status{ font-size:.68rem; padding:3px 10px; flex:none; }
 .prepping{ opacity:.5; cursor:default; border-style:dashed; }
+.vbadge{
+  font-size:.68rem; padding:3px 10px; flex:none; margin-left:6px;
+  color:#c8a2ff; border:1px solid rgba(139,92,246,.45); background:rgba(139,92,246,.14);
+}
 .older{ margin-top:8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .older .olabel{
   font-size:.68rem; letter-spacing:.1em; text-transform:uppercase;
@@ -282,7 +286,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:37 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:50 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -913,6 +917,11 @@ function rowHtml(s){
 
   const badge = `<span class="badge status" style="color:${colour};border:1px solid ${colour}66;` +
                 `background:${colour}1f;">${esc(s.label || s.status)}</span>`;
+  // Only worth saying once there's more than one cut — a lone V1 is just
+  // "the video", and labelling it invites a question about where V2 is.
+  const vbadge = (s.version || 1) > 1
+    ? `<span class="badge vbadge" title="This is version ${s.version} of this session">v${s.version}</span>`
+    : '';
 
   // Three fixed slots — watch, download, drive — so every row lines up.
   const gap = '<span class="empty-slot"></span>';
@@ -943,7 +952,7 @@ function rowHtml(s){
         ${thumb}
         <div class="vmeta">
           <div class="t">${esc(s.title || 'Untitled session')}</div>
-          <div class="d">${badge}${facts ? '<span class="facts">' + facts + '</span>' : ''}</div>
+          <div class="d">${badge}${vbadge}${facts ? '<span class="facts">' + facts + '</span>' : ''}</div>
           ${s.target ? `<div class="expected">Expected ${esc(niceDate(s.target))}</div>` : ''}
           ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
           ${older}
