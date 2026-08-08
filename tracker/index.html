@@ -399,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:34 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:57 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -731,6 +731,28 @@ h4.sec:first-child{margin-top:0}
       </div>
       <div class="help" style="margin-top:12px">Send the client this link and the password:</div>
       <div class="preview-box" style="font-size:.78rem;color:#7fd6a8;margin-top:6px" id="sy-portal-link">—</div>
+
+      <h4 class="sec">Client uploads &amp; Drive</h4>
+      <label class="tick" style="margin-bottom:10px">
+        <input type="checkbox" id="sy-uploads" onchange="saveSyncSettings()">
+        Let the client send me files from the portal
+      </label>
+      <div class="setgrid">
+        <div class="full">
+          <label class="lbl" for="sy-upfolder">Drive folder for their uploads</label>
+          <input class="field" id="sy-upfolder" placeholder="paste a Drive folder link, or let the tracker make one"
+                 onchange="saveSyncSettings()">
+          <div class="help">Files land here, named as the client sent them. Uploads are capped at 25MB each
+          and rate-limited, and the event password is required &mdash; so the link alone isn't enough.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="makeDriveFolder()">Create Drive folder</button>
+        <a class="btn ghost sm" id="sy-driveopen" href="#" target="_blank" rel="noopener"
+           style="display:none">Open in Drive &#8599;</a>
+        <button class="btn ghost sm" onclick="backupNow()">Back up to Drive now</button>
+      </div>
+      <p id="sy-drive-result" style="font-size:.82rem;color:var(--muted);margin-top:10px"></p>
 
       <h4 class="sec">What the client page says</h4>
       <div class="setgrid">
@@ -2701,10 +2723,29 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 18;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 19;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
+
+/**
+ * Bump whenever pHash or sHash changes shape.
+ *
+ * Old baselines were computed with the old fingerprint, so after a shape
+ * change every row looks edited — which is exactly what wiped a day's work on
+ * 7 Aug. Clearing the baseline instead makes mergeRemote's 'blind' path treat
+ * the Sheet as authoritative for rows it already has, while genuinely
+ * local-only rows still push. Safe by construction rather than by care.
+ */
+const HASH_VERSION = 2;
+
+function checkHashVersion(){
+  if (sync.hashVersion === HASH_VERSION) return false;
+  sync.baseline = { p: {}, s: {} };
+  sync.hashVersion = HASH_VERSION;
+  saveSync();
+  return true;
+}
 
 function loadSync(){
   try { Object.assign(sync, JSON.parse(localStorage.getItem(SYNC_KEY) || '{}')); } catch(e){}
@@ -2721,7 +2762,8 @@ function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.
                                           s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', s.order]); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
                                           p.vimeoFolder || '', p.clientName || '', p.welcome || '',
-                                          p.details || [], p.eta || '', p.sectionOrder || [], p.settings, p.roomNames || {}]); }
+                                          p.details || [], p.eta || '', p.sectionOrder || [], p.settings, p.roomNames || {},
+                                          p.driveFolder || '', p.uploadFolder || '', !!p.uploadsOn]); }
 
 function localChanges(){
   const now = new Date().toISOString();
@@ -2734,7 +2776,9 @@ function localChanges(){
       out.projects.push({ id: p.id, name: p.name, eventCode: p.eventCode || '', eventSlug: p.eventSlug || '',
                           clientPassword: p.clientPassword || '', vimeoFolder: p.vimeoFolder || '',
                           clientName: p.clientName || '', welcome: p.welcome || '', details: p.details || [],
-                          eta: p.eta || '', sectionOrder: p.sectionOrder || [], settings: p.settings, roomNames: p.roomNames || {}, updated: now, deleted: false });
+                          eta: p.eta || '', sectionOrder: p.sectionOrder || [], settings: p.settings, roomNames: p.roomNames || {},
+                          driveFolder: p.driveFolder || '', uploadFolder: p.uploadFolder || '', uploadsOn: !!p.uploadsOn,
+                          updated: now, deleted: false });
     }
     p.sessions.forEach(s => {
       liveS.add(s.id);
@@ -2840,6 +2884,8 @@ function mergeRemote(data){
                      clientPassword: rp.clientPassword || '', vimeoFolder: rp.vimeoFolder || '',
                      clientName: rp.clientName || '', welcome: rp.welcome || '', details: rp.details || [],
                      eta: rp.eta || '', sectionOrder: rp.sectionOrder || [],
+                     driveFolder: rp.driveFolder || '', uploadFolder: rp.uploadFolder || '',
+                     uploadsOn: rp.uploadsOn === true || rp.uploadsOn === 'true',
                      settings: Object.assign({}, DEFAULT_SETTINGS, rp.settings || {}),
                      roomNames: rp.roomNames || {} };
     fields.settings.editorLabels = Object.assign({}, DEFAULT_SETTINGS.editorLabels, fields.settings.editorLabels || {});
@@ -3018,6 +3064,10 @@ function openSync(){
   document.getElementById('sy-slug').value = p.eventSlug || '';
   document.getElementById('sy-pw').value = p.clientPassword || '';
   document.getElementById('sy-project').textContent = p.name;
+  document.getElementById('sy-uploads').checked = !!p.uploadsOn;
+  document.getElementById('sy-upfolder').value = p.uploadFolder || '';
+  paintDriveLink();
+  document.getElementById('sy-drive-result').textContent = '';
   document.getElementById('sy-client').value = p.clientName || '';
   document.getElementById('sy-welcome').value = p.welcome || '';
   document.getElementById('sy-details').value = (p.details || []).map(d => d.label + ': ' + d.value).join('\n');
@@ -3041,6 +3091,8 @@ function saveSyncSettings(){
   p.clientPassword = document.getElementById('sy-pw').value.trim();
   const fsel = document.getElementById('sy-folder');
   if (fsel) p.vimeoFolder = fsel.value;
+  p.uploadsOn = document.getElementById('sy-uploads').checked;
+  p.uploadFolder = document.getElementById('sy-upfolder').value.trim();
   p.clientName = document.getElementById('sy-client').value.trim();
   p.welcome = document.getElementById('sy-welcome').value.trim();
   p.details = document.getElementById('sy-details').value.split(/\n/)
@@ -3156,6 +3208,47 @@ function updateClientButtons(){
     const b = document.getElementById(id);
     if (b){ b.style.opacity = on ? '' : '.45'; b.title = on ? clientUrl() : 'No event slug set yet'; }
   });
+}
+
+function paintDriveLink(){
+  const a = document.getElementById('sy-driveopen');
+  const id = proj().driveFolder || proj().uploadFolder || '';
+  a.style.display = id ? '' : 'none';
+  if (id) a.href = 'https://drive.google.com/drive/folders/' + encodeURIComponent(id);
+}
+
+/** Ask the script to make (or find) this project's Drive folders. */
+async function makeDriveFolder(){
+  const out = document.getElementById('sy-drive-result');
+  if (!syncOn()) return out.textContent = 'Connect the Sheet first.';
+  const p = proj();
+  if (!p.eventSlug && !p.name) return out.textContent = 'Give the project a name first.';
+  out.textContent = 'Asking Drive…';
+  try {
+    await syncNow(true);                     // make sure the row exists server-side
+    const r = await api({ mode: 'driveSetup', token: sync.token, projectId: p.id });
+    p.driveFolder = r.driveFolder;
+    p.uploadFolder = r.uploadFolder;
+    document.getElementById('sy-upfolder').value = r.uploadFolder;
+    save(); paintDriveLink();
+    out.innerHTML = `Ready &mdash; <b>R3 Client Portals / ${esc(r.name)} / Client Uploads</b>. ` +
+                    `Anything a client sends lands there.`;
+  } catch (err){
+    out.textContent = 'Could not set that up: ' + err.message;
+  }
+}
+
+async function backupNow(){
+  const out = document.getElementById('sy-drive-result');
+  if (!syncOn()) return out.textContent = 'Connect the Sheet first.';
+  out.textContent = 'Backing up…';
+  try {
+    const r = await api({ mode: 'backupNow', token: sync.token });
+    out.innerHTML = `Saved <b>${esc(r.file)}</b> &mdash; ${r.projects} project(s), ${r.sessions} session(s) ` +
+                    `in <b>R3 Client Portals / _Backups</b>.`;
+  } catch (err){
+    out.textContent = 'Backup failed: ' + err.message;
+  }
 }
 
 function updatePortalLink(){
@@ -3758,6 +3851,7 @@ function init(){
   if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = 'working copy';
   load();
   loadSync();
+  if (checkHashVersion()) console.info('Fingerprint format changed — re-adopting the Sheet on this machine.');
   healBaseline();
 
   wirePreview();

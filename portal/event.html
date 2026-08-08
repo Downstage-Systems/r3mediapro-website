@@ -49,6 +49,25 @@
     .vt .d{ display:flex; flex-wrap:wrap; align-items:center; gap:5px 9px; margin-top:5px; }
     .badge.status{ font-size:.68rem; padding:3px 10px; flex:none; }
 .prepping{ opacity:.5; cursor:default; border-style:dashed; }
+.dropbox{
+  border:2px dashed var(--line); border-radius:10px; padding:30px 20px; text-align:center;
+  color:var(--muted); transition:border-color .15s, background .15s; cursor:pointer;
+}
+.dropbox:hover, .dropbox.over{ border-color:var(--red-bright); background:rgba(224,49,49,.05); color:var(--text); }
+.dropbox-in{ display:flex; flex-direction:column; align-items:center; gap:8px; font-size:.94rem; }
+.linkish{
+  background:none; border:0; padding:0; font:inherit; color:var(--red-bright);
+  text-decoration:underline; cursor:pointer;
+}
+.up-list{ list-style:none; padding:0; margin:16px 0 0; display:flex; flex-direction:column; gap:7px; }
+.up-list li{
+  display:flex; align-items:center; gap:10px; font-size:.88rem;
+  padding:8px 12px; border:1px solid var(--line); border-radius:7px; background:rgba(255,255,255,.02);
+}
+.up-list .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.up-list .st{ flex:none; font-size:.8rem; color:var(--muted); }
+.up-list .st.ok{ color:#7fd6a8; }
+.up-list .st.bad{ color:#e63946; }
     .addnote{ margin-top:7px; }
     .addnote > a{
       font-size:.76rem; color:#6f6f79; border-bottom:1px dotted #45454f; padding-bottom:1px;
@@ -250,7 +269,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 7:34 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 7:57 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -263,6 +282,27 @@
         Need a different format or aspect ratio? Just ask &mdash;
         <a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a>.
       </p>
+    </div>
+  </section>
+
+  <section class="block" id="upload-block" style="display:none;">
+    <div class="wrap">
+      <div class="section-head" style="margin-bottom:18px;">
+        <div class="kicker">Send Us Files</div>
+        <h2>Brand guidelines, logos, notes</h2>
+      </div>
+      <p class="muted" style="font-size:.92rem; margin:0 0 16px; max-width:60ch;">
+        Anything you drop here goes straight to our production folder for this event.
+        No account needed. <span id="up-cap"></span>
+      </p>
+      <div id="dropbox" class="dropbox">
+        <input type="file" id="up-input" multiple style="display:none">
+        <div class="dropbox-in">
+          <div style="font-size:1.6rem; line-height:1;">&#8681;</div>
+          <div><b>Drop files here</b> or <button type="button" class="linkish" id="up-browse">browse</button></div>
+        </div>
+      </div>
+      <ul id="up-list" class="up-list"></ul>
     </div>
   </section>
 
@@ -335,7 +375,11 @@ function dur(sec){
 function size(bytes){
   if (!bytes) return '';
   const gb = bytes / 1073741824;
-  return gb >= 1 ? gb.toFixed(1) + ' GB' : Math.round(bytes / 1048576) + ' MB';
+  if (gb >= 1) return gb.toFixed(1) + ' GB';
+  // client uploads are often a few hundred KB, which rounded to "0 MB"
+  const mb = bytes / 1048576;
+  if (mb >= 1) return Math.round(mb) + ' MB';
+  return Math.max(1, Math.round(bytes / 1024)) + ' KB';
 }
 // "2026-08-14" -> "Thu 14 Aug". Parsed as a plain date, not UTC, so it can't
 // slip a day depending on the reader's timezone.
@@ -398,6 +442,7 @@ async function unlock(){
 function showBoard(data){
   document.getElementById('gate').style.display = 'none';
   document.getElementById('board').style.display = 'block';
+  wireUploads();
   render(data);
   startPolling();
 }
@@ -612,7 +657,82 @@ function render(data){
   document.getElementById('ev-details').innerHTML =
     details.map(d => `<li><strong>${esc(d.label)}:</strong> ${esc(d.value)}</li>`).join('');
 
+  const upBlock = document.getElementById('upload-block');
+  upBlock.style.display = ev.uploads ? 'block' : 'none';
+  if (ev.uploads){
+    UPLOAD_MAX_MB = ev.uploadMaxMb || 25;
+    document.getElementById('up-cap').textContent =
+      `Up to ${UPLOAD_MAX_MB}MB per file. For anything larger, email rob@r3mediapro.com.`;
+  }
+
   if (DEBUG) stampThumbDebug();
+}
+
+/* ---------------- client uploads ---------------- */
+
+let UPLOAD_MAX_MB = 25;
+let uploadsWired = false;
+
+function wireUploads(){
+  if (uploadsWired) return;
+  uploadsWired = true;
+  const box = document.getElementById('dropbox');
+  const input = document.getElementById('up-input');
+  if (!box || !input) return;
+
+  box.addEventListener('click', e => { if (e.target.id !== 'up-browse') input.click(); });
+  document.getElementById('up-browse').addEventListener('click', e => { e.stopPropagation(); input.click(); });
+  input.addEventListener('change', () => { sendFiles([...input.files]); input.value = ''; });
+
+  ['dragenter','dragover'].forEach(ev => box.addEventListener(ev, e => {
+    e.preventDefault(); box.classList.add('over');
+  }));
+  ['dragleave','drop'].forEach(ev => box.addEventListener(ev, e => {
+    e.preventDefault(); box.classList.remove('over');
+  }));
+  box.addEventListener('drop', e => sendFiles([...(e.dataTransfer.files || [])]));
+}
+
+function fileRow(name){
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="nm"></span><span class="st">waiting…</span>`;
+  li.querySelector('.nm').textContent = name;
+  document.getElementById('up-list').appendChild(li);
+  return li.querySelector('.st');
+}
+
+function readBase64(file){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('could not read that file'));
+    // strips the "data:...;base64," prefix the reader adds
+    fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+    fr.readAsDataURL(file);
+  });
+}
+
+async function sendFiles(files){
+  for (const f of files){
+    const st = fileRow(f.name);
+    if (f.size > UPLOAD_MAX_MB * 1024 * 1024){
+      st.textContent = `too big (${size(f.size)})`; st.className = 'st bad'; continue;
+    }
+    st.textContent = 'sending…';
+    try {
+      const data = await readBase64(f);
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // keeps it a simple request, no preflight
+        body: JSON.stringify({ mode: 'upload', event: EVENT, pw: password,
+                               name: f.name, mime: f.type || 'application/octet-stream', data })
+      });
+      const out = await res.json();
+      if (!out.ok) throw new Error(out.error || 'upload failed');
+      st.textContent = `sent · ${size(f.size)}`; st.className = 'st ok';
+    } catch (e){
+      st.textContent = e.message; st.className = 'st bad';
+    }
+  }
 }
 
 /**
