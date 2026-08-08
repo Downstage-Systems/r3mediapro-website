@@ -399,7 +399,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 1:45 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 7:26 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1039,6 +1039,10 @@ function load(){
     db.activeId = db.projects[0].id;
   }
   if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
+  // Fingerprint before migrating, so healBaseline can tell a schema change
+  // apart from something you actually edited.
+  preMigration = {};
+  db.projects.forEach(p => { preMigration[p.id] = pHash(p); });
   db.projects.forEach(p => { p.settings = Object.assign({}, DEFAULT_SETTINGS, p.settings || {});
                              p.settings.editorLabels = Object.assign({}, DEFAULT_SETTINGS.editorLabels, p.settings.editorLabels || {});
   p.settings.clientLabels = Object.assign({}, DEFAULT_SETTINGS.clientLabels, p.settings.clientLabels || {});
@@ -2664,7 +2668,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 17;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 18;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false;
@@ -2718,6 +2722,33 @@ function localChanges(){
   return out;
 }
 
+let preMigration = {};
+
+/**
+ * A schema migration is not an edit you made.
+ *
+ * pHash covers p.settings, so merging a newly added default into every
+ * project makes every project look locally modified. A dirty row wins over
+ * the Sheet and pushes with a fresh timestamp — so a machine that had been
+ * sitting on old data would overwrite a whole day's work simply by being
+ * opened after a deploy. That is what happened on 7 Aug.
+ *
+ * Where a project was in step with the Sheet before migrating, move the
+ * baseline forward so it stays in step afterwards.
+ */
+function healBaseline(){
+  let healed = 0;
+  db.projects.forEach(p => {
+    const before = preMigration[p.id];
+    if (before !== undefined && sync.baseline.p[p.id] === before && sync.baseline.p[p.id] !== pHash(p)){
+      sync.baseline.p[p.id] = pHash(p);
+      healed++;
+    }
+  });
+  if (healed) saveSync();
+  return healed;
+}
+
 function setBaseline(){
   const b = { p: {}, s: {} };
   db.projects.forEach(p => { b.p[p.id] = pHash(p); p.sessions.forEach(s => { b.s[s.id] = sHash(s); }); });
@@ -2726,8 +2757,12 @@ function setBaseline(){
 
 function mergeRemote(data){
   const mine = localChanges();
-  const dirtyP = new Set(mine.projects.map(x => x.id));
-  const dirtyS = new Set(mine.sessions.map(x => x.id));
+  // With no baseline there's no evidence this machine edited anything, so it
+  // has no business claiming rows the Sheet already has. Rows the Sheet has
+  // never seen are still genuinely ours and survive untouched below.
+  const blind = !Object.keys(sync.baseline.p).length && !Object.keys(sync.baseline.s).length;
+  const dirtyP = new Set(blind ? [] : mine.projects.map(x => x.id));
+  const dirtyS = new Set(blind ? [] : mine.sessions.map(x => x.id));
 
   (data.projects || []).forEach(rp => {
     if (dirtyP.has(rp.id)) return;                       // my edit wins; it'll push
@@ -3117,6 +3152,11 @@ async function testSync(){
       if (d.downloadsPending){
         lines.push(no(`${d.downloadsPending} recent video(s) have no download file yet &mdash; ` +
                       `Vimeo is still transcoding. The portal shows &ldquo;Preparing&hellip;&rdquo; until it finishes.`));
+      }
+      if (d.snapshots !== undefined){
+        lines.push(d.snapshots
+          ? ok(`${d.snapshots} rollback snapshot(s) in the Sheet.`)
+          : ok('Snapshots armed &mdash; the first will be taken on the next bulk change.'));
       }
       if (d.thumbnails){
         lines.push(/^\d+ of/.test(d.thumbnails)
@@ -3647,6 +3687,7 @@ function init(){
   if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = 'working copy';
   load();
   loadSync();
+  healBaseline();
 
   wirePreview();
   document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
