@@ -282,7 +282,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:18 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 7, 9:22 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -579,6 +579,8 @@ async function sendNote(id){
 
 function render(data){
   const ev = data.event || {};
+  // one fold, reused by both the counts and the section rendering below
+  const folded = foldVersions(data.sessions || []);
   document.title = (ev.name || 'Your Event') + ' | R3 Media Production';
   document.getElementById('ev-name').textContent = ev.name || 'Your Event';
 
@@ -591,8 +593,26 @@ function render(data){
     'buttons to save the full-quality files. This page is private to your team — feel free to share ' +
     'it internally along with the password.';
 
+  /**
+   * Count sessions, not rows.
+   *
+   * A re-cut is its own row, so counting rows made starting a v2 move the bar
+   * backwards twice: the total went up by one and the delivered share stayed
+   * put. Folding first keeps the total stable, and a session counts as
+   * delivered if any of its cuts is — the client has a usable file either way,
+   * and a bar that reverses on work you've only just begun reads as a mistake.
+   * Outstanding re-cuts are called out separately instead.
+   */
+  const total = folded.length;
+  const isDone = r => r.status === 'delivered' ||
+                      (r.older || []).some(o => o.status === 'delivered');
+  const delivered = folded.filter(isDone).length;
+  const revising = folded.filter(r => r.status !== 'delivered' &&
+                                      (r.older || []).some(o => o.status === 'delivered')).length;
+  data = Object.assign({}, data, { total, delivered });
+
   document.getElementById('ev-sum').textContent =
-    data.total ? `${data.delivered} of ${data.total} sessions delivered.` : '';
+    total ? `${delivered} of ${total} sessions delivered.` : '';
 
   document.getElementById('portal-label').style.display = 'none';
   document.getElementById('portal-tools').style.display = 'flex';
@@ -604,7 +624,8 @@ function render(data){
     const left = data.total - data.delivered;
     document.getElementById('prog-txt').innerHTML =
       `<b>${data.delivered}</b> of <b>${data.total}</b> delivered` +
-      (left ? ` &middot; ${left} still in production` : ' &mdash; all done');
+      (left ? ` &middot; ${left} still in production` : ' &mdash; all done') +
+      (revising ? ` &middot; ${revising} being re-cut` : '');
   } else prog.style.display = 'none';
 
   const etaEl = document.getElementById('prog-eta');
@@ -637,7 +658,7 @@ function render(data){
   // group into sections, in the order the tracker set
   const groups = [];
   const byName = new Map();
-  foldVersions(data.sessions || []).forEach(s => {
+  folded.forEach(s => {
     const key = s.section || '';
     if (!byName.has(key)){ const g = { name: key, rows: [] }; byName.set(key, g); groups.push(g); }
     byName.get(key).rows.push(s);
