@@ -430,7 +430,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 8:56 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 9:54 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -3262,16 +3262,32 @@ function queuePush(){
   pushTimer = setTimeout(() => syncNow(true), 1800);
 }
 
+const POLL_TICK = 25000;      // how often the timer wakes
+const POLL_HIDDEN_GAP = 120000;  // ...but this far apart while you're elsewhere
+
+/**
+ * A background tab used to sit idle entirely, which meant an upload finishing
+ * while you were in the NLE didn't link until you came back to the tracker.
+ * It keeps working now, just at a gentler cadence — every couple of minutes
+ * rather than every 25 seconds. Browsers throttle timers in hidden tabs, so
+ * treat that as a floor rather than a promise.
+ *
+ * Still needs the tab open. Closing it stops everything; only the Apps Script
+ * trigger can cover that.
+ */
+let lastPoll = 0;
 function startPolling(){
   clearInterval(pollTimer);
-  if (syncOn() && sync.auto) pollTimer = setInterval(() => {
-    if (document.hidden) return;
+  if (!syncOn() || !sync.auto) return;
+  pollTimer = setInterval(() => {
     // Mid-edit: leave it alone. The debounced push carries the work anyway,
     // and a pull here would redraw the table under your hands.
     if (Date.now() - lastEditAt < 3000) return;
+    if (document.hidden && Date.now() - lastPoll < POLL_HIDDEN_GAP) return;
+    lastPoll = Date.now();
     syncNow(true);
     autoMatchVimeo();
-  }, 25000);
+  }, POLL_TICK);
 }
 
 // "just now", "2 min ago" — enough to see at a glance that it's alive.
@@ -4158,6 +4174,7 @@ function init(){
   // before you see what the other machines did while you were away.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || !syncOn()) return;
+    lastPoll = Date.now();
     syncNow(true);
     autoMatchVimeo();
   });
