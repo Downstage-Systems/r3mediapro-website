@@ -229,10 +229,17 @@ td.status-cell .tgt:not([value=""]){color:var(--text)}
 
 /* ---------- bulk bar ---------- */
 .bulk{
-  position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;
-  display:none;align-items:center;gap:11px;padding:11px 14px;border-radius:9px;
+  /* Centred with auto margins rather than left:50% + translate. With left:50%
+     the available width for a fixed element is only the half-viewport to its
+     right, so it shrink-wrapped to 840px and wrapped even on a wide screen. */
+  position:fixed;left:0;right:0;bottom:26px;z-index:80;
+  width:fit-content;max-width:calc(100vw - 32px);margin:0 auto;
+  display:none;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;
+  padding:10px 13px;border-radius:9px;
   background:var(--card);border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.6);
 }
+/* the bar sits at the bottom, so its menu has to open upwards */
+details.menu .pop.up{top:auto;bottom:calc(100% + 6px);right:auto;left:0}
 .bulk.show{display:flex}
 .bulk .n{font-size:.85rem;color:var(--muted)}
 .bulk .n b{color:var(--text)}
@@ -428,7 +435,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 8:38 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 8:47 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -537,19 +544,25 @@ h4.sec:first-child{margin-top:0}
   <span class="n"><b id="bulk-n">0</b> selected</span>
   <select class="field" id="bulk-status" style="width:160px"></select>
   <button class="btn ghost sm" onclick="bulkApplyStatus()">Set status</button>
-  <button class="btn ghost sm" onclick="bulkBumpVersion()">Bump version</button>
   <select class="field" id="bulk-section" style="width:180px" onchange="bulkSectionPick(this.value)">
     <option value="">Set section&hellip;</option>
   </select>
-  <button class="btn ghost sm" onclick="addRowBelow()">Add row below</button>
   <button class="btn ghost sm" onclick="duplicateRows()"
           title="Copy each ticked row as the next version, unlinked and back in progress">New version</button>
-  <button class="btn ghost sm" onclick="bulkUncounted()"
-          title="Keep the row and the client page entry, but leave it out of the progress count">Undeliverable</button>
-  <button class="btn ghost sm" onclick="bulkTarget()">Target date</button>
-  <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
-  <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
-  <button class="btn ghost sm" onclick="bulkCopy()">Copy filenames</button>
+  <details class="menu" id="menu-bulk">
+    <summary><span class="btn ghost sm">More &#9662;</span></summary>
+    <div class="pop up">
+      <button onclick="closeMenus();addRowBelow()">Add row below</button>
+      <button onclick="closeMenus();bulkBumpVersion()">Bump version</button>
+      <button onclick="closeMenus();bulkTarget()">Set target date&hellip;</button>
+      <hr>
+      <button onclick="closeMenus();bulkUncounted()">Undeliverable &mdash; leave out of the count</button>
+      <button onclick="closeMenus();bulkReview(true)">Show review link to client</button>
+      <button onclick="closeMenus();bulkReview(false)">Hide review link</button>
+      <hr>
+      <button onclick="closeMenus();bulkCopy()">Copy filenames</button>
+    </div>
+  </details>
   <button class="btn danger sm" onclick="bulkDelete()">Delete</button>
   <button class="btn ghost sm" onclick="clearSel()">Clear</button>
 </div>
