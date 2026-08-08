@@ -401,6 +401,13 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
   font-size:.62rem;letter-spacing:.1em;padding:2px 7px;border-radius:20px;margin-left:7px;
   border:1px solid var(--line);color:var(--muted);font-weight:700;
 }
+/* Still readable, still editable — just visibly not part of the tally. */
+tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
+tr.uncounted .status-cell::after{
+  content:'undeliverable';position:absolute;right:6px;bottom:2px;
+  font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);opacity:.8;
+}
+tr.uncounted .status-cell{position:relative}
 .autom{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--muted);
   cursor:pointer;user-select:none;margin-left:-4px}
 .autom input{cursor:pointer}
@@ -421,7 +428,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 10:06 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 8:38 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -537,6 +544,8 @@ h4.sec:first-child{margin-top:0}
   <button class="btn ghost sm" onclick="addRowBelow()">Add row below</button>
   <button class="btn ghost sm" onclick="duplicateRows()"
           title="Copy each ticked row as the next version, unlinked and back in progress">New version</button>
+  <button class="btn ghost sm" onclick="bulkUncounted()"
+          title="Keep the row and the client page entry, but leave it out of the progress count">Undeliverable</button>
   <button class="btn ghost sm" onclick="bulkTarget()">Target date</button>
   <button class="btn ghost sm" onclick="bulkReview(true)">Review on</button>
   <button class="btn ghost sm" onclick="bulkReview(false)">Review off</button>
@@ -1410,6 +1419,7 @@ function rowEl(s){
   const st = S_BY_KEY[s.status] || STATUSES[0];
   if (s.status === 'deleted') tr.classList.add('gone');
   if (s.vimeoMiss && !s.vimeo) tr.classList.add('nolink');
+  if (s.uncounted) tr.classList.add('uncounted');
   tr.innerHTML = `
     <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
     <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
@@ -1623,20 +1633,30 @@ function refreshComputed(){
 function updateStrip(){
   const p = proj();
   const counts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
-  p.sessions.forEach(s => { if (counts[s.status] !== undefined) counts[s.status]++; });
-  // Deleted sessions aren't part of the job any more; issues still are.
-  const total = p.sessions.length - counts.deleted;
+  const barCounts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
+  p.sessions.forEach(s => {
+    if (counts[s.status] === undefined) return;
+    counts[s.status]++;
+    if (!s.uncounted) barCounts[s.status]++;
+  });
+  // Deleted rows aren't part of the job, and neither is anything marked
+  // undeliverable — a session nobody can finish would otherwise hold the bar
+  // under 100% for as long as it's stuck. Both are still listed and counted
+  // in the legend, so nothing quietly vanishes.
+  const spare = p.sessions.filter(x => x.uncounted && x.status !== 'deleted').length;
+  const total = p.sessions.length - counts.deleted - spare;
 
   document.getElementById('bar').innerHTML = total
     ? STATUSES.filter(s => s.key !== 'deleted')
-        .map(s => counts[s.key] ? `<i style="width:${counts[s.key]/total*100}%;background:${s.hex}"></i>` : '').join('')
+        .map(s => barCounts[s.key] ? `<i style="width:${barCounts[s.key]/total*100}%;background:${s.hex}"></i>` : '').join('')
     : '<i style="width:100%;background:#232329"></i>';
 
-  const done = counts.delivered;
+  const done = barCounts.delivered;
   document.getElementById('legend').innerHTML =
     STATUSES.filter(s => counts[s.key] || !s.off)
       .map(s => `<span class="k"><span class="dot" style="background:${s.hex}"></span>${esc(sLabel(s.key))} <b>${counts[s.key]}</b></span>`).join('') +
-    `<span class="done"><b>${done}</b> of <b>${total}</b> delivered${total ? ' &nbsp;&middot;&nbsp; ' + Math.round(done/total*100) + '%' : ''}</span>`;
+    `<span class="done"><b>${done}</b> of <b>${total}</b> delivered${total ? ' &nbsp;&middot;&nbsp; ' + Math.round(done/total*100) + '%' : ''}` +
+    `${spare ? ` &nbsp;&middot;&nbsp; ${spare} undeliverable` : ''}</span>`;
 }
 
 function updateBulk(){
@@ -1730,6 +1750,27 @@ function paintSortArrows(){
  * Editing — carrying the Vimeo link over would point the client at the old
  * cut, and leaving it Delivered would say a video exists that doesn't.
  */
+/**
+ * Take rows out of the progress count without hiding them.
+ *
+ * Something you can't finish — missing audio, a session that was never
+ * recorded — would otherwise hold the bar under 100% indefinitely. The row
+ * stays, the client still sees it with its status, it just stops being
+ * counted as something outstanding. Toggles, so ticking a mix turns them all
+ * off the count and pressing again brings them all back.
+ */
+function bulkUncounted(){
+  const p = proj();
+  const picked = p.sessions.filter(s => selected.has(s.id));
+  if (!picked.length) return toast('Tick the rows you want left out of the count.', true);
+  const turningOff = picked.some(s => !s.uncounted);
+  picked.forEach(s => s.uncounted = turningOff);
+  save(); render();
+  toast(turningOff
+    ? `${picked.length} marked undeliverable — out of the progress count.`
+    : `${picked.length} back in the progress count.`);
+}
+
 function duplicateRows(){
   const p = proj();
   const picked = p.sessions.map((s, i) => ({ s, i })).filter(x => selected.has(x.s.id));
@@ -1766,7 +1807,7 @@ function addRowBelow(){
   const row = { id: uid(), room: above.room || '', seq: 0, section: above.section || '',
                 day: above.day || '', time: '', title: '', version: 1, status: 'notstarted',
                 notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '',
-                drive: '', review: '', reviewOn: false, feedback: '', target: '' };
+                drive: '', review: '', reviewOn: false, feedback: '', target: '', uncounted: false };
   p.sessions.splice(idx + 1, 0, row);
   reindex();
   if (cfg().numberBy === 'room') renumber(true); else { save(); render(); }
@@ -2908,7 +2949,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 21;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 22;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
@@ -2922,7 +2963,7 @@ let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
  * the Sheet as authoritative for rows it already has, while genuinely
  * local-only rows still push. Safe by construction rather than by care.
  */
-const HASH_VERSION = 2;
+const HASH_VERSION = 3;
 
 function checkHashVersion(){
   if (sync.hashVersion === HASH_VERSION) return false;
@@ -2970,7 +3011,7 @@ function syncOn(){ return !!(sync.url && sync.token); }
 
 // Row fingerprints — anything that differs from the last agreed state is ours
 // to push, and is protected from being overwritten by an incoming pull.
-function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status,
+function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status, !!s.uncounted,
                                           s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
                                           s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
                                           s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', s.order]); }
@@ -3005,7 +3046,7 @@ function localChanges(){
                             thumb: s.thumb || '', duration: s.duration || 0,
                             download: s.download || '', drive: s.drive || '',
                             review: s.review || '', reviewOn: !!s.reviewOn, feedback: s.feedback || '',
-                            target: s.target || '', order: s.order,
+                            target: s.target || '', order: s.order, uncounted: !!s.uncounted,
                             updated: now, deleted: false });
       }
     });
@@ -3122,7 +3163,7 @@ function mergeRemote(data){
                   vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
                   download: rs.download || '', drive: rs.drive || '',
                   review: rs.review || '', reviewOn: !!rs.reviewOn, feedback: rs.feedback || '',
-                  target: rs.target || '', order: rs.order };
+                  target: rs.target || '', order: rs.order, uncounted: !!rs.uncounted };
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
