@@ -397,6 +397,10 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
 .lblrow .arrow{color:var(--muted);text-align:center;font-size:.8rem}
 .lblrow.off .swatch{opacity:.6}
 .lblrow .field:disabled{opacity:.4;cursor:not-allowed}
+.patmode{
+  font-size:.62rem;letter-spacing:.1em;padding:2px 7px;border-radius:20px;margin-left:7px;
+  border:1px solid var(--line);color:var(--muted);font-weight:700;
+}
 .autom{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;color:var(--muted);
   cursor:pointer;user-select:none;margin-left:-4px}
 .autom input{cursor:pointer}
@@ -417,7 +421,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:29 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 7, 9:37 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -624,9 +628,17 @@ h4.sec:first-child{margin-top:0}
       <div class="preview-box" id="pattern-preview">&mdash;</div>
       <div class="tokens" id="token-list"></div>
       <div style="margin-top:14px">
-        <label class="lbl" for="s-pattern">Filename pattern</label>
+        <label class="lbl" for="s-pattern">Filename pattern <span id="s-pattern-mode" class="patmode"></span></label>
         <input class="field" id="s-pattern" oninput="onSettingChange()">
-        <div class="help">Click a token above to insert it. Empty tokens are dropped along with their separator.</div>
+        <div class="help">Click a token above to insert it. Empty tokens are dropped along with their separator.
+        Each project type keeps its own pattern, so switching between them doesn't overwrite the other.</div>
+        <div style="display:flex;align-items:center;gap:9px;margin-top:9px;flex-wrap:wrap">
+          <button class="btn ghost sm" onclick="saveNamingDefault()"
+                  title="Start new projects of this type with this pattern">Set as default</button>
+          <button class="btn ghost sm" id="s-default-clear" style="display:none"
+                  onclick="clearNamingDefault()">Clear</button>
+          <span class="help" id="s-default-note" style="margin:0"></span>
+        </div>
       </div>
 
       <h4 class="sec">Pieces</h4>
@@ -1067,6 +1079,10 @@ const DEFAULT_SETTINGS = {
   sessPrefix: 'S',
   sessPad: 2,
   eventMode: true,
+  // Kept apart so switching project type doesn't overwrite the other one.
+  // {room} and {sess} resolve empty outside an event, so this lands as
+  // V1_TheListingPlaybook_1610_SP26 — the tokens are left in for the way back.
+  patternSimple: '{ver}_{room}_{sess}_{title}_{time}_{event}',
   autoMatch: true,
   editorLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.label])),
   clientLabels: Object.fromEntries(STATUSES.map(s => [s.key, s.client])),
@@ -1116,8 +1132,9 @@ function save(){
 }
 
 function blankProject(name){
-  return { id: uid(), name, eventCode: '', roomNames: {},
-           settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), sessions: [] };
+  const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  Object.assign(settings, sync.namingDefaults || {});
+  return { id: uid(), name, eventCode: '', roomNames: {}, settings, sessions: [] };
 }
 function proj(){ return db.projects.find(p => p.id === db.activeId); }
 function cfg(){ return proj().settings; }
@@ -1239,6 +1256,14 @@ function titleToken(title, style, maxWords){
 }
 function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
 
+/** The pattern in force for this project's type. */
+function activePattern(c){
+  return (c.eventMode === false ? c.patternSimple : c.pattern) || '';
+}
+function setActivePattern(c, v){
+  if (c.eventMode === false) c.patternSimple = v; else c.pattern = v;
+}
+
 function buildFilename(s, p){
   const c = p.settings;
   // Outside an event these mean nothing, so they resolve empty and the
@@ -1253,7 +1278,7 @@ function buildFilename(s, p){
     time:  timeToken(s.time, c.timeStyle),
     ver:   'V' + (s.version || 1),
   };
-  let out = c.pattern.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
+  let out = activePattern(c).replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
   // Collapse separators left behind by empty tokens.
   out = out.replace(/[_\-.]{2,}/g, m => m[0]).replace(/^[_\-.]+|[_\-.]+$/g, '');
   return out || 'Untitled';
@@ -2360,7 +2385,8 @@ function styleKey(m){
 /* ---------------- settings ---------------- */
 function openSettings(){
   const c = cfg();
-  document.getElementById('s-pattern').value = c.pattern;
+  document.getElementById('s-pattern').value = activePattern(c);
+  paintPatternMode();
   document.getElementById('s-titlestyle').value = c.titleStyle;
   document.getElementById('s-titlewords').value = c.titleWords;
   document.getElementById('s-timestyle').value = c.timeStyle;
@@ -2387,7 +2413,6 @@ function openSettings(){
 
 function onSettingChange(){
   const c = cfg();
-  c.pattern     = document.getElementById('s-pattern').value;
   c.titleStyle  = document.getElementById('s-titlestyle').value;
   c.titleWords  = Math.max(1, parseInt(document.getElementById('s-titlewords').value, 10) || 6);
   c.timeStyle   = document.getElementById('s-timestyle').value;
@@ -2396,6 +2421,10 @@ function onSettingChange(){
   const wasEvent = c.eventMode !== false;
   c.eventMode = document.getElementById('s-eventmode').checked;
   const modeChanged = wasEvent !== (c.eventMode !== false);
+  // On a mode flip the box still shows the pattern for the type we've just
+  // left, so read it back rather than writing it into the other one's slot.
+  if (modeChanged) document.getElementById('s-pattern').value = activePattern(c);
+  else setActivePattern(c, document.getElementById('s-pattern').value);
   const nb = document.getElementById('s-numberby').value;
   const changed = nb !== c.numberBy;
   c.numberBy = nb;
@@ -2410,6 +2439,7 @@ function onSettingChange(){
     i.value = want;
   });
 
+  paintPatternMode();
   patternPreview();
   if (changed) renumber(true);
   else if (relabelled || modeChanged){ save(); render(); }
@@ -2422,6 +2452,54 @@ function insertToken(t){
   el.value = el.value.slice(0, at) + t + el.value.slice(el.selectionEnd ?? at);
   el.focus(); el.selectionStart = el.selectionEnd = at + t.length;
   onSettingChange();
+}
+
+/**
+ * Remember the pattern in force as the starting point for new projects.
+ *
+ * Two slots, one per project type, so an event's naming and a straight
+ * editing job's naming don't have to agree. Held in this browser rather than
+ * the Sheet — set it once per machine.
+ */
+function saveNamingDefault(){
+  const c = cfg();
+  const key = c.eventMode === false ? 'patternSimple' : 'pattern';
+  sync.namingDefaults = Object.assign({}, sync.namingDefaults);
+  sync.namingDefaults[key] = activePattern(c);
+  saveSync();
+  paintPatternMode();
+  toast(`Saved as the default for ${c.eventMode === false ? 'non-event' : 'event'} projects.`);
+}
+
+function clearNamingDefault(){
+  const c = cfg();
+  const key = c.eventMode === false ? 'patternSimple' : 'pattern';
+  if (!(sync.namingDefaults || {})[key]) return;
+  delete sync.namingDefaults[key];
+  saveSync();
+  paintPatternMode();
+  toast('Back to the built-in default for new projects.');
+}
+
+function paintPatternMode(){
+  const c = cfg();
+  const simple = c.eventMode === false;
+  const el = document.getElementById('s-pattern-mode');
+  if (el) el.textContent = simple ? 'NON-EVENT' : 'EVENT';
+
+  const key = simple ? 'patternSimple' : 'pattern';
+  const saved = (sync.namingDefaults || {})[key];
+  const note = document.getElementById('s-default-note');
+  const clear = document.getElementById('s-default-clear');
+  if (!note) return;
+  if (!saved){
+    note.textContent = 'New ' + (simple ? 'non-event' : 'event') + ' projects use the built-in pattern.';
+  } else if (saved === activePattern(c)){
+    note.textContent = 'This is the default for new ' + (simple ? 'non-event' : 'event') + ' projects.';
+  } else {
+    note.textContent = 'Default for new projects: ' + saved;
+  }
+  clear.style.display = saved ? '' : 'none';
 }
 
 function patternPreview(){
@@ -3949,8 +4027,8 @@ function init(){
   // the placeholder only survives in an unstamped working copy
   const bs = document.getElementById('buildstamp');
   if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = 'working copy';
+  loadSync();          // before load(), so a starter project picks up your defaults
   load();
-  loadSync();
   if (checkHashVersion()) console.info('Fingerprint format changed — re-adopting the Sheet on this machine.');
   healBaseline();
 
