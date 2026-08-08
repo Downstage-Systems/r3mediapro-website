@@ -130,7 +130,17 @@
       table.vt td{ display:block; border-bottom:0; padding:10px 0; }
       table.vt td.btns{ width:auto; text-align:left; white-space:normal; padding-top:0; }
     }
-    .portal-tools{ display:flex; align-items:center; gap:16px; }
+    /* The brand is flex:0 1 auto from the site stylesheet, so it shrinks while
+   the logo images inside it don't — they spill out and end up under the
+   header tools. Pin the brand and let the tools give way instead. */
+.site-header .brand{ flex:0 0 auto; }
+.site-header .brand img{ max-width:100%; }
+.portal-tools{
+  display:flex; align-items:center; gap:16px;
+  flex:0 1 auto; min-width:0; margin-left:20px;
+}
+/* three lines of "Updated 12:16 PM" is what made the collision obvious */
+.hdr-live, .hdr-live span{ white-space:nowrap; }
     .hdr-live{ display:inline-flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
     .hdr-live i{ width:7px; height:7px; border-radius:50%; background:#2ea86a; display:block; flex:none; }
     .hdr-count{ font-size:.78rem; color:var(--muted); white-space:nowrap; }
@@ -155,10 +165,14 @@
     .hdr-link:hover{ color:var(--text) !important; }
     .hdr-refresh{ cursor:pointer; white-space:nowrap; }
     .hdr-refresh[disabled]{ opacity:.5; cursor:default; }
-    @media (max-width:900px){
-      .hdr-jump, .hdr-link, .hdr-count{ display:none; }
+    /* Shed one thing at a time, well before anything can collide. */
+    @media (max-width:1080px){ .hdr-count{ display:none; } }
+    @media (max-width:980px){
+      .hdr-jump, .hdr-link{ display:none; }
       .portal-tools{ gap:10px; }
     }
+    @media (max-width:860px){ .hdr-live{ display:none; } }
+    @media (max-width:760px){ .site-header .brand .mp-text{ display:none; } }
     /* The site's nav collapses into a dropdown panel below 800px. These are
        controls, not links — keep them inline in the bar. */
     @media (max-width:800px){
@@ -170,11 +184,7 @@
     @supports not (aspect-ratio: 16 / 9){
       @media (max-width:620px){ .thumb{ height:72px; } }
     }
-    @media (max-width:620px){
-      .hdr-live{ display:none; }
-      /* the wordmark needs the room more than the header needs the wordmark */
-      .site-header .brand .mp-text{ display:none; }
-    }
+
     .prog{ margin-top:24px; max-width:520px; }
     .prog-bar{ height:8px; border-radius:5px; background:#232329; overflow:hidden; }
     .prog-bar i{
@@ -330,7 +340,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 11:49 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 8, 12:20 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
