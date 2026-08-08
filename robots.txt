@@ -1,0 +1,14 @@
+# r3mediapro.com
+#
+# Everything is crawlable on purpose. Pages that must stay out of search
+# carry their own <meta name="robots" content="noindex"> — blocking them
+# here instead would stop crawlers reading that tag, which is what actually
+# removes a page from the index.
+#
+#   /tracker/            internal production tool  - noindex
+#   /portal/event.html   client delivery pages     - noindex
+#
+# /portal/ itself is the client sign-in page and is meant to be findable.
+
+User-agent: *
+Allow: /
