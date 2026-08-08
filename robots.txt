@@ -12,3 +12,5 @@
 
 User-agent: *
 Allow: /
+
+Sitemap: https://r3mediapro.com/sitemap.xml
