@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="R3 Tracker">
 <meta name="robots" content="noindex, nofollow">
 <title>Video Editing Tracker | R3 Media Production</title>
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-r3-32.png">
@@ -33,6 +36,13 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 .topbar{
   flex:none; z-index:60; background:rgba(12,12,14,.94);
   backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  /* keeps the header out from under the iPhone island / status bar when the
+     page runs full-bleed; env() is 0 everywhere that doesn't apply */
+  padding-top:env(safe-area-inset-top, 0px);
+}
+body{
+  padding-left:env(safe-area-inset-left, 0px);
+  padding-right:env(safe-area-inset-right, 0px);
 }
 .topbar-in{display:flex;align-items:center;gap:16px;padding:0 22px;height:60px}
 .brand{display:flex;align-items:center;gap:10px;flex:none}
@@ -232,7 +242,7 @@ td.status-cell .tgt:not([value=""]){color:var(--text)}
   /* Centred with auto margins rather than left:50% + translate. With left:50%
      the available width for a fixed element is only the half-viewport to its
      right, so it shrink-wrapped to 840px and wrapped even on a wide screen. */
-  position:fixed;left:0;right:0;bottom:26px;z-index:80;
+  position:fixed;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom, 0px));z-index:80;
   width:fit-content;max-width:calc(100vw - 32px);margin:0 auto;
   display:none;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;
   padding:10px 13px;border-radius:9px;
@@ -536,7 +546,7 @@ h4.sec:first-child{margin-top:0}
   tr.mopen td:nth-child(15){order:11;flex:1 1 100%;margin-top:6px;text-align:right}
 
   /* the bulk bar hugs the bottom edge on a phone */
-  .bulk{bottom:12px;max-width:calc(100vw - 16px)}
+  .bulk{bottom:calc(12px + env(safe-area-inset-bottom, 0px));max-width:calc(100vw - 16px)}
 }
 
 </style>
@@ -551,7 +561,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 2:46 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 3:12 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
