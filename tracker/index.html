@@ -566,7 +566,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 8, 5:09 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 1:04 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -3125,7 +3125,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 23;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 24;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
@@ -3926,6 +3926,7 @@ async function matchVimeo(){
     if (!videos.length) return toast('That Vimeo folder came back empty.', true);
     const p = proj();
     const settled = settleUploads(videos, p);
+    const filled = backfillFromFolder(videos, p);
     let exact = 0, loose = 0, missing = 0, promoted = 0;
     p.sessions.forEach(s => {
       // Issue and Deleted are deliberate states — a sweep doesn't even link
@@ -4132,9 +4133,34 @@ function settleUploads(videos, p){
     const want = statusForVideo(v);
     if (want === 'uploaded') return;             // still working
     s.status = want;
+    // Everything captured at link time was captured mid-transcode, when
+    // Vimeo reports duration 0 and placeholder art — refresh it now that
+    // the video is actually finished.
+    if (v.duration) s.duration = v.duration;
+    if (v.thumb) s.thumb = v.thumb;
+    if (v.review && !s.review) s.review = v.review;
     done.push({ title: s.title, want });
   });
   return done;
+}
+
+/**
+ * Rows linked while Vimeo was still processing carry duration 0 — that's
+ * what the API reports mid-transcode, and nothing used to come back for the
+ * real number. Quietly repair any linked row the folder now knows better.
+ */
+function backfillFromFolder(videos, p){
+  const byLink = new Map(videos.map(v => [v.link, v]));
+  let n = 0;
+  p.sessions.forEach(s => {
+    if (!s.vimeo || s.hidden) return;
+    const v = byLink.get(s.vimeo);
+    if (!v) return;
+    if (!s.duration && v.duration){ s.duration = v.duration; n++; }
+    if (!s.thumb && v.thumb) s.thumb = v.thumb;
+    if (!s.review && v.review) s.review = v.review;
+  });
+  return n;
 }
 
 /**
@@ -4150,7 +4176,8 @@ async function autoMatchVimeo(){
   if (autoMatching || !syncOn() || !cfg().autoMatch || !p.vimeoFolder) return;
   const waiting = p.sessions.filter(s => !s.vimeo && !s.hidden && !(S_BY_KEY[s.status] || {}).off);
   const settling = p.sessions.some(s => s.vimeo && s.status === 'uploaded');
-  if (!waiting.length && !settling) return;
+  const zeroDur = p.sessions.some(s => s.vimeo && !s.hidden && !s.duration);
+  if (!waiting.length && !settling && !zeroDur) return;
 
   autoMatching = true;
   try {
@@ -4160,6 +4187,7 @@ async function autoMatchVimeo(){
     // Rows waiting on a transcode graduate first — that costs nothing extra,
     // and it has to happen even when there's nothing new to link.
     const settled = settleUploads(videos, p);
+    const filled = backfillFromFolder(videos, p);
     const byName = new Map();
     videos.forEach(v => { const k = matchKey(v.name); if (k && !byName.has(k)) byName.set(k, v); });
 
@@ -4170,7 +4198,10 @@ async function autoMatchVimeo(){
       attachVideo(s, v.link);
       (s.status === 'uploaded' ? busy : fresh).push(s.title || v.name);
     });
-    if (!fresh.length && !busy.length && !settled.length) return;
+    if (!fresh.length && !busy.length && !settled.length){
+      if (filled){ save(); render(); }          // repaired data, nothing to announce
+      return;
+    }
 
     save(); render();
     const say = [];
