@@ -566,7 +566,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 1:04 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 1:49 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1864,7 +1864,9 @@ function addRow(){
   const p = proj();
   const last = p.sessions[p.sessions.length - 1];
   const room = last ? last.room : '';
-  p.sessions.push({ id: uid(), room, seq: nextSeq(room), section: last ? last.section || '' : '',
+  // Room carries over (you're usually adding within one), but a section is a
+  // deliberate grouping — a new row starts outside them all.
+  p.sessions.push({ id: uid(), room, seq: nextSeq(room), section: '',
                     day: last ? last.day || '' : '', time: '', title: '', version: 1, status: 'notstarted',
                     notes: '', clientNote: '', vimeo: '', thumb: '', duration: 0, download: '', drive: '',
                     review: '', reviewOn: false, feedback: '', target: '' });
