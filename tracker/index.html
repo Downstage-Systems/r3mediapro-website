@@ -176,7 +176,18 @@ td.notes-cell .cell.client{
 }
 td.notes-cell .cell.client:hover{border-color:var(--line);border-left-color:rgba(61,139,253,.8)}
 td.notes-cell .cell.client:focus{border-color:var(--red-bright);border-left-color:#3d8bfd}
-td.notes-cell .fromclient{
+td/* Click a note and the one-line preview becomes a real editor that grows
+   with the text. The single-line input is only ever a preview — the value
+   is re-read from the record on open, since inputs strip newlines. */
+textarea.cell.noteedit{
+  resize:none;overflow:hidden;line-height:1.45;font-family:inherit;
+  white-space:pre-wrap;min-height:30px;
+}
+.fromclient{cursor:pointer}
+.notes-cell .fromclient.full span{
+  white-space:pre-wrap;overflow:visible;text-overflow:clip;
+}
+.notes-cell .fromclient{
   display:flex;align-items:flex-start;gap:4px;margin-top:4px;padding:4px 6px;
   border-left:2px solid rgba(46,168,106,.6);background:rgba(46,168,106,.07);
   border-radius:0 4px 4px 0;font-size:.76rem;color:#9fe0bd;
@@ -566,7 +577,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 2:10 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 3:10 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1638,6 +1649,10 @@ function rowEl(s){
 
   tr.addEventListener('input', e => {
     lastEditAt = Date.now();
+    if (e.target.classList && e.target.classList.contains('autogrow')){
+      e.target.style.height = 'auto';
+      e.target.style.height = e.target.scrollHeight + 'px';
+    }
     const f = e.target.dataset.f; if (!f) return;
     const rec = find(s.id); if (!rec) return;
     if (f === 'seq' || f === 'version'){
@@ -1698,11 +1713,43 @@ function rowEl(s){
     }
   });
 
+  // Notes get room to breathe: focusing the one-line preview swaps in a
+  // textarea sized to its content. The record is the source of the text —
+  // single-line inputs silently strip newlines, so the preview can't be.
+  tr.addEventListener('focusin', e => {
+    const f = e.target.dataset.f;
+    if ((f !== 'notes' && f !== 'clientNote') || e.target.tagName !== 'INPUT') return;
+    const rec = find(s.id); if (!rec) return;
+    const inp = e.target;
+    const ta = document.createElement('textarea');
+    ta.className = inp.className + ' noteedit autogrow';
+    ta.dataset.f = f;
+    ta.rows = 1;
+    ta.placeholder = inp.placeholder;
+    ta.value = rec[f] || '';
+    inp.replaceWith(ta);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  });
+
+  tr.addEventListener('focusout', e => {
+    if (!e.target.classList || !e.target.classList.contains('noteedit')) return;
+    const ta = e.target, f = ta.dataset.f;
+    const inp = document.createElement('input');
+    inp.className = 'cell' + (f === 'clientNote' ? ' client' : '');
+    inp.dataset.f = f;
+    inp.placeholder = f === 'clientNote' ? 'note for client' : 'internal note';
+    inp.value = (ta.value || '').replace(/\s*\n+\s*/g, '  ·  ');
+    ta.replaceWith(inp);
+  });
+
   // clicking the row itself selects it; fields and buttons still behave.
   // On a phone the same tap expands the card instead — selection keeps its
   // checkbox, and an accidental select is the worse surprise there.
   tr.addEventListener('mousedown', e => {
-    if (e.target.closest('input, select, button, a, textarea, .handle')) return;
+    if (e.target.closest('input, select, button, a, textarea, .handle, .fromclient')) return;
     if (window.matchMedia('(max-width:720px)').matches){
       tr.classList.toggle('mopen');
       return;
@@ -1714,6 +1761,13 @@ function rowEl(s){
 
   tr.addEventListener('click', e => {
     const act = e.target.dataset.act;
+    const fb = e.target.closest && e.target.closest('.fromclient');
+    if (fb && !act){
+      const rec = find(s.id); if (!rec || !rec.feedback) return;
+      const open = fb.classList.toggle('full');
+      fb.querySelector('span').textContent = open ? rec.feedback : rec.feedback.split('\n').pop();
+      return;
+    }
     if (act === 'mexp'){
       tr.classList.toggle('mopen');
       return;
