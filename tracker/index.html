@@ -452,15 +452,17 @@ tr.vslim td{
 .vslim-st{font-size:.72rem;font-weight:700;flex:none}
 .vslim-w{font-size:.74rem;color:var(--muted) !important;border-bottom:1px dotted #45454f;flex:none}
 .vslim-w:hover{color:var(--text) !important}
-.vmin{
-  display:inline-flex;flex:none;align-items:center;justify-content:center;
-  width:22px;height:22px;border-radius:5px;border:1px solid transparent;
-  background:none;color:var(--muted);cursor:pointer;font-size:.8rem;
+/* The way back down mirrors the way up: the same V-pill the slim line
+   wears, now a button, sitting ahead of the title where the eye lands. */
+.vtag-btn{
+  display:inline-flex;flex:none;align-items:center;gap:4px;vertical-align:middle;
+  font-size:.62rem;font-weight:800;letter-spacing:.08em;color:var(--muted);
+  border:1px solid var(--line);border-radius:20px;padding:2px 9px;margin-right:5px;
+  background:none;cursor:pointer;
 }
-.vmin:hover{color:var(--text);border-color:var(--line)}
-/* only rows that actually carry the minimize control give up the 26px */
+.vtag-btn:hover{color:var(--text);border-color:var(--red-bright)}
 .title-cell.oldcut{white-space:nowrap}
-.title-cell.oldcut .cell{display:inline-block;width:calc(100% - 28px);vertical-align:middle}
+.title-cell.oldcut .cell{display:inline-block;width:calc(100% - 60px);vertical-align:middle}
 
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
@@ -495,7 +497,8 @@ h4.sec:first-child{margin-top:0}
 @media (max-width:720px){
   /* chrome slims down: icon-only buttons, smaller brand, wrap as the
      fallback — off-screen is the one thing a toolbar must never be */
-  .topbar-in .wordmark, #buildstamp, .brand .mp-text, .saveping, .btn-word{display:none}
+  .topbar-in .wordmark, #buildstamp, .brand .mp-text, .saveping, .btn-word,
+  #btn-redo, #btn-syncnow{display:none}
   .topbar-in{height:auto;min-height:52px;padding:6px 12px;gap:8px;flex-wrap:wrap}
   .topbar-in .brand img{height:24px}
   .pill{padding:4px 10px;font-size:.7rem}
@@ -610,10 +613,12 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 3:33 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 3:44 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
-    <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
+    <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
+    <button class="btn ghost sm" id="btn-undo" onclick="undo()" title="Undo (&#8984;Z)">&#8630;</button>
+    <button class="btn ghost sm" id="btn-redo" onclick="redo()" title="Redo (&#8679;&#8984;Z)">&#8631;</button>
     <button class="btn ghost sm" onclick="openSettings()" title="Naming &amp; status labels">&#9881;<span class="btn-word">&nbsp; Naming</span></button>
     <details class="menu" id="menu-export">
       <summary><span class="btn ghost sm" title="Export &amp; backups"><span class="btn-word">Export </span>&#9662;</span></summary>
@@ -1348,11 +1353,58 @@ function load(){
                              p.roomNames = p.roomNames || {}; });
 }
 
+/* =====================================================================
+   Undo — a bounded trail of whole-app snapshots.
+   Every mutation already funnels through save(), so history hangs off it:
+   one entry per save, which the 350ms debounce naturally groups into one
+   step per typing burst or per action. Sync pulls are excluded — undoing
+   someone else's (or another machine's) changes back off the Sheet would
+   just get re-pulled and fight. Undo is itself an edit, so it syncs out
+   like one.
+   ===================================================================== */
+let history = [], histAt = -1, restoring = false;
+const HISTORY_MAX = 40;
+
+function pushHistory(){
+  if (restoring || syncing) return;
+  const snap = JSON.stringify(db);
+  if (history[histAt] === snap) return;
+  history = history.slice(0, histAt + 1);
+  history.push(snap);
+  if (history.length > HISTORY_MAX) history.shift();
+  histAt = history.length - 1;
+  paintUndo();
+}
+
+function timeTravel(dir){
+  const to = histAt + dir;
+  if (to < 0 || to >= history.length)
+    return toast(dir < 0 ? 'Nothing to undo.' : 'Nothing to redo.', true);
+  histAt = to;
+  restoring = true;
+  try {
+    db = JSON.parse(history[histAt]);
+    if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0] && db.projects[0].id;
+    save(); render();
+  } finally { restoring = false; }
+  paintUndo();
+  toast(dir < 0 ? 'Undone.' : 'Redone.');
+}
+function undo(){ timeTravel(-1); }
+function redo(){ timeTravel(1); }
+
+function paintUndo(){
+  const u = document.getElementById('btn-undo'), r = document.getElementById('btn-redo');
+  if (u) u.style.opacity = histAt > 0 ? '' : '.4';
+  if (r) r.style.opacity = histAt < history.length - 1 ? '' : '.4';
+}
+
 let saveTimer = null;
 function save(){
   try { localStorage.setItem(KEY, JSON.stringify(db)); } catch(e){
     toast('Could not save — local storage is full or blocked.', true); return;
   }
+  pushHistory();
   const p = document.getElementById('saveping');
   p.classList.add('on'); clearTimeout(saveTimer);
   saveTimer = setTimeout(() => p.classList.remove('on'), 1100);
@@ -1685,9 +1737,9 @@ function rowEl(s){
     <td class="col-sess"><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
     <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
-    <td class="title-cell${isOld ? ' oldcut' : ''}"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title">${
-      isOld ? '<button class="vmin" data-act="vmin" title="Minimize this older cut">&#9662;</button>' : ''
-    }<button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
+    <td class="title-cell${isOld ? ' oldcut' : ''}">${
+      isOld ? `<button class="vtag-btn" data-act="vmin" title="Minimize this older cut">V${s.version || 1} &#9662;</button>` : ''
+    }<input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
     <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
     <td><input class="cell num" data-f="version" value="${s.version || 1}" inputmode="numeric"></td>
     <td class="status-cell">
@@ -4568,11 +4620,18 @@ function init(){
     if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)){
       e.preventDefault(); document.getElementById('search').focus();
     }
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'z' || e.key === 'Z')){
+      // inside a field, the browser's own text undo is the right one
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+      e.preventDefault();
+      e.shiftKey ? redo() : undo();
+    }
   });
   document.querySelectorAll('.overlay').forEach(o =>
     o.addEventListener('mousedown', e => { if (e.target === o) o.classList.remove('show'); }));
 
   render();
+  history = [JSON.stringify(db)]; histAt = 0; paintUndo();
   setSyncState(syncOn() ? 'busy' : 'off');
   if (syncOn()){ syncNow(true); startPolling(); }
   setInterval(() => { if (syncState === 'ok') paintSyncPill(); }, 10000);
