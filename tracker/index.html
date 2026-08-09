@@ -429,6 +429,39 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
   font-size:.62rem;letter-spacing:.1em;padding:2px 7px;border-radius:20px;margin-left:7px;
   border:1px solid var(--line);color:var(--muted);font-weight:700;
 }
+/* Older cuts: half-height reference lines until expanded. */
+tr.vslim td{
+  padding:0 10px;border-bottom:1px solid var(--line-soft);
+  box-shadow:inset 3px 0 0 var(--stripe, transparent);
+}
+.vslim-in{display:flex;align-items:center;gap:9px;min-height:26px;padding:2px 0;opacity:.72}
+.vslim-in:hover{opacity:1}
+.vexp{
+  background:none;border:0;color:var(--muted);cursor:pointer;font-size:.85rem;
+  padding:0 3px;line-height:1;
+}
+.vexp:hover{color:var(--text)}
+.vtag{
+  font-size:.62rem;font-weight:800;letter-spacing:.08em;color:var(--muted);
+  border:1px solid var(--line);border-radius:20px;padding:1px 8px;flex:none;
+}
+.vslim-t{
+  flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:.8rem;color:var(--muted);
+}
+.vslim-st{font-size:.72rem;font-weight:700;flex:none}
+.vslim-w{font-size:.74rem;color:var(--muted) !important;border-bottom:1px dotted #45454f;flex:none}
+.vslim-w:hover{color:var(--text) !important}
+.vmin{
+  display:inline-flex;flex:none;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:5px;border:1px solid transparent;
+  background:none;color:var(--muted);cursor:pointer;font-size:.8rem;
+}
+.vmin:hover{color:var(--text);border-color:var(--line)}
+/* only rows that actually carry the minimize control give up the 26px */
+.title-cell.oldcut{white-space:nowrap}
+.title-cell.oldcut .cell{display:inline-block;width:calc(100% - 28px);vertical-align:middle}
+
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
 .dupe-r.hid{opacity:.5}
@@ -577,7 +610,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 3:26 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 3:30 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -1238,6 +1271,26 @@ const STATUSES = [
 const PIPELINE = STATUSES.filter(s => !s.off);
 const S_BY_KEY = Object.fromEntries(STATUSES.map(s => [s.key, s]));
 
+/* Once a newer cut of a session exists, the older row is reference, not
+   workspace — it renders as a slim line until expanded. UI state only:
+   a reload re-minimizes, which is the right default. */
+let expandedCuts = new Set();
+let oldCuts = new Set();
+
+function computeOldCuts(){
+  const top = new Map();
+  proj().sessions.forEach(s => {
+    if (s.hidden) return;
+    const k = (s.room || '') + '|' + normTitle(s.title);
+    if (!normTitle(s.title)) return;
+    top.set(k, Math.max(top.get(k) || 0, s.version || 1));
+  });
+  oldCuts = new Set(proj().sessions.filter(s =>
+    !s.hidden && normTitle(s.title) &&
+    (s.version || 1) < (top.get((s.room || '') + '|' + normTitle(s.title)) || 0)
+  ).map(s => s.id));
+}
+
 /** What this status is called on your side. The key is what's stored and
     what the portal maps, so renaming is display-only and safe. */
 function sLabel(key){
@@ -1538,6 +1591,7 @@ function render(){
   document.getElementById('event-code').value = p.eventCode || '';
   document.getElementById('event-eta').value = p.eta || '';
 
+  computeOldCuts();
   const rows = visibleSessions();
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
@@ -1589,6 +1643,35 @@ function rowEl(s){
   if (selected.has(s.id)) tr.classList.add('sel');
 
   const st = S_BY_KEY[s.status] || STATUSES[0];
+  const isOld = oldCuts.has(s.id);
+
+  if (isOld && !expandedCuts.has(s.id)){
+    tr.classList.add('vslim');
+    if (selected.has(s.id)) tr.classList.add('sel');
+    tr.style.setProperty('--stripe', st.hex);
+    tr.innerHTML = `<td colspan="15"><div class="vslim-in">
+      <input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel">
+      <button class="vexp" data-act="vexpand" title="Expand this older cut">&#9656;</button>
+      <span class="vtag">V${s.version || 1}</span>
+      <span class="vslim-t">${esc(s.title || 'Untitled session')}</span>
+      <span class="vslim-st" style="color:${st.hex}">${esc(sLabel(s.status))}</span>
+      ${s.vimeo ? `<a class="vslim-w" href="${esc(s.vimeo)}" target="_blank" rel="noopener">Watch &#8599;</a>` : ''}
+    </div></td>`;
+    tr.addEventListener('click', e => {
+      const act = e.target.dataset.act;
+      if (act === 'sel'){
+        if (e.target.checked) selected.add(s.id); else selected.delete(s.id);
+        tr.classList.toggle('sel', e.target.checked);
+        updateBulk();
+        return;
+      }
+      if (e.target.closest('a')) return;
+      expandedCuts.add(s.id);
+      render();
+    });
+    return tr;
+  }
+
   if (s.status === 'deleted') tr.classList.add('gone');
   if (s.vimeoMiss && !s.vimeo) tr.classList.add('nolink');
   if (notCounted(s)) tr.classList.add('uncounted');
@@ -1602,7 +1685,9 @@ function rowEl(s){
     <td class="col-sess"><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
     <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
-    <td class="title-cell"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
+    <td class="title-cell${isOld ? ' oldcut' : ''}"><input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title">${
+      isOld ? '<button class="vmin" data-act="vmin" title="Minimize this older cut">&#9662;</button>' : ''
+    }<button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
     <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
     <td><input class="cell num" data-f="version" value="${s.version || 1}" inputmode="numeric"></td>
     <td class="status-cell">
@@ -1772,6 +1857,11 @@ function rowEl(s){
       tr.classList.toggle('mopen');
       return;
     }
+    if (act === 'vmin'){
+      expandedCuts.delete(s.id);
+      render();
+      return;
+    }
     if (act === 'del'){
       const rec = find(s.id);
       if (rec && rec.title && !confirm(`Delete "${rec.title}"?`)) return;
@@ -1851,6 +1941,7 @@ function refreshComputed(){
   });
   byRow.forEach(([tr, fn]) => {
     const code = tr.querySelector('[data-fname]');
+    if (!code) return;                    // slim old-cut rows carry no filename
     code.textContent = fn;
     code.title = counts[fn] > 1 ? fn + '  —  duplicate filename' : fn;
     tr.classList.toggle('dup', counts[fn] > 1);
