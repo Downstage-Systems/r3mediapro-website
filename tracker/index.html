@@ -539,6 +539,7 @@ h4.sec:first-child{margin-top:0}
   .toolbar > button[onclick="sortByRoomTime()"],
   .toolbar > button[onclick="renumber()"],
   .toolbar > button[onclick="openSections()"],
+  .toolbar > button[onclick="snapToSections()"],
   .toolbar > button[onclick="openRooms()"]{display:none}
   #menu-mtools{display:block;position:relative}
 
@@ -634,7 +635,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 3:53 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 4:20 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -695,6 +696,8 @@ h4.sec:first-child{margin-top:0}
   <button class="btn ghost sm" onclick="sortByRoomTime()">Sort by room &amp; time</button>
   <button class="btn ghost sm" onclick="renumber()">Renumber</button>
   <button class="btn ghost sm" onclick="openSections()">Sections</button>
+  <button class="btn ghost sm" onclick="snapToSections()"
+          title="Regroup the list to match the client page: each section together, in the declared order">Group by section</button>
   <button class="btn ghost sm" onclick="openRooms()">Rooms</button>
   <button class="btn ghost sm" id="btn-dupes" onclick="openDupes()">Duplicates</button>
   <button class="btn ghost sm" onclick="matchVimeo()" title="Match every session to a video in the Vimeo folder">Match Vimeo</button>
@@ -707,6 +710,7 @@ h4.sec:first-child{margin-top:0}
       <button onclick="closeMenus();sortByRoomTime()">Sort by room &amp; time</button>
       <button onclick="closeMenus();renumber()">Renumber</button>
       <button onclick="closeMenus();openSections()">Sections</button>
+      <button onclick="closeMenus();snapToSections()">Group by section</button>
       <button onclick="closeMenus();openRooms()">Rooms</button>
     </div>
   </details>
@@ -3084,7 +3088,37 @@ function renderSections(){
 
 function commitSectionOrder(names){
   proj().sectionOrder = names.filter(Boolean);
-  save(); renderSections();
+  // The declared order and the table must be one thing. Changing it here
+  // regroups the rows too — otherwise the Sections panel reorders the
+  // client page while the tracker sits in the old order, and the two views
+  // quietly disagree.
+  snapToSections(true);
+  renderSections();
+}
+
+/**
+ * Regroup the list to the client's view: rows gathered under their section,
+ * sections in declared order, no-section rows last — the same order the
+ * portal renders. Row order within each section is preserved, so this only
+ * moves blocks, never shuffles inside them. Fragmented runs of one section
+ * merge into a single block.
+ */
+function snapToSections(quiet){
+  const p = proj();
+  const names = sectionList().map(r => r.name).filter(Boolean);
+  const bucket = new Map(names.map(n => [n, []]));
+  const loose = [];
+  p.sessions.forEach(x => {
+    if (x.section && bucket.has(x.section)) bucket.get(x.section).push(x);
+    else loose.push(x);
+  });
+  const next = [...names.flatMap(n => bucket.get(n)), ...loose];
+  const moved = next.some((x, i) => p.sessions[i] !== x);
+  p.sessions = next;
+  reindex();
+  save(); render();
+  if (!quiet) toast(moved ? 'Grouped by section — the client sees this order too.'
+                          : 'Already in section order.');
 }
 
 function moveSection(i, dir){
