@@ -432,13 +432,15 @@ select.vpick.miss{color:#f0b45f;border-color:#8a5a1f;background:rgba(217,131,36,
 /* Section breaks in the table. The name is an input wearing heading
    clothes — rename in place; drag the dots to move the whole block. */
 tr.secrow td{
-  padding:0;border-bottom:1px solid var(--line);background:var(--bg-alt);
+  padding:0;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb, var(--sec, #3a3a44) 7%, var(--bg-alt));
+  box-shadow:inset 4px 0 0 var(--sec, #3a3a44);
 }
 .secrow-in{display:flex;align-items:center;gap:9px;padding:6px 10px;min-height:30px}
 .sechandle{cursor:grab;color:#3c3c46;font-size:.75rem;letter-spacing:-2px;flex:none}
 .secrow:hover .sechandle{color:var(--muted)}
 .secname{
-  background:none;border:1px solid transparent;border-radius:5px;color:var(--text);
+  background:none;border:1px solid transparent;border-radius:5px;color:var(--sec, var(--text));
   font-size:.72rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
   padding:4px 8px;width:auto;
 }
@@ -450,7 +452,8 @@ tr.secrow td{
 }
 .seccount{
   font-size:.66rem;font-weight:700;color:var(--muted);
-  border:1px solid var(--line);border-radius:20px;padding:1px 8px;flex:none;
+  border:1px solid color-mix(in srgb, var(--sec, #3a3a44) 55%, transparent);
+  border-radius:20px;padding:1px 8px;flex:none;
 }
 tr.secrow.dragging{opacity:.4}
 
@@ -635,7 +638,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 4:20 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 4:29 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -2001,12 +2004,26 @@ function paintStatusMenus(){
   f.value = keepF; b.value = keepB;
 }
 
+/* Each section gets a stable colour of its own — hashed from the name, so
+   it's the same on every machine with nothing stored, and it survives
+   renames only changing when the name does. Hues deliberately steer clear
+   of the status colours, which already mean something on the rows. */
+const SECTION_HUES = ['#d9a53f', '#3fb5a3', '#d95f8a', '#7c88e0',
+                      '#8fbf6f', '#cd7f4f', '#62b6cb', '#b672c9'];
+function sectionColor(name){
+  if (!name) return '#3a3a44';
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return SECTION_HUES[h % SECTION_HUES.length];
+}
+
 /** A header line for one contiguous run of a section. */
 function secRowEl(name, firstRowId){
   const tr = document.createElement('tr');
   tr.className = 'secrow';
   tr.dataset.sec = name;
   tr.dataset.first = firstRowId;
+  tr.style.setProperty('--sec', sectionColor(name));
   const n = proj().sessions.filter(x => (x.section || '') === name && !x.hidden).length;
   tr.innerHTML = `<td colspan="14"><div class="secrow-in${name ? '' : ' nosec'}">
     <span class="handle sechandle" title="Drag to move this section and everything in it">&#8942;&#8942;</span>
