@@ -155,10 +155,10 @@ table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
    cutting video for, the columns are noise — and an empty column invites
    someone to fill it in. */
 body.no-rooms .col-room, body.no-rooms .col-sess{display:none}
-.col-room{width:92px} .col-sess{width:58px}
-.col-time{width:98px} .col-ver{width:56px} .col-status{width:150px} .col-x{width:38px}
-.col-notes{width:170px} .col-file{width:224px} .col-vimeo{width:140px} .col-day{width:96px}
-.col-review{width:84px}
+.col-room{width:92px} .col-sess{width:50px}
+.col-time{width:98px} .col-status{width:150px} .col-x{width:38px}
+.col-notes{width:150px} .col-file{width:210px} .col-vimeo{width:140px} .col-day{width:96px}
+.col-review{width:76px}
 select.cell.sectionsel{
   appearance:none;cursor:pointer;padding-right:22px;
   background-repeat:no-repeat;background-position:right 7px center;
@@ -511,8 +511,14 @@ tr.vslim td{
   background:none;cursor:pointer;
 }
 .vtag-btn:hover{color:var(--text);border-color:var(--red-bright)}
-.title-cell.oldcut{white-space:nowrap}
-.title-cell.oldcut .cell{display:inline-block;width:calc(100% - 60px);vertical-align:middle}
+.vchip-t{
+  display:inline-flex;flex:none;align-items:center;vertical-align:middle;
+  font-size:.62rem;font-weight:800;letter-spacing:.06em;
+  border:1px solid;border-radius:20px;padding:1px 7px;margin-right:6px;
+}
+.title-cell{white-space:nowrap}
+.title-cell .cell{display:inline-block;vertical-align:middle;width:calc(100% - 44px)}
+.title-cell.oldcut .cell{width:calc(100% - 62px)}
 
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
@@ -593,7 +599,7 @@ h4.sec:first-child{margin-top:0}
   /* row 1 — select, title, expand */
   td.handle{display:none}
   .grid td:nth-child(2){order:0;flex:0 0 auto}
-  .title-cell{order:1;flex:1 1 calc(100% - 40px);display:flex;align-items:center;gap:4px;min-width:0}
+  .title-cell{order:1;flex:1 1 calc(100% - 40px);display:flex;align-items:center;gap:4px;min-width:0;white-space:normal}
   .title-cell .cell{font-weight:600;padding:7px 6px;min-width:0;flex:1 1 auto;width:auto}
   .mexp{
     display:inline-flex;flex:none;align-items:center;justify-content:center;
@@ -617,7 +623,7 @@ h4.sec:first-child{margin-top:0}
   .grid td:nth-child(5)::before{content:'Day'}
   .grid td:nth-child(6)::before{content:'Time'}
   .grid td:nth-child(3)::before, .grid td:nth-child(5)::before, .grid td:nth-child(6)::before,
-  .grid td:nth-child(4)::before, .grid td:nth-child(9)::before,
+  .grid td:nth-child(4)::before,
   .grid td:nth-child(8)::before, .notes-cell::before{
     display:block;font-size:.58rem;font-weight:800;letter-spacing:.12em;
     text-transform:uppercase;color:var(--muted);margin:0 0 2px 2px;
@@ -625,15 +631,13 @@ h4.sec:first-child{margin-top:0}
 
   /* everything else waits behind ⋯ */
   /* .grid td{display:block} above is (0,1,1), so these need .grid too */
-  .grid td:nth-child(4), .grid td:nth-child(8), .grid td:nth-child(9),
-  .grid .review-cell, .grid .notes-cell, .grid td:nth-child(14){display:none}
-  tr.mopen td:nth-child(4), tr.mopen td:nth-child(8), tr.mopen td:nth-child(9),
-  tr.mopen .review-cell, tr.mopen .notes-cell, tr.mopen td:nth-child(14){display:block}
+  .grid td:nth-child(4), .grid td:nth-child(8),
+  .grid .review-cell, .grid .notes-cell, .grid td:nth-child(13){display:none}
+  tr.mopen td:nth-child(4), tr.mopen td:nth-child(8),
+  tr.mopen .review-cell, tr.mopen .notes-cell, tr.mopen td:nth-child(13){display:block}
 
   tr.mopen td:nth-child(4){order:6;flex:1 1 16%;margin-top:8px}
   tr.mopen td:nth-child(4)::before{content:'Sess'}
-  tr.mopen td:nth-child(9){order:7;flex:1 1 14%;margin-top:8px}
-  tr.mopen td:nth-child(9)::before{content:'Ver'}
   tr.mopen td:nth-child(8){order:8;flex:1 1 100%;margin-top:8px}
   tr.mopen td:nth-child(8)::before{content:'Filename'}
   tr.mopen td:nth-child(8) .fname code{
@@ -642,7 +646,7 @@ h4.sec:first-child{margin-top:0}
   tr.mopen .review-cell{order:9;flex:1 1 40%;margin-top:8px;align-self:end}
   tr.mopen .notes-cell{order:10;flex:1 1 100%;margin-top:8px;padding:0}
   .notes-cell::before{content:'Notes'}
-  tr.mopen td:nth-child(14){order:11;flex:1 1 100%;margin-top:6px;text-align:right}
+  tr.mopen td:nth-child(13){order:11;flex:1 1 100%;margin-top:6px;text-align:right}
 
   /* the bulk bar hugs the bottom edge on a phone */
   .bulk{bottom:calc(12px + env(safe-area-inset-bottom, 0px));max-width:calc(100vw - 16px)}
@@ -660,7 +664,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 5:27 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 5:42 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -759,7 +763,6 @@ h4.sec:first-child{margin-top:0}
           <th class="col-time sortable" onclick="sortBy('time')">Time<i></i></th>
           <th class="col-title sortable" onclick="sortBy('title')">Session title<i></i></th>
           <th class="col-file sortable" onclick="sortBy('filename')">Filename<i></i></th>
-          <th class="col-ver sortable" onclick="sortBy('version')">Ver<i></i></th>
           <th class="col-status sortable" onclick="sortBy('status')">Status<i></i></th>
           <th class="col-vimeo">Vimeo</th>
           <th class="col-review" title="Show a Vimeo review link on the client page">Review</th>
@@ -1765,10 +1768,10 @@ function rowEl(s){
     tr.classList.add('vslim');
     if (selected.has(s.id)) tr.classList.add('sel');
     tr.style.setProperty('--stripe', st.hex);
-    tr.innerHTML = `<td colspan="14"><div class="vslim-in">
+    tr.innerHTML = `<td colspan="13"><div class="vslim-in">
       <input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel">
       <button class="vexp" data-act="vexpand" title="Expand this older cut">&#9656;</button>
-      <span class="vtag">V${s.version || 1}</span>
+      <span class="vtag" style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1}</span>
       <span class="vslim-t">${esc(s.title || 'Untitled session')}</span>
       <span class="vslim-st" style="color:${st.hex}">${esc(sLabel(s.status))}</span>
       ${s.vimeo ? `<a class="vslim-w" href="${esc(s.vimeo)}" target="_blank" rel="noopener">Watch &#8599;</a>` : ''}
@@ -1799,10 +1802,11 @@ function rowEl(s){
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
     <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
     <td class="title-cell${isOld ? ' oldcut' : ''}">${
-      isOld ? `<button class="vtag-btn" data-act="vmin" title="Minimize this older cut">V${s.version || 1} &#9662;</button>` : ''
+      isOld ? `<button class="vtag-btn" data-act="vmin" title="Minimize this older cut"
+                 style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1} &#9662;</button>`
+            : `<span class="vchip-t" style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1}</span>`
     }<input class="cell" data-f="title" value="${esc(s.title)}" placeholder="Session title"><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
     <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
-    <td><input class="cell num" data-f="version" value="${s.version || 1}" inputmode="numeric"></td>
     <td class="status-cell">
       <span class="status-dot" style="background:${st.hex}"></span>
       <select class="status" data-f="status">
@@ -2033,6 +2037,12 @@ function paintStatusMenus(){
    it's the same on every machine with nothing stored, and it survives
    renames only changing when the name does. Hues deliberately steer clear
    of the status colours, which already mean something on the rows. */
+/* v1 is unremarkable by design; re-cuts get louder as they stack up. */
+function verHue(v){
+  v = v || 1;
+  return v <= 1 ? '#6b6b74' : v === 2 ? '#8b5cf6' : v === 3 ? '#d95f8a' : '#d9a53f';
+}
+
 const SECTION_HUES = ['#d9a53f', '#3fb5a3', '#d95f8a', '#7c88e0',
                       '#8fbf6f', '#cd7f4f', '#62b6cb', '#b672c9'];
 function sectionColor(name){
@@ -2050,7 +2060,7 @@ function secRowEl(name, firstRowId){
   tr.dataset.first = firstRowId;
   tr.style.setProperty('--sec', sectionColor(name));
   const n = proj().sessions.filter(x => (x.section || '') === name && !x.hidden).length;
-  tr.innerHTML = `<td colspan="14"><div class="secrow-in${name ? '' : ' nosec'}">
+  tr.innerHTML = `<td colspan="13"><div class="secrow-in${name ? '' : ' nosec'}">
     <span class="handle sechandle" title="Drag to move this section and everything in it">&#8942;&#8942;</span>
     ${name
       ? `<input class="secname" value="${esc(name)}" size="${Math.max(8, name.length + 6)}" title="Rename this section" spellcheck="false">`
