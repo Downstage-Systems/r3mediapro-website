@@ -212,11 +212,14 @@
     }
 
     .prog{ margin-top:24px; max-width:520px; }
-    .prog-bar{ height:8px; border-radius:5px; background:#232329; overflow:hidden; }
+    .prog-bar{ height:8px; border-radius:5px; background:#232329; overflow:hidden; display:flex; }
     .prog-bar i{
-      display:block; height:100%; width:0; border-radius:5px;
-      background:linear-gradient(90deg,#2ea86a,#4fd18c); transition:width .7s ease;
+      display:block; height:100%; width:0; transition:width .7s ease;
+      background:linear-gradient(90deg,#2ea86a,#4fd18c);
     }
+    /* new versions underway: the work exists (v1 is watchable) but the
+       current cut isn't done — amber, matching the tracker's editing colour */
+    .prog-bar i.upd{ background:linear-gradient(90deg,#b06a1e,#d98324); }
     .prog-txt{ margin-top:9px; font-size:.84rem; color:var(--muted); }
     .prog-txt b{ color:var(--text); font-weight:700; }
     .prog-eta{
@@ -334,7 +337,7 @@
     <h1 id="ev-name">Your Event</h1>
     <p id="ev-welcome"></p>
     <div class="prog" id="prog" style="display:none">
-      <div class="prog-bar"><i id="prog-fill"></i></div>
+      <div class="prog-bar"><i id="prog-fill"></i><i id="prog-fill-upd" class="upd"></i></div>
       <div class="prog-txt" id="prog-txt"></div>
       <div class="prog-eta" id="prog-eta" style="display:none"></div>
     </div>
@@ -366,7 +369,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 9, 1:49 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 9, 2:10 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -415,10 +418,10 @@
 
   <section class="cta-band">
     <div class="wrap">
-      <h2>Planning your next event?</h2>
-      <p>We'd love to do it again. Lock in your date and we'll carry everything over &mdash;
+      <h2 id="cta-h">Planning your next event?</h2>
+      <p id="cta-p">We'd love to do it again. Lock in your date and we'll carry everything over &mdash;
          shot lists, branding, and lessons learned.</p>
-      <a class="btn" href="../contact.html">Book Your Next Event</a>
+      <a class="btn" id="cta-a" href="../contact.html">Book Your Next Event</a>
     </div>
   </section>
 </section>
@@ -684,53 +687,51 @@ function render(data){
     'buttons to save the full-quality files. This page is private to your team — feel free to share ' +
     'it internally along with the password.';
 
-  /**
-   * Count sessions, not rows.
-   *
-   * A re-cut is its own row, so counting rows made starting a v2 move the bar
-   * backwards twice: the total went up by one and the delivered share stayed
-   * put. Folding first keeps the total stable, and a session counts as
-   * delivered if any of its cuts is — the client has a usable file either way,
-   * and a bar that reverses on work you've only just begun reads as a mistake.
-   * Outstanding re-cuts are called out separately instead.
-   */
-  const isDone = r => r.status === 'delivered' ||
-                      (r.older || []).some(o => o.status === 'delivered');
-  // Rows marked undeliverable in the tracker keep their place and their
+    // Rows marked undeliverable in the tracker keep their place and their
   // status here, they just don't count towards the total — otherwise one
   // session nobody can finish pins the bar below 100% forever.
   const cantDeliver = r => r.status === 'undeliverable' || r.uncounted;
   const onHold = folded.filter(cantDeliver);
   const counted = folded.filter(r => !cantDeliver(r));
 
+  /**
+   * Delivered means the CURRENT cut. A session mid-re-cut used to count as
+   * delivered because its v1 still existed, which let the line say
+   * "5 delivered · 2 being re-cut" — the same two sessions counted twice,
+   * reading as ten items across eight. The three states are disjoint now:
+   * delivered, new version underway (earlier cut watchable), in production.
+   * Re-cuts get the amber bar segment, so total coloured progress never
+   * lurches backwards when a v2 starts — green just hands that share over.
+   */
   const total = counted.length;
-  const delivered = counted.filter(isDone).length;
-  const revising = counted.filter(r => r.status !== 'delivered' &&
+  const doneNow  = counted.filter(r => r.status === 'delivered').length;
+  const updating = counted.filter(r => r.status !== 'delivered' &&
                                        (r.older || []).some(o => o.status === 'delivered')).length;
-  data = Object.assign({}, data, { total, delivered });
+  // "ready" in the header stays availability: something watchable exists
+  data = Object.assign({}, data, { total, delivered: doneNow + updating });
 
   document.getElementById('ev-sum').textContent =
-    total ? `${delivered} of ${total} sessions delivered.` : '';
+    total ? `${doneNow} of ${total} sessions delivered.` : '';
 
   document.getElementById('portal-label').style.display = 'none';
   document.getElementById('portal-tools').style.display = 'flex';
   const prog = document.getElementById('prog');
   if (data.total){
     prog.style.display = '';
-    const pct = Math.round((data.delivered / data.total) * 100);
-    document.getElementById('prog-fill').style.width = pct + '%';
-    const left = data.total - data.delivered;
+    document.getElementById('prog-fill').style.width = Math.round(doneNow / total * 100) + '%';
+    document.getElementById('prog-fill-upd').style.width = Math.round(updating / total * 100) + '%';
+    const left = total - doneNow - updating;
     document.getElementById('prog-txt').innerHTML =
-      `<b>${data.delivered}</b> of <b>${data.total}</b> delivered` +
-      (left ? ` &middot; ${left} still in production` : ' &mdash; all done') +
-      (revising ? ` &middot; ${revising} being re-cut` : '') +
+      `<b>${doneNow}</b> of <b>${total}</b> delivered` +
+      (updating ? ` &middot; ${updating} new version${updating === 1 ? '' : 's'} underway` : '') +
+      (left ? ` &middot; ${left} still in production` : (!updating ? ' &mdash; all done' : '')) +
       (onHold.length ? ` &middot; ${onHold.length} undeliverable` : '');
   } else prog.style.display = 'none';
 
   const etaEl = document.getElementById('prog-eta');
   const eta = (ev.eta || '').trim();
   // once everything's delivered the promise is history — don't keep flashing it
-  const allDone = data.total && data.delivered >= data.total;
+  const allDone = data.total && doneNow >= data.total;
   etaEl.textContent = eta;
   etaEl.style.display = (eta && !allDone) ? '' : 'none';
 
@@ -797,6 +798,13 @@ function render(data){
   document.getElementById('details-block').style.display = details.length ? 'block' : 'none';
   document.getElementById('ev-details').innerHTML =
     details.map(d => `<li><strong>${esc(d.label)}:</strong> ${esc(d.value)}</li>`).join('');
+
+  if (ev.isEvent === false){
+    document.getElementById('cta-h').textContent = 'Ready for your next project?';
+    document.getElementById('cta-p').textContent =
+      'We\u2019d love to keep the momentum going \u2014 send over the next brief and we\u2019ll pick up right where we left off.';
+    document.getElementById('cta-a').textContent = 'Start Your Next Project';
+  }
 
   const upBlock = document.getElementById('upload-block');
   upBlock.style.display = ev.uploads ? 'block' : 'none';

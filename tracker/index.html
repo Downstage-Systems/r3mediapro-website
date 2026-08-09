@@ -566,7 +566,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 1:49 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 2:10 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now">&#8635;</button>
@@ -3127,7 +3127,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 24;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 25;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
