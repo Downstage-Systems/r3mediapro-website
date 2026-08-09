@@ -369,7 +369,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 9, 3:10 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 9, 3:26 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -707,8 +707,9 @@ function render(data){
   const doneNow  = counted.filter(r => r.status === 'delivered').length;
   const updating = counted.filter(r => r.status !== 'delivered' &&
                                        (r.older || []).some(o => o.status === 'delivered')).length;
-  // "ready" in the header stays availability: something watchable exists
-  data = Object.assign({}, data, { total, delivered: doneNow + updating });
+  // One number everywhere: the header matches the bar, and both mean the
+  // current cut is delivered. A session mid-re-cut is not "ready".
+  data = Object.assign({}, data, { total, delivered: doneNow });
 
   document.getElementById('ev-sum').textContent =
     total ? `${doneNow} of ${total} sessions delivered.` : '';
