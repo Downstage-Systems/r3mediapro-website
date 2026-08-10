@@ -505,35 +505,49 @@ tr.secrow.dragging{opacity:.4}
   box-shadow:inset 4px 0 0 var(--secrail, transparent),
              inset 12px 0 0 #3a3a44;
 }
-.grid.sec-on tr.vslim td{
+.grid.sec-on tr.secrow td{border-top:9px solid var(--bg)}
+.grid.sec-on tr.vsub td,.grid.sec-on tr.cutrow td.handle{
   box-shadow:inset 4px 0 0 var(--secrail, transparent),
              inset 12px 0 0 var(--stripe, transparent);
 }
-.grid.sec-on tr.secrow td{border-top:9px solid var(--bg)}
 
-/* Older cuts: half-height reference lines until expanded. */
-tr.vslim td{
-  padding:0 10px;border-bottom:1px solid var(--line-soft);
+/* ---- older cuts, hanging off the newest one ----
+   The strip is part of the block above it, not a row of its own: the row
+   it belongs to loses its bottom rule, the strip carries the same status
+   bar straight down, and both sit on one shared tint. */
+tr.hascuts td{border-bottom:0}
+tr.vsub td{
+  padding:0 10px 0 20px;background:var(--tint, transparent);
   box-shadow:inset 7px 0 0 var(--stripe, transparent);
 }
-.vslim-in{display:flex;align-items:center;gap:9px;min-height:22px;padding:1px 0;opacity:.55}
-.vslim-in:hover{opacity:1}
-.vexp{
-  background:none;border:0;color:var(--muted);cursor:pointer;font-size:.85rem;
-  padding:0 3px;line-height:1;
+tr.vsub:hover td{background:var(--tint-hover, rgba(255,255,255,.018))}
+.vsub-in{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:4px 0 6px}
+.vsub-lbl{
+  font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);opacity:.7;margin-right:2px;flex:none;
 }
-.vexp:hover{color:var(--text)}
+.vcut{
+  display:inline-flex;align-items:center;gap:6px;flex:none;cursor:pointer;
+  border:1px solid var(--line);border-radius:20px;padding:2px 10px;
+  font-size:.72rem;transition:border-color .15s,background .15s;
+}
+.vcut:hover{border-color:var(--muted);background:rgba(255,255,255,.04)}
+.vcut.open{border-color:var(--red-bright);background:rgba(230,57,70,.08)}
+.vcut-v{font-size:.66rem;font-weight:800;letter-spacing:.06em}
+.vcut-dot{width:6px;height:6px;border-radius:50%;flex:none;display:inline-block}
+.vcut-st{color:var(--muted);font-weight:600}
+.vcut-w{
+  font-size:.68rem;font-weight:700;flex:none;color:var(--muted) !important;
+  padding-left:7px;margin-left:1px;border-left:1px solid var(--line);
+}
+.vcut-w:hover{color:var(--red-bright) !important}
+/* A cut opened for editing is indented under the block it came out of. */
+tr.cutrow td{background:rgba(0,0,0,.18)}
+tr.cutrow td.handle{opacity:.75}
 .vtag{
   font-size:.62rem;font-weight:800;letter-spacing:.08em;color:var(--muted);
   border:1px solid var(--line);border-radius:20px;padding:1px 8px;flex:none;
 }
-.vslim-t{
-  flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-size:.8rem;color:var(--muted);
-}
-.vslim-st{font-size:.72rem;font-weight:700;flex:none}
-.vslim-w{font-size:.74rem;color:var(--muted) !important;border-bottom:1px dotted #45454f;flex:none}
-.vslim-w:hover{color:var(--text) !important}
 /* The way back down mirrors the way up: the same V-pill the slim line
    wears, now a button, sitting ahead of the title where the eye lands. */
 .vtag-btn{
@@ -713,7 +727,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:14 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:27 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -1383,24 +1397,68 @@ const STATUSES = [
 const PIPELINE = STATUSES.filter(s => !s.off);
 const S_BY_KEY = Object.fromEntries(STATUSES.map(s => [s.key, s]));
 
-/* Once a newer cut of a session exists, the older row is reference, not
-   workspace — it renders as a slim line until expanded. UI state only:
-   a reload re-minimizes, which is the right default. */
+/* Every cut of a session lives in one block: the newest version is the row
+   you work in, and the ones behind it hang off the bottom of it as a strip
+   of chips. They can't drift apart in a sort, because only the newest one
+   has a place in the list at all. Clicking a chip opens that cut as a full
+   row inside the same block when you need to change something.
+   UI state only: a reload re-folds, which is the right default. */
 let expandedCuts = new Set();
-let oldCuts = new Set();
+let oldCuts = new Set();      // ids that hang off a newer cut
+let cutsOf = new Map();       // newest id -> [older sessions, newest first]
+let cutHead = new Map();      // older id -> the newest cut's id
 
 function computeOldCuts(){
-  const top = new Map();
+  const fam = new Map();
   proj().sessions.forEach(s => {
-    if (s.hidden) return;
+    if (s.hidden || !normTitle(s.title)) return;
     const k = (s.room || '') + '|' + normTitle(s.title);
-    if (!normTitle(s.title)) return;
-    top.set(k, Math.max(top.get(k) || 0, s.version || 1));
+    if (!fam.has(k)) fam.set(k, []);
+    fam.get(k).push(s);
   });
-  oldCuts = new Set(proj().sessions.filter(s =>
-    !s.hidden && normTitle(s.title) &&
-    (s.version || 1) < (top.get((s.room || '') + '|' + normTitle(s.title)) || 0)
-  ).map(s => s.id));
+  oldCuts = new Set(); cutsOf = new Map(); cutHead = new Map();
+  fam.forEach(list => {
+    const top = Math.max(...list.map(s => s.version || 1));
+    const older = list.filter(s => (s.version || 1) < top);
+    if (!older.length) return;
+    // Two rows can share the top version — that's a duplicate, not a cut, so
+    // the first of them heads the block and the other stays a row of its own.
+    const head = list.find(s => (s.version || 1) === top);
+    older.sort((a, b) => (b.version || 1) - (a.version || 1));
+    older.forEach(s => { oldCuts.add(s.id); cutHead.set(s.id, head.id); });
+    cutsOf.set(head.id, older);
+  });
+}
+
+/** The strip of older cuts, drawn as part of the block above it. Condensed
+    on purpose: version, status, and a way to watch or open it. */
+function cutStripEl(head, olders){
+  const tr = document.createElement('tr');
+  tr.className = 'vsub';
+  tr.dataset.head = head.id;
+  tr.innerHTML = `<td colspan="${colCount()}"><div class="vsub-in">
+    <span class="vsub-lbl">Earlier</span>
+    ${olders.map(o => {
+      const st = S_BY_KEY[o.status] || STATUSES[0];
+      const open = expandedCuts.has(o.id);
+      return `<span class="vcut${open ? ' open' : ''}" data-cut="${o.id}"
+                    title="${open ? 'Fold this cut away' : 'Open this cut to edit it'}">
+        <b class="vcut-v" style="color:${verHue(o.version)}">V${o.version || 1}</b>
+        <i class="vcut-dot" style="background:${st.hex}"></i>
+        <span class="vcut-st">${esc(sLabel(o.status))}</span>
+        ${o.vimeo ? `<a class="vcut-w" href="${esc(o.vimeo)}" target="_blank" rel="noopener"
+                        title="Watch V${o.version || 1} on Vimeo">Watch &#8599;</a>` : ''}
+      </span>`;
+    }).join('')}
+  </div></td>`;
+  tr.addEventListener('click', e => {
+    const chip = e.target.closest('[data-cut]');
+    if (!chip || e.target.closest('a')) return;
+    const id = chip.dataset.cut;
+    if (expandedCuts.has(id)) expandedCuts.delete(id); else expandedCuts.add(id);
+    render();
+  });
+  return tr;
 }
 
 /** What this status is called on your side. The key is what's stored and
@@ -1774,8 +1832,12 @@ function render(){
   // because an unlabelled gap under someone else's heading reads as theirs.
   const anySections = rows.some(x => x.section);
   document.querySelector('table.grid').classList.toggle('sec-on', anySections);
+  // An older cut only folds away while the cut it belongs to is on screen —
+  // filter down to "Delivered" and a delivered V1 still has to show itself.
+  const onScreen = new Set(rows.map(x => x.id));
   let prevSec = null;
   for (const s of rows){
+    if (oldCuts.has(s.id) && onScreen.has(cutHead.get(s.id))) continue;
     const sec = s.section || '';
     if (anySections && sec !== prevSec){
       tbody.appendChild(secRowEl(sec, s.id));
@@ -1784,6 +1846,21 @@ function render(){
     const el = rowEl(s);
     if (anySections) el.style.setProperty('--secrail', sectionColor(sec));
     tbody.appendChild(el);
+
+    const olders = cutsOf.get(s.id);
+    if (!olders || !olders.length) continue;
+    el.classList.add('hascuts');
+    // The strip and any cut opened from it belong to the block above them.
+    const strip = cutStripEl(s, olders);
+    if (anySections) strip.style.setProperty('--secrail', sectionColor(sec));
+    tbody.appendChild(strip);
+    olders.forEach(o => {
+      if (!expandedCuts.has(o.id)) return;
+      const oe = rowEl(o);
+      oe.classList.add('cutrow');
+      if (anySections) oe.style.setProperty('--secrail', sectionColor(sec));
+      tbody.appendChild(oe);
+    });
   }
   refreshComputed();
   updateStrip();
@@ -1794,16 +1871,10 @@ function render(){
   paintStatusMenus();
   paintAutoMatch();
   paintEventMode();
-  // Synchronous on purpose: rAF never fires in a hidden tab, so titles
-  // rendered by a background sync would sit unsized until the tab woke.
-  document.querySelectorAll('#tbody textarea.titlebox').forEach(t => {
-    t.style.height = 'auto';
-    t.style.height = t.scrollHeight + 'px';
-  });
   focusRestore(keepFocus);
-  // Column widths only settle once the rows are in the table, so the filename
-  // chips have to be measured after everything above has run.
-  sweepFnameOverflow();
+  // Column widths only settle once the rows are in the table, so anything
+  // measured off the rendered layout has to run after everything above.
+  sweepRowMetrics();
   warmVimeo();
 }
 
@@ -1836,31 +1907,6 @@ function rowEl(s){
   const st = S_BY_KEY[s.status] || STATUSES[0];
   const isOld = oldCuts.has(s.id);
 
-  if (isOld && !expandedCuts.has(s.id)){
-    tr.classList.add('vslim');
-    tr.style.setProperty('--stripe', st.hex);
-    tr.innerHTML = `<td colspan="${colCount()}"><div class="vslim-in">
-      <input type="checkbox" ${ticked ? 'checked' : ''} data-act="sel">
-      <button class="vexp" data-act="vexpand" title="Expand this older cut">&#9656;</button>
-      <span class="vtag" style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1}</span>
-      <span class="vslim-t">${esc(s.title || 'Untitled session')}</span>
-      <span class="vslim-st" style="color:${st.hex}">${esc(sLabel(s.status))}</span>
-      ${s.vimeo ? `<a class="vslim-w" href="${esc(s.vimeo)}" target="_blank" rel="noopener">Watch &#8599;</a>` : ''}
-    </div></td>`;
-    tr.addEventListener('click', e => {
-      const act = e.target.dataset.act;
-      if (act === 'sel'){
-        hardPick(s.id, e.target.checked, tr);
-        return;
-      }
-      if (e.target.closest('a')) return;
-      expandedCuts.add(s.id);
-      softPick(s.id);
-      render();
-    });
-    return tr;
-  }
-
   if (s.status === 'deleted') tr.classList.add('gone');
   if (s.vimeoMiss && !s.vimeo) tr.classList.add('nolink');
   if (notCounted(s)) tr.classList.add('uncounted');
@@ -1872,7 +1918,7 @@ function rowEl(s){
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
     <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
     <td class="title-cell${isOld ? ' oldcut' : ''}">${
-      isOld ? `<button class="vtag-btn" data-act="vmin" title="Minimize this older cut"
+      isOld ? `<button class="vtag-btn" data-act="vmin" title="Fold this cut back into the block"
                  style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1} &#9662;</button>`
             : `<span class="vchip-t" style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1}</span>`
     }<textarea class="cell titlebox autogrow" data-f="title" rows="1" placeholder="Session title" spellcheck="false">${esc(s.title)}</textarea><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
@@ -2254,12 +2300,19 @@ document.addEventListener('scroll', e => {
   const t = e.target;
   if (t && t.nodeType === 1 && t.hasAttribute && t.hasAttribute('data-fname')) markFnameOverflow(t);
 }, true);
-// The title column absorbs spare width, so a window resize changes which names
-// overflow. A hidden tab has no layout to measure either, so re-check on the
-// way back — a background sync will have re-rendered against zero widths.
-function sweepFnameOverflow(){ document.querySelectorAll('[data-fname]').forEach(markFnameOverflow); }
-addEventListener('resize', sweepFnameOverflow);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) sweepFnameOverflow(); });
+/** Everything that has to be measured off the rendered table: how tall each
+    title needs to be, and which filenames run past their chip. A hidden tab
+    has no layout at all — it measures zero — so a render driven by a
+    background sync leaves both wrong until the tab is looked at again. */
+function sweepRowMetrics(){
+  document.querySelectorAll('#tbody textarea.titlebox').forEach(t => {
+    t.style.height = 'auto';
+    t.style.height = t.scrollHeight + 'px';
+  });
+  document.querySelectorAll('[data-fname]').forEach(markFnameOverflow);
+}
+addEventListener('resize', sweepRowMetrics);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sweepRowMetrics(); });
 
 // Recompute filename cells + duplicate flags without rebuilding the table.
 function refreshComputed(){
@@ -2293,20 +2346,23 @@ function notCounted(s){
 
 function updateStrip(){
   const p = proj();
+  computeOldCuts();
   const counts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
   const barCounts = Object.fromEntries(STATUSES.map(s => [s.key, 0]));
   p.sessions.forEach(s => {
-    if (counts[s.status] === undefined || s.hidden) return;
+    if (counts[s.status] === undefined || s.hidden || oldCuts.has(s.id)) return;
     counts[s.status]++;
     if (!notCounted(s)) barCounts[s.status]++;
   });
   // Deleted rows aren't part of the job, and neither is anything marked
   // undeliverable — a session nobody can finish would otherwise hold the bar
   // under 100% for as long as it's stuck. Both are still listed and counted
-  // in the legend, so nothing quietly vanishes.
-  const hid = p.sessions.filter(x => x.hidden).length;
-  const spare = p.sessions.filter(x => notCounted(x) && !x.hidden && x.status !== 'deleted').length;
-  const total = p.sessions.length - counts.deleted - spare - hid;
+  // in the legend, so nothing quietly vanishes. Earlier cuts are the same one
+  // video as the cut in front of them, so only the newest one is counted —
+  // three passes at a keynote is one delivery, not three.
+  const live = p.sessions.filter(x => !x.hidden && !oldCuts.has(x.id));
+  const spare = live.filter(x => notCounted(x) && x.status !== 'deleted').length;
+  const total = live.length - counts.deleted - spare;
 
   document.getElementById('bar').innerHTML = total
     ? STATUSES.filter(s => s.key !== 'deleted' && s.key !== 'undeliverable')
@@ -2609,7 +2665,7 @@ document.addEventListener('drop', e => {
         while (at < list.length && (list[at].section || '') === tr.dataset.sec) at++;
       }
     } else {
-      const t = list.findIndex(s => s.id === tr.dataset.id);
+      const t = list.findIndex(s => s.id === (tr.dataset.id || tr.dataset.head));
       at = t < 0 ? list.length : (after ? t + 1 : t);
     }
     list.splice(at, 0, ...block);
@@ -2620,7 +2676,9 @@ document.addEventListener('drop', e => {
   }
 
   const from = list.findIndex(s => s.id === dragId);
-  const targetId = isHeader ? tr.dataset.first : tr.dataset.id;
+  // A cut strip stands in for the row it hangs off, so dropping on it lands
+  // beside that row rather than falling through to the end of the list.
+  const targetId = isHeader ? tr.dataset.first : (tr.dataset.id || tr.dataset.head);
   if (from < 0 || targetId === dragId) return cleanupDrag();
   const [moved] = list.splice(from, 1);
   let to = list.findIndex(s => s.id === targetId);
@@ -4143,10 +4201,14 @@ function saveSyncSettings(){
 /** What's on the hook, ignoring anything that can't or won't be delivered. */
 function deliverables(){
   const p = proj();
-  const rows = p.sessions.filter(s => s.status !== 'deleted' && !s.hidden && !notCounted(s));
+  computeOldCuts();
+  // One video per session, not one per cut — the client is waiting on the
+  // newest version of each, and that's what the portal shows them.
+  const live = p.sessions.filter(s => s.status !== 'deleted' && !s.hidden && !oldCuts.has(s.id));
+  const rows = live.filter(s => !notCounted(s));
   const done = rows.filter(s => s.status === 'delivered');
   return { rows, done, total: rows.length, complete: rows.length > 0 && done.length === rows.length,
-           spare: p.sessions.filter(s => s.status !== 'deleted' && !s.hidden && notCounted(s)) };
+           spare: live.filter(s => notCounted(s)) };
 }
 
 /** Titles in running order, numbered, for pasting into an email. */
