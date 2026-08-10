@@ -888,7 +888,7 @@ async function loadUploads(){
       `${out.files.length} file${out.files.length === 1 ? '' : 's'} you've sent`;
     document.getElementById('up-sent-list').innerHTML = out.files.map(f => `
       <li data-id="${esc(f.id)}">
-        <span class="nm"><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a></span>
+        <span class="nm" title="${esc(f.name)}">${esc(f.name)}</span>
         <span class="up-when">${esc(niceWhen(f.at))}</span>
         <span class="st">${esc(size(f.size))}</span>
         <button type="button" class="up-rm" onclick="removeUpload('${esc(f.id)}', this)">Remove</button>
