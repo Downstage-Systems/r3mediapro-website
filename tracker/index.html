@@ -741,7 +741,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:52 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 3:36 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -3762,9 +3762,14 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 27;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 28;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
+/* Set when the server rejects the token. Polling every 25 seconds against a
+   token the script won't accept is what trips its lockout, and the lockout is
+   endpoint-wide — one stale phone used to shut every machine out. So the first
+   refusal stops this device dead until the token is put right. */
+let tokenRejected = false;
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
 
 /**
@@ -3820,7 +3825,7 @@ function loadSync(){
   }
 }
 function saveSync(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch(e){} }
-function syncOn(){ return !!(sync.url && sync.token); }
+function syncOn(){ return !!(sync.url && sync.token) && !tokenRejected; }
 
 // Row fingerprints — anything that differs from the last agreed state is ours
 // to push, and is protected from being overwritten by an incoming pull.
@@ -4062,8 +4067,11 @@ async function syncNow(quiet){
     setSyncState('ok');
     if (!quiet) toast('Synced with the Sheet.');
   } catch (err){
-    setSyncState(navigator.onLine ? 'error' : 'offline');
-    if (!quiet) toast('Sync failed: ' + err.message, true);
+    if (isTokenError(err)) { flagBadToken(err); }
+    else {
+      setSyncState(navigator.onLine ? 'error' : 'offline');
+      if (!quiet) toast('Sync failed: ' + err.message, true);
+    }
     console.error(err);
   } finally {
     syncing = false;
@@ -4129,6 +4137,34 @@ function sinceSync(){
   if (mins < 60) return mins + ' min ago';
   const hrs = Math.round(mins / 60);
   return hrs === 1 ? 'an hour ago' : hrs + ' hours ago';
+}
+
+function isTokenError(err){
+  return /bad token|too many bad tokens|Set TOKEN in the script/i.test(String(err && err.message || err));
+}
+
+/** Stop this device talking to the script until the token is fixed, and say so
+    plainly — a quiet toast on a phone in your pocket is how it went unnoticed
+    long enough to lock everything out. */
+function flagBadToken(err){
+  if (tokenRejected) return;
+  tokenRejected = true;
+  clearInterval(pollTimer);
+  clearTimeout(pushTimer);
+  setSyncState('error');
+  const locked = /too many/i.test(String(err && err.message || err));
+  toast(locked
+    ? 'This device was refused by the Sheet and auto-sync is now off. Open Sync and re-paste the token — the lock clears the moment a correct one arrives.'
+    : 'The Sheet refused this device\u2019s token, so auto-sync is off. Open Sync and re-paste it.', true);
+  const pill = document.getElementById('sync-pill');
+  if (pill) pill.title = 'Token refused — open Sync and re-paste it';
+}
+
+/** Anything that changes the token gets a clean slate to try again with. */
+function clearTokenFlag(){
+  if (!tokenRejected) return;
+  tokenRejected = false;
+  startPolling();
 }
 
 function setSyncState(s){
@@ -4197,6 +4233,7 @@ function saveSyncSettings(){
   sync.token = document.getElementById('sy-token').value.trim();
   sync.auto = document.getElementById('sy-auto').checked;
   saveSync();
+  clearTokenFlag();     // saving the panel is a deliberate retry, so allow one
   const p = proj();
   p.eventSlug = document.getElementById('sy-slug').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
   p.clientPassword = document.getElementById('sy-pw').value.trim();
