@@ -276,7 +276,23 @@
       .actions .empty-slot{ display:none; }
       .actions .btn.sm{ flex:0 0 auto; padding:8px 14px; }
     }
+    /* The same actions, repeated under the player. Sized a step up from the
+       row buttons and hung off the bottom edge of the frame, so it reads as
+       part of the viewer rather than as a second list. */
+    .pactions{
+      display:flex; flex-wrap:wrap; gap:9px; align-items:center;
+      margin-top:-1px; padding:13px 15px;
+      border:1px solid var(--line); border-top:0; border-radius:0 0 8px 8px;
+      background:rgba(255,255,255,.028);
+    }
+    .pactions .actions{ display:flex; flex-wrap:wrap; gap:9px; }
+    .pactions .btn.sm{ padding:9px 16px; font-size:.86rem; }
+    @media (max-width:620px){
+      .pactions{ padding:11px 12px; gap:7px; }
+      .pactions .btn.sm{ flex:1 1 auto; justify-content:center; }
+    }
     #player-wrap{ aspect-ratio:16/9; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:#000; }
+    #player-wrap.has-actions{ border-radius:8px 8px 0 0; }
     #player-wrap .placeholder{
       width:100%; height:100%; display:flex; align-items:center; justify-content:center;
       flex-direction:column; gap:10px; color:var(--muted); font-size:.9rem;
@@ -368,6 +384,7 @@
           <div>Pick any video below to play it here</div>
         </div>
       </div>
+      <div id="player-actions" class="pactions" style="display:none"></div>
 
       <div class="vsearch" id="vsearch" style="display:none">
         <span class="ico">&#128269;</span>
@@ -382,7 +399,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 10, 7:37 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 10, 9:52 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -608,21 +625,45 @@ async function refresh(loud){
 }
 
 let firstLoaded = false;
+/* Every playable cut by session id — primaries and older versions alike — so
+   the player can find the one it's showing and put its buttons underneath. */
+let playIndex = new Map();
 
-function loadPlayer(id, title, autoplay, hash){
+function loadPlayer(row, autoplay){
+  if (!row) return;
   const q = [];
-  if (hash) q.push('h=' + encodeURIComponent(hash));   // unlisted videos need this
+  if (row.vimeoHash) q.push('h=' + encodeURIComponent(row.vimeoHash));   // unlisted videos need this
   if (autoplay) q.push('autoplay=1');
   document.getElementById('player-wrap').innerHTML =
-    '<iframe id="player" src="https://player.vimeo.com/video/' + encodeURIComponent(id) +
+    '<iframe id="player" src="https://player.vimeo.com/video/' + encodeURIComponent(row.vimeoId) +
     (q.length ? '?' + q.join('&') : '') + '" style="width:100%;height:100%;border:0;" ' +
     'allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="Video player"></iframe>';
-  document.getElementById('now-playing').textContent = title;
+  // Name the version whenever there's more than one cut to be on — playing
+  // v1 of a session that has a v2 has to say so, or you can't tell.
+  const named = (row.version || 1) > 1 || row._older;
+  document.getElementById('now-playing').textContent =
+    (row.title || 'Video') + (named ? '  \u2014  v' + (row.version || 1) : '');
+  nowPlayingId = row.id;
+  paintPlayerActions(row);
 }
 
-function playVideo(id, title, hash){
+/** The same buttons the row carries, repeated where you're actually watching
+    — reaching the download shouldn't mean hunting back down the list. */
+function paintPlayerActions(row){
+  const box = document.getElementById('player-actions');
+  if (!box) return;
+  const html = actionsHtml(row, 'player');
+  const empty = !/<a |<span class="btn/.test(html);
+  box.innerHTML = empty ? '' : html;
+  box.style.display = empty ? 'none' : '';
+  document.getElementById('player-wrap').classList.toggle('has-actions', !empty);
+}
+
+function playVideo(id){
+  const row = playIndex.get(id);
+  if (!row) return;
   firstLoaded = true;
-  loadPlayer(id, title, true, hash);
+  loadPlayer(row, true);
   scrollToPlayer();
 }
 
@@ -693,6 +734,18 @@ function render(data){
   const ev = data.event || {};
   // one fold, reused by both the counts and the section rendering below
   const folded = foldVersions(data.sessions || []);
+  // Rebuilt every render so the player's buttons follow a status change —
+  // a download link that appears mid-session should light up where you're
+  // watching, not only in the list.
+  playIndex = new Map();
+  folded.forEach(r => {
+    if (r.vimeoId) playIndex.set(r.id, r);
+    (r.older || []).forEach(o => {
+      if (!o.vimeoId) return;
+      o._older = true;          // so the player can say which cut you're on
+      playIndex.set(o.id, o);
+    });
+  });
   document.title = (ev.name || 'Your Event') + ' | R3 Media Production';
   document.getElementById('ev-name').textContent = ev.name || 'Your Event';
 
@@ -803,8 +856,10 @@ function render(data){
       : '<div class="vt-section"><p class="muted">Nothing posted yet — check back soon.</p></div>';
 
   if (!firstLoaded){
-    const first = (data.sessions || []).find(s => s.vimeoId);
-    if (first){ firstLoaded = true; loadPlayer(first.vimeoId, first.title || 'Video', false, first.vimeoHash); }
+    const first = folded.find(r => r.vimeoId);
+    if (first){ firstLoaded = true; loadPlayer(first, false); }
+  } else if (nowPlayingId && playIndex.has(nowPlayingId)){
+    paintPlayerActions(playIndex.get(nowPlayingId));   // links can arrive later
   }
 
   const jump = document.getElementById('hdr-jump');
@@ -846,6 +901,7 @@ let searchQ = '';
 let uploadsListed = false;
 let lastData = null;
 let uploadsWired = false;
+let nowPlayingId = null;   // so a refresh repaints the player's buttons in place
 
 function onSearch(){
   searchQ = document.getElementById('vq').value.trim().toLowerCase();
@@ -1093,9 +1149,8 @@ function olderHtml(s){
   if (!list.length) return '';
   const chips = list.map(o => {
     const v = o.version || 1;
-    const t = JSON.stringify((o.title || 'Video') + ' (v' + v + ')').replace(/"/g, '&quot;');
     const watch = `<a class="vchip" href="#" title="Play version ${v}"
-        onclick="playVideo('${esc(o.vimeoId)}', ${t}, '${esc(o.vimeoHash || '')}'); return false;">&#9654; v${v}</a>`;
+        onclick="playVideo('${esc(o.id)}'); return false;">&#9654; v${v}</a>`;
     const dl = o.download
       ? `<a class="vchip" href="${esc(o.download)}" target="_blank" rel="noopener"
            title="Download version ${v}">&#11015;</a>`
@@ -1111,13 +1166,44 @@ function olderHtml(s){
   return `<div class="older"><span class="olabel">Also available</span>${chips}</div>`;
 }
 
+/**
+ * Every action for one video, in a fixed order so the eye learns where each
+ * one lives. In a row the missing ones leave an empty slot, so buttons line
+ * up down the column; under the player there's only one video, nothing to
+ * line up with, and it's already playing — so the gaps and Watch both go.
+ */
+function actionsHtml(s, where){
+  const underPlayer = where === 'player';
+  const ready = !!s.vimeo;
+  const gap = underPlayer ? '' : '<span class="empty-slot"></span>';
+  const slots = [
+    ready && !underPlayer
+      ? `<a class="btn sm" href="#" onclick="playVideo('${esc(s.id)}'); return false;">&#9654; Watch</a>`
+      : gap,
+    s.download
+      ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
+           s.downloadSize ? ' <span style="opacity:.6;font-size:.86em">' + size(s.downloadSize) + '</span>' : ''}</a>`
+      : ready
+        ? `<span class="btn sm ghost prepping" title="Vimeo is still preparing the download file. Streaming works now; this appears on its own when it's ready.">&#8987; Preparing&hellip;</span>`
+        : gap,
+    s.review
+      ? `<a class="btn sm ghost" href="${esc(s.review)}" target="_blank" rel="noopener"
+            title="Leave timestamped notes on Vimeo">&#9998; Review</a>`
+      : gap,
+    ready
+      ? `<a class="btn sm ghost" href="${esc(s.vimeo)}" target="_blank" rel="noopener">View on Vimeo</a>`
+      : gap,
+    s.drive ? `<a class="btn sm ghost" href="${esc(s.drive)}" target="_blank" rel="noopener">Drive</a>` : gap
+  ];
+  return `<div class="actions${underPlayer ? ' under-player' : ''}">${slots.join('')}</div>`;
+}
+
 function rowHtml(s){
   const colour = COLOURS[s.status] || '#6b6b74';
   const ready  = !!s.vimeo;
-  const jsTitle = JSON.stringify(s.title || 'Video').replace(/"/g, '&quot;');
 
   const thumb = ready && s.thumb
-    ? `<div class="thumb" onclick="playVideo('${esc(s.vimeoId)}', ${jsTitle}, '${esc(s.vimeoHash || '')}')">
+    ? `<div class="thumb" onclick="playVideo('${esc(s.id)}')">
          <img src="${esc(s.thumb)}" alt="" loading="lazy"
               onerror="this.parentNode.classList.add('empty'); this.remove();">
          <div class="play">&#9654;</div>
@@ -1138,28 +1224,7 @@ function rowHtml(s){
     ? `<span class="badge vbadge" title="This is version ${s.version} of this session">v${s.version}</span>`
     : '';
 
-  // Three fixed slots — watch, download, drive — so every row lines up.
-  const gap = '<span class="empty-slot"></span>';
-  const slots = [
-    ready
-      ? `<a class="btn sm" href="#" onclick="playVideo('${esc(s.vimeoId)}', ${jsTitle}, '${esc(s.vimeoHash || '')}'); return false;">&#9654; Watch</a>`
-      : gap,
-    s.download
-      ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
-           s.downloadSize ? ' <span style="opacity:.6;font-size:.86em">' + size(s.downloadSize) + '</span>' : ''}</a>`
-      : ready
-        ? `<span class="btn sm ghost prepping" title="Vimeo is still preparing the download file. Streaming works now; this appears on its own when it's ready.">&#8987; Preparing&hellip;</span>`
-        : gap,
-    s.review
-      ? `<a class="btn sm ghost" href="${esc(s.review)}" target="_blank" rel="noopener"
-            title="Leave timestamped notes on Vimeo">&#9998; Review</a>`
-      : gap,
-    ready
-      ? `<a class="btn sm ghost" href="${esc(s.vimeo)}" target="_blank" rel="noopener">View on Vimeo</a>`
-      : gap,
-    s.drive ? `<a class="btn sm ghost" href="${esc(s.drive)}" target="_blank" rel="noopener">Drive</a>` : gap
-  ];
-  const buttons = `<div class="actions">${slots.join('')}</div>`;
+  const buttons = actionsHtml(s);
 
   return `<tr>
     <td>
