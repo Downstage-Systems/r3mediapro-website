@@ -709,7 +709,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 8:16 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:00 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -2091,47 +2091,56 @@ function rowEl(s){
   return tr;
 }
 
-/** Ticking a box is a real selection, so it takes over from any soft row. */
+/** Ticking a box is the real selection, so it takes over from a clicked row —
+    but leaves any boxes already ticked alone, since that's the whole point. */
 function hardPick(id, on, tr){
-  dropSoft();
+  if (softSel){
+    selected.delete(softSel);
+    const prev = document.querySelector(`#tbody tr[data-id="${softSel}"]`);
+    if (prev) prev.classList.remove('softsel');
+    softSel = null;
+  }
   if (on) selected.add(id); else selected.delete(id);
   if (tr) tr.classList.toggle('sel', on);
   updateBulk();
 }
 
-/** Clicking anywhere else in a row raises the bar for that row alone. Ticked
-    rows win — once you've built a selection by hand, clicking around inside
-    it shouldn't quietly throw it away. */
+/** Clicking anywhere in a row raises the bar for that row — always, whatever
+    was picked before. One rule, no state to keep track of: the bar shows the
+    row you're pointing at, and boxes are the only way to point at several. */
 function softPick(id){
-  if (selected.size && !softSel) return;
   if (softSel === id) return;
-  dropSoft();
+  clearPicks(true);
   softSel = id;
   selected.add(id);
-  document.querySelectorAll('#tbody tr.softsel').forEach(r => r.classList.remove('softsel'));
   const row = document.querySelector(`#tbody tr[data-id="${id}"]`);
   if (row) row.classList.add('softsel');
   updateBulk();
 }
 
-function dropSoft(){
-  if (!softSel) return;
-  selected.delete(softSel);
-  const row = document.querySelector(`#tbody tr[data-id="${softSel}"]`);
-  if (row) row.classList.remove('softsel');
+/** Wipes both kinds of pick in place. Deliberately not a render(): this runs
+    on mousedown, and replacing the rows underneath a click would swallow it. */
+function clearPicks(quiet){
+  selected.clear();
   softSel = null;
+  document.querySelectorAll('#tbody tr').forEach(r => {
+    r.classList.remove('sel', 'softsel');
+    const box = r.querySelector('input[data-act="sel"]');
+    if (box) box.checked = false;
+  });
+  if (!quiet) updateBulk();
 }
 
-/* Clicking away from the rows and the bar puts the bar back down. Menus,
-   modals and the toolbar are all fair game to click without losing it. */
+/* Click off the rows and the bar goes away. The bar itself, open modals and
+   the header's select-all are part of picking, so they don't count as "off". */
 document.addEventListener('mousedown', e => {
-  if (!softSel) return;
-  if (e.target.closest('#tbody tr') || e.target.closest('.bulk') || e.target.closest('.overlay')) return;
-  dropSoft();
-  updateBulk();
+  if (!selected.size && !softSel) return;
+  if (e.target.closest('#tbody tr') || e.target.closest('.bulk') ||
+      e.target.closest('.overlay') || e.target.closest('thead')) return;
+  clearPicks();
 });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape' && softSel){ dropSoft(); updateBulk(); }
+  if (e.key === 'Escape' && (selected.size || softSel)) clearPicks();
 });
 
 /** The two standalone status menus. Rebuilt with the table because the
@@ -2458,8 +2467,8 @@ function sortByRoomTime(){
 }
 
 function toggleAll(on){
-  softSel = null;
-  visibleSessions().forEach(s => on ? selected.add(s.id) : selected.delete(s.id));
+  selected.clear(); softSel = null;
+  if (on) visibleSessions().forEach(s => selected.add(s.id));
   render();
 }
 function clearSel(){ selected.clear(); softSel = null; render(); }
