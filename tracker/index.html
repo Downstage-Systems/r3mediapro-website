@@ -148,6 +148,10 @@ table.grid tbody tr:hover{background:var(--tint-hover, rgba(255,255,255,.018))}
 table.grid tbody tr.sel,table.grid tbody tr.sel:hover{background:rgba(193,18,31,.20)}
 table.grid tbody tr.sel td{border-top:1px solid rgba(230,57,70,.45);border-bottom:1px solid rgba(230,57,70,.45)}
 table.grid tbody tr.sel td.handle{box-shadow:inset 3px 0 0 var(--red-bright)}
+/* A clicked row is only "the row the bar is acting on" — quieter than a tick. */
+table.grid tbody tr.softsel,table.grid tbody tr.softsel:hover{background:rgba(255,255,255,.05)}
+table.grid tbody tr.softsel td{border-top:1px solid rgba(255,255,255,.14);border-bottom:1px solid rgba(255,255,255,.14)}
+table.grid tbody tr.softsel td.handle{box-shadow:inset 3px 0 0 #6f6f7c}
 table.grid tbody td.handle{box-shadow:inset 3px 0 0 var(--stripe, transparent)}
 table.grid tbody tr.gone{--tint:transparent;--tint-hover:rgba(255,255,255,.018)}
 table.grid tbody tr.gone td.handle{box-shadow:inset 3px 0 0 #3a3a44}
@@ -214,17 +218,27 @@ input[type=checkbox]{accent-color:var(--red);width:15px;height:15px;cursor:point
 td.title-cell .cell{font-weight:600}
 
 .fname{display:flex;align-items:center;gap:8px}
+/* Filenames are long by design and the tail (time, version) is the part you
+   actually check — so the chip scrolls sideways rather than truncating. Styling
+   the scrollbar keeps it visible at rest, which is the only cue that there's
+   more to the right. */
 .fname code{
   flex:1;font-family:var(--mono);font-size:.86rem;letter-spacing:-.01em;color:#dcdce2;
-  background:#101013;border:1px solid var(--line);border-radius:4px;padding:7px 9px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:zoom-in;min-width:0;
+  background:#101013;border:1px solid var(--line);border-radius:4px;padding:7px 9px 5px;
+  white-space:nowrap;overflow-x:auto;overflow-y:hidden;min-width:0;cursor:text;
+  scrollbar-width:thin;scrollbar-color:#3a3a44 transparent;overscroll-behavior-x:contain;
 }
-/* Click shows the whole name — filenames are long by design and the tail
-   (time, version) is the part you actually check. */
-.fname code.full{
-  white-space:pre-wrap;overflow:visible;text-overflow:clip;word-break:break-all;cursor:zoom-out;
-  border-color:var(--red-bright);
+.fname code::-webkit-scrollbar{height:5px}
+.fname code::-webkit-scrollbar-track{background:transparent}
+.fname code::-webkit-scrollbar-thumb{background:#3a3a44;border-radius:3px}
+.fname code::-webkit-scrollbar-thumb:hover{background:#55555f}
+/* Overlay scrollbars are invisible at rest, so a name that runs past the edge
+   would just stop mid-word. Fade the tail while there's more to scroll to. */
+.fname code.ovf{
+  -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 22px), transparent);
+          mask-image:linear-gradient(to right, #000 calc(100% - 22px), transparent);
 }
+.fname code.ovf.atend{-webkit-mask-image:none;mask-image:none}
 tr.dup .fname code{border-color:#8a5a1f;color:#f0b45f;background:rgba(217,131,36,.08)}
 .copy{
   flex:none;padding:6px 11px;border-radius:4px;border:1px solid var(--line);
@@ -672,7 +686,7 @@ h4.sec:first-child{margin-top:0}
   tr.mopen td:nth-child(8){order:8;flex:1 1 100%;margin-top:8px}
   tr.mopen td:nth-child(8)::before{content:'Filename'}
   tr.mopen td:nth-child(8) .fname code{
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;
+    overflow-x:auto;white-space:nowrap;min-width:0;flex:1;
   }
   tr.mopen .review-cell{order:9;flex:1 1 40%;margin-top:8px;align-self:end}
   tr.mopen .notes-cell{order:10;flex:1 1 100%;margin-top:8px;padding:0}
@@ -695,7 +709,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 7:37 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 8:16 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -813,7 +827,7 @@ h4.sec:first-child{margin-top:0}
 </main>
 
 <div class="bulk" id="bulk">
-  <span class="n"><b id="bulk-n">0</b> selected</span>
+  <span class="n"><b id="bulk-n">0</b> <span id="bulk-lbl">selected</span></span>
   <select class="field" id="bulk-status" style="width:160px"></select>
   <button class="btn ghost sm" onclick="bulkApplyStatus()">Set status</button>
   <select class="field" id="bulk-section" style="width:180px" onchange="bulkSectionPick(this.value)">
@@ -1413,6 +1427,11 @@ const DEFAULT_SETTINGS = {
 
 let db = { projects: [], activeId: null };
 let selected = new Set();
+/* Clicking a row raises the action bar for that one row without ticking its
+   box — ticking boxes stays the only way to build a real multi-selection.
+   The soft row lives in `selected` so every bulk action keeps working
+   unchanged; `softSel` is what stops it from rendering as ticked. */
+let softSel = null;
 let parsedRows = [];
 let parseSource = null;            // {lines, styles} when the rows came from a styled PDF
 let titleKeys = new Set();         // style keys currently treated as session titles
@@ -1778,6 +1797,9 @@ function render(){
     t.style.height = t.scrollHeight + 'px';
   });
   focusRestore(keepFocus);
+  // Column widths only settle once the rows are in the table, so the filename
+  // chips have to be measured after everything above has run.
+  sweepFnameOverflow();
   warmVimeo();
 }
 
@@ -1803,17 +1825,18 @@ function rowEl(s){
   const tr = document.createElement('tr');
   tr.dataset.id = s.id;
   tr.draggable = false;
-  if (selected.has(s.id)) tr.classList.add('sel');
+  const ticked = selected.has(s.id) && s.id !== softSel;
+  if (ticked) tr.classList.add('sel');
+  if (s.id === softSel) tr.classList.add('softsel');
 
   const st = S_BY_KEY[s.status] || STATUSES[0];
   const isOld = oldCuts.has(s.id);
 
   if (isOld && !expandedCuts.has(s.id)){
     tr.classList.add('vslim');
-    if (selected.has(s.id)) tr.classList.add('sel');
     tr.style.setProperty('--stripe', st.hex);
     tr.innerHTML = `<td colspan="${colCount()}"><div class="vslim-in">
-      <input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel">
+      <input type="checkbox" ${ticked ? 'checked' : ''} data-act="sel">
       <button class="vexp" data-act="vexpand" title="Expand this older cut">&#9656;</button>
       <span class="vtag" style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1}</span>
       <span class="vslim-t">${esc(s.title || 'Untitled session')}</span>
@@ -1823,13 +1846,12 @@ function rowEl(s){
     tr.addEventListener('click', e => {
       const act = e.target.dataset.act;
       if (act === 'sel'){
-        if (e.target.checked) selected.add(s.id); else selected.delete(s.id);
-        tr.classList.toggle('sel', e.target.checked);
-        updateBulk();
+        hardPick(s.id, e.target.checked, tr);
         return;
       }
       if (e.target.closest('a')) return;
       expandedCuts.add(s.id);
+      softPick(s.id);
       render();
     });
     return tr;
@@ -1840,7 +1862,7 @@ function rowEl(s){
   if (notCounted(s)) tr.classList.add('uncounted');
   tr.innerHTML = `
     <td class="handle" title="Drag to reorder">&#8942;&#8942;</td>
-    <td><input type="checkbox" ${selected.has(s.id) ? 'checked' : ''} data-act="sel"></td>
+    <td><input type="checkbox" ${ticked ? 'checked' : ''} data-act="sel"></td>
     <td class="col-room"><input class="cell mono" data-f="room" value="${esc(s.room)}" placeholder="&mdash;" spellcheck="false"></td>
     <td class="col-sess"><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
@@ -2057,19 +2079,60 @@ function rowEl(s){
       if (rec && confirm('Clear the note(s) your client left on this session?')){
         rec.feedback = ''; save(); render();
       }
-    } else if (e.target.hasAttribute && e.target.hasAttribute('data-fname')){
-      e.target.classList.toggle('full');
     } else if (act === 'clearv'){
       const rec = find(s.id); if (rec){ rec.vimeo = ''; save(); render(); }
     } else if (act === 'sel'){
-      if (e.target.checked) selected.add(s.id); else selected.delete(s.id);
-      tr.classList.toggle('sel', e.target.checked);
-      updateBulk();
+      hardPick(s.id, e.target.checked, tr);
+    } else {
+      softPick(s.id);
     }
   });
 
   return tr;
 }
+
+/** Ticking a box is a real selection, so it takes over from any soft row. */
+function hardPick(id, on, tr){
+  dropSoft();
+  if (on) selected.add(id); else selected.delete(id);
+  if (tr) tr.classList.toggle('sel', on);
+  updateBulk();
+}
+
+/** Clicking anywhere else in a row raises the bar for that row alone. Ticked
+    rows win — once you've built a selection by hand, clicking around inside
+    it shouldn't quietly throw it away. */
+function softPick(id){
+  if (selected.size && !softSel) return;
+  if (softSel === id) return;
+  dropSoft();
+  softSel = id;
+  selected.add(id);
+  document.querySelectorAll('#tbody tr.softsel').forEach(r => r.classList.remove('softsel'));
+  const row = document.querySelector(`#tbody tr[data-id="${id}"]`);
+  if (row) row.classList.add('softsel');
+  updateBulk();
+}
+
+function dropSoft(){
+  if (!softSel) return;
+  selected.delete(softSel);
+  const row = document.querySelector(`#tbody tr[data-id="${softSel}"]`);
+  if (row) row.classList.remove('softsel');
+  softSel = null;
+}
+
+/* Clicking away from the rows and the bar puts the bar back down. Menus,
+   modals and the toolbar are all fair game to click without losing it. */
+document.addEventListener('mousedown', e => {
+  if (!softSel) return;
+  if (e.target.closest('#tbody tr') || e.target.closest('.bulk') || e.target.closest('.overlay')) return;
+  dropSoft();
+  updateBulk();
+});
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && softSel){ dropSoft(); updateBulk(); }
+});
 
 /** The two standalone status menus. Rebuilt with the table because the
     wording is per project, so switching projects has to reword them. */
@@ -2165,6 +2228,26 @@ function paintStatus(tr, st){
   tr.querySelector('.status-dot').style.background = st.hex;
 }
 
+/** The filename chip scrolls sideways instead of truncating. `ovf` fades the
+    tail so a long name reads as "there's more"; `atend` drops the fade once
+    you've scrolled to the last character. */
+function markFnameOverflow(code){
+  const over = code.scrollWidth > code.clientWidth + 1;
+  code.classList.toggle('ovf', over);
+  code.classList.toggle('atend', over && code.scrollLeft >= code.scrollWidth - code.clientWidth - 1);
+}
+// Scroll doesn't bubble, so catch it on the way down from the table.
+document.addEventListener('scroll', e => {
+  const t = e.target;
+  if (t && t.nodeType === 1 && t.hasAttribute && t.hasAttribute('data-fname')) markFnameOverflow(t);
+}, true);
+// The title column absorbs spare width, so a window resize changes which names
+// overflow. A hidden tab has no layout to measure either, so re-check on the
+// way back — a background sync will have re-rendered against zero widths.
+function sweepFnameOverflow(){ document.querySelectorAll('[data-fname]').forEach(markFnameOverflow); }
+addEventListener('resize', sweepFnameOverflow);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sweepFnameOverflow(); });
+
 // Recompute filename cells + duplicate flags without rebuilding the table.
 function refreshComputed(){
   const p = proj();
@@ -2180,9 +2263,9 @@ function refreshComputed(){
     const code = tr.querySelector('[data-fname]');
     if (!code) return;                    // slim old-cut rows carry no filename
     code.textContent = fn;
-    code.title = fn + (counts[fn] > 1 ? '  —  duplicate filename' : '') +
-                 '\nClick to show the whole name';
+    code.title = fn + (counts[fn] > 1 ? '  —  duplicate filename' : '');
     tr.classList.toggle('dup', counts[fn] > 1);
+    markFnameOverflow(code);
   });
 }
 
@@ -2228,12 +2311,15 @@ function updateStrip(){
 function updateBulk(){
   const ids = new Set(proj().sessions.map(s => s.id));
   [...selected].forEach(id => { if (!ids.has(id)) selected.delete(id); });
+  if (softSel && !ids.has(softSel)) softSel = null;
   document.getElementById('bulk').classList.toggle('show', selected.size > 0);
   document.getElementById('bulk-n').textContent = selected.size;
+  // A soft row isn't a selection, so the bar says which row it's acting on.
+  document.getElementById('bulk-lbl').textContent = softSel ? 'this row' : 'selected';
   fillBulkSections();
   const vis = visibleSessions();
   const all = document.getElementById('chk-all');
-  all.checked = vis.length > 0 && vis.every(s => selected.has(s.id));
+  all.checked = !softSel && vis.length > 0 && vis.every(s => selected.has(s.id));
 }
 
 function find(id){ return proj().sessions.find(s => s.id === id); }
@@ -2339,7 +2425,7 @@ function duplicateRows(){
   });
 
   reindex(); save(); render();
-  selected.clear(); made.forEach(r => selected.add(r.id));
+  selected.clear(); softSel = null; made.forEach(r => selected.add(r.id));
   render(); updateBulk();
   const first = document.querySelector(`#tbody tr[data-id="${made[made.length - 1].id}"]`);
   if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -2372,10 +2458,11 @@ function sortByRoomTime(){
 }
 
 function toggleAll(on){
+  softSel = null;
   visibleSessions().forEach(s => on ? selected.add(s.id) : selected.delete(s.id));
   render();
 }
-function clearSel(){ selected.clear(); render(); }
+function clearSel(){ selected.clear(); softSel = null; render(); }
 
 function bulkApplyStatus(){
   const v = document.getElementById('bulk-status').value;
