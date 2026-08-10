@@ -149,18 +149,15 @@ table.grid tbody tr:hover{background:var(--tint-hover, rgba(255,255,255,.018))}
    the status tint is the whole point of the row colour and has to survive
    being clicked. Same treatment whether you clicked the row or ticked its
    box; the tick itself is what tells those two apart. */
-table.grid tbody tr.sel td,table.grid tbody tr.softsel td{
-  border-top:1px solid var(--red-bright);border-bottom:1px solid var(--red-bright);
-}
-table.grid tbody tr.sel td:last-child,table.grid tbody tr.softsel td:last-child{
-  border-right:1px solid var(--red-bright);
-}
+/* Picking a row turns its status bar red rather than outlining or tinting
+   the whole row — the row keeps its status colour, and the bar is the one
+   place a change reads instantly without adding noise. */
 table.grid tbody tr.sel td.handle,table.grid tbody tr.softsel td.handle{
-  box-shadow:inset 3px 0 0 var(--red-bright);
+  box-shadow:inset 7px 0 0 var(--red-bright);
 }
-table.grid tbody td.handle{box-shadow:inset 3px 0 0 var(--stripe, transparent)}
+table.grid tbody td.handle{box-shadow:inset 7px 0 0 var(--stripe, transparent)}
 table.grid tbody tr.gone{--tint:transparent;--tint-hover:rgba(255,255,255,.018)}
-table.grid tbody tr.gone td.handle{box-shadow:inset 3px 0 0 #3a3a44}
+table.grid tbody tr.gone td.handle{box-shadow:inset 7px 0 0 #3a3a44}
 table.grid tbody tr.dragging{opacity:.35}
 table.grid tbody tr.dropafter td{box-shadow:inset 0 -2px 0 var(--red-bright)}
 table.grid tbody tr.dropbefore td{box-shadow:inset 0 2px 0 var(--red-bright)}
@@ -497,27 +494,27 @@ tr.secrow.dragging{opacity:.4}
    gap opens before each new header. Only in play once sections exist —
    sectionless projects keep the plain flush stripe. */
 .grid.sec-on tbody td.handle{
-  box-shadow:inset 3px 0 0 var(--secrail, transparent),
-             inset 6px 0 0 var(--stripe, transparent);
+  box-shadow:inset 4px 0 0 var(--secrail, transparent),
+             inset 12px 0 0 var(--stripe, transparent);
 }
 .grid.sec-on tbody tr.sel td.handle,.grid.sec-on tbody tr.softsel td.handle{
-  box-shadow:inset 3px 0 0 var(--secrail, transparent),
-             inset 6px 0 0 var(--red-bright);
+  box-shadow:inset 4px 0 0 var(--secrail, transparent),
+             inset 12px 0 0 var(--red-bright);
 }
 .grid.sec-on tbody tr.gone td.handle{
-  box-shadow:inset 3px 0 0 var(--secrail, transparent),
-             inset 6px 0 0 #3a3a44;
+  box-shadow:inset 4px 0 0 var(--secrail, transparent),
+             inset 12px 0 0 #3a3a44;
 }
 .grid.sec-on tr.vslim td{
-  box-shadow:inset 3px 0 0 var(--secrail, transparent),
-             inset 6px 0 0 var(--stripe, transparent);
+  box-shadow:inset 4px 0 0 var(--secrail, transparent),
+             inset 12px 0 0 var(--stripe, transparent);
 }
 .grid.sec-on tr.secrow td{border-top:9px solid var(--bg)}
 
 /* Older cuts: half-height reference lines until expanded. */
 tr.vslim td{
   padding:0 10px;border-bottom:1px solid var(--line-soft);
-  box-shadow:inset 3px 0 0 var(--stripe, transparent);
+  box-shadow:inset 7px 0 0 var(--stripe, transparent);
 }
 .vslim-in{display:flex;align-items:center;gap:9px;min-height:22px;padding:1px 0;opacity:.55}
 .vslim-in:hover{opacity:1}
@@ -637,12 +634,11 @@ h4.sec:first-child{margin-top:0}
     position:relative;overflow:hidden;
   }
   .grid tbody tr::before{
-    content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+    content:'';position:absolute;left:0;top:0;bottom:0;width:7px;
     background:var(--stripe, transparent);
   }
-  /* Cards carry a real border, so the pick just recolours it. */
-  .grid tbody tr.sel,.grid tbody tr.softsel{border-color:var(--red-bright)}
-  .grid tbody tr.sel td,.grid tbody tr.softsel td{border-top:0;border-bottom:0;border-right:0}
+  /* Same rule as the desktop table: the bar goes red, the card doesn't. */
+  .grid tbody tr.sel::before,.grid tbody tr.softsel::before{background:var(--red-bright)}
   .grid td{
     display:block;border:0 !important;box-shadow:none !important;padding:0;
   }
@@ -717,7 +713,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:06 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:14 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
