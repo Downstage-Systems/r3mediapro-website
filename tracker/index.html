@@ -145,13 +145,19 @@ table.grid th.sort-asc i::after{content:'\2191'}
 table.grid th.sort-desc i::after{content:'\2193'}
 table.grid tbody tr{background:var(--tint, transparent);transition:background .12s}
 table.grid tbody tr:hover{background:var(--tint-hover, rgba(255,255,255,.018))}
-table.grid tbody tr.sel,table.grid tbody tr.sel:hover{background:rgba(193,18,31,.20)}
-table.grid tbody tr.sel td{border-top:1px solid rgba(230,57,70,.45);border-bottom:1px solid rgba(230,57,70,.45)}
-table.grid tbody tr.sel td.handle{box-shadow:inset 3px 0 0 var(--red-bright)}
-/* A clicked row is only "the row the bar is acting on" — quieter than a tick. */
-table.grid tbody tr.softsel,table.grid tbody tr.softsel:hover{background:rgba(255,255,255,.05)}
-table.grid tbody tr.softsel td{border-top:1px solid rgba(255,255,255,.14);border-bottom:1px solid rgba(255,255,255,.14)}
-table.grid tbody tr.softsel td.handle{box-shadow:inset 3px 0 0 #6f6f7c}
+/* Picked rows are outlined in red rather than washed with a background —
+   the status tint is the whole point of the row colour and has to survive
+   being clicked. Same treatment whether you clicked the row or ticked its
+   box; the tick itself is what tells those two apart. */
+table.grid tbody tr.sel td,table.grid tbody tr.softsel td{
+  border-top:1px solid var(--red-bright);border-bottom:1px solid var(--red-bright);
+}
+table.grid tbody tr.sel td:last-child,table.grid tbody tr.softsel td:last-child{
+  border-right:1px solid var(--red-bright);
+}
+table.grid tbody tr.sel td.handle,table.grid tbody tr.softsel td.handle{
+  box-shadow:inset 3px 0 0 var(--red-bright);
+}
 table.grid tbody td.handle{box-shadow:inset 3px 0 0 var(--stripe, transparent)}
 table.grid tbody tr.gone{--tint:transparent;--tint-hover:rgba(255,255,255,.018)}
 table.grid tbody tr.gone td.handle{box-shadow:inset 3px 0 0 #3a3a44}
@@ -494,7 +500,7 @@ tr.secrow.dragging{opacity:.4}
   box-shadow:inset 3px 0 0 var(--secrail, transparent),
              inset 6px 0 0 var(--stripe, transparent);
 }
-.grid.sec-on tbody tr.sel td.handle{
+.grid.sec-on tbody tr.sel td.handle,.grid.sec-on tbody tr.softsel td.handle{
   box-shadow:inset 3px 0 0 var(--secrail, transparent),
              inset 6px 0 0 var(--red-bright);
 }
@@ -634,7 +640,9 @@ h4.sec:first-child{margin-top:0}
     content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
     background:var(--stripe, transparent);
   }
-  .grid tbody tr.sel{border-color:rgba(230,57,70,.55)}
+  /* Cards carry a real border, so the pick just recolours it. */
+  .grid tbody tr.sel,.grid tbody tr.softsel{border-color:var(--red-bright)}
+  .grid tbody tr.sel td,.grid tbody tr.softsel td{border-top:0;border-bottom:0;border-right:0}
   .grid td{
     display:block;border:0 !important;box-shadow:none !important;padding:0;
   }
@@ -709,7 +717,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:00 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:06 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
