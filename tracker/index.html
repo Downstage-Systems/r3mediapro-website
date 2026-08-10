@@ -215,9 +215,15 @@ td.title-cell .cell{font-weight:600}
 
 .fname{display:flex;align-items:center;gap:8px}
 .fname code{
-  flex:1;font-family:var(--mono);font-size:.78rem;letter-spacing:-.01em;color:#dcdce2;
+  flex:1;font-family:var(--mono);font-size:.86rem;letter-spacing:-.01em;color:#dcdce2;
   background:#101013;border:1px solid var(--line);border-radius:4px;padding:7px 9px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:zoom-in;min-width:0;
+}
+/* Click shows the whole name — filenames are long by design and the tail
+   (time, version) is the part you actually check. */
+.fname code.full{
+  white-space:pre-wrap;overflow:visible;text-overflow:clip;word-break:break-all;cursor:zoom-out;
+  border-color:var(--red-bright);
 }
 tr.dup .fname code{border-color:#8a5a1f;color:#f0b45f;background:rgba(217,131,36,.08)}
 .copy{
@@ -236,8 +242,14 @@ select.status{
 select.status:focus{outline:none}
 .status-dot{position:absolute;width:7px;height:7px;border-radius:50%;margin:11px 0 0 10px;pointer-events:none}
 td.status-cell{position:relative}
+.tgtrow{display:flex;align-items:center;gap:3px;margin-top:4px}
+.tgtx{
+  flex:none;background:none;border:0;cursor:pointer;color:#55555f;
+  font-size:.95rem;line-height:1;padding:0 3px;
+}
+.tgtx:hover{color:var(--red-bright)}
 td.status-cell .tgt{
-  display:block;width:100%;margin-top:4px;font-size:.74rem;padding:3px 6px;
+  display:block;width:100%;margin:0;font-size:.74rem;padding:3px 6px;
   color:var(--muted);color-scheme:dark;
 }
 td.status-cell .tgt:hover{border-color:var(--line)}
@@ -630,8 +642,8 @@ h4.sec:first-child{margin-top:0}
   /* row 2 — status and vimeo, the two things that change from a phone */
   .status-cell{order:2;flex:1 1 52%;display:flex;align-items:center;gap:6px;margin-top:6px}
   .status-cell select.status{flex:1;min-width:0}
-  td.status-cell .tgt{display:none;margin:0;width:auto;flex:0 0 128px}
-  tr.mopen td.status-cell .tgt{display:block}
+  td.status-cell .tgtrow{display:none;margin:0;flex:0 0 150px}
+  tr.mopen td.status-cell .tgtrow{display:flex}
   .vimeo-cell{order:3;flex:1 1 34%;margin-top:6px}
 
   /* row 3 — where and when, labelled so bare values aren't cryptic */
@@ -683,7 +695,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 9, 6:50 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 7:37 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -1059,6 +1071,12 @@ h4.sec:first-child{margin-top:0}
       <div class="help" style="margin-top:12px">Send the client this link and the password:</div>
       <div class="preview-box" style="font-size:.78rem;color:#7fd6a8;margin-top:6px" id="sy-portal-link">—</div>
 
+      <label class="tick" style="margin:14px 0 0">
+        <input type="checkbox" id="sy-autoreview" onchange="saveSyncSettings()">
+        Show the Vimeo review link to the client automatically on every new video
+      </label>
+      <div class="help" style="margin:6px 0 0">Applies as each video links. Turning one off by hand afterwards sticks.</div>
+
       <h4 class="sec">Client uploads &amp; Drive</h4>
       <label class="tick" style="margin-bottom:10px">
         <input type="checkbox" id="sy-uploads" onchange="saveSyncSettings()">
@@ -1383,6 +1401,7 @@ const DEFAULT_SETTINGS = {
   sessPrefix: 'S',
   sessPad: 2,
   eventMode: true,
+  autoReview: false,
   // Kept apart so switching project type doesn't overwrite the other one.
   // {room} and {sess} resolve empty outside an event, so this lands as
   // V1_TheListingPlaybook_1610_SP26 — the tokens are left in for the way back.
@@ -1837,8 +1856,11 @@ function rowEl(s){
       <select class="status" data-f="status">
         ${STATUSES.map(o => `<option value="${o.key}" ${o.key === s.status ? 'selected' : ''}>${esc(sLabel(o.key))}</option>`).join('')}
       </select>
-      <input class="cell tgt" type="date" data-f="target" value="${esc(s.target || '')}"
-             title="Optional. Shown to the client as “Expected …” until the video is up.">
+      <div class="tgtrow">
+        <input class="cell tgt" type="date" data-f="target" value="${esc(s.target || '')}"
+               title="Optional. Shown to the client as “Expected …” until the video is up.">
+        ${s.target ? '<button class="tgtx" data-act="cleartgt" title="Clear the expected date">&times;</button>' : ''}
+      </div>
     </td>
     <td class="vimeo-cell">${s.vimeo
       ? `<div style="display:flex;align-items:center;gap:4px">
@@ -2006,6 +2028,11 @@ function rowEl(s){
       tr.classList.toggle('mopen');
       return;
     }
+    if (act === 'cleartgt'){
+      const rec = find(s.id);
+      if (rec){ rec.target = ''; save(); render(); }
+      return;
+    }
     if (act === 'vmin'){
       expandedCuts.delete(s.id);
       render();
@@ -2030,6 +2057,8 @@ function rowEl(s){
       if (rec && confirm('Clear the note(s) your client left on this session?')){
         rec.feedback = ''; save(); render();
       }
+    } else if (e.target.hasAttribute && e.target.hasAttribute('data-fname')){
+      e.target.classList.toggle('full');
     } else if (act === 'clearv'){
       const rec = find(s.id); if (rec){ rec.vimeo = ''; save(); render(); }
     } else if (act === 'sel'){
@@ -2151,7 +2180,8 @@ function refreshComputed(){
     const code = tr.querySelector('[data-fname]');
     if (!code) return;                    // slim old-cut rows carry no filename
     code.textContent = fn;
-    code.title = counts[fn] > 1 ? fn + '  —  duplicate filename' : fn;
+    code.title = fn + (counts[fn] > 1 ? '  —  duplicate filename' : '') +
+                 '\nClick to show the whole name';
     tr.classList.toggle('dup', counts[fn] > 1);
   });
 }
@@ -3554,7 +3584,7 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 26;              // Apps Script VERSION this build expects
+const NEEDS_SCRIPT = 27;              // Apps Script VERSION this build expects
 let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
@@ -3966,6 +3996,7 @@ function openSync(){
   document.getElementById('sy-slug').value = p.eventSlug || '';
   document.getElementById('sy-pw').value = p.clientPassword || '';
   document.getElementById('sy-project').textContent = p.name;
+  document.getElementById('sy-autoreview').checked = !!cfg().autoReview;
   document.getElementById('sy-uploads').checked = !!p.uploadsOn;
   document.getElementById('sy-upfolder').value = p.uploadFolder || '';
   paintDriveLink();
@@ -3993,6 +4024,7 @@ function saveSyncSettings(){
   p.clientPassword = document.getElementById('sy-pw').value.trim();
   const fsel = document.getElementById('sy-folder');
   if (fsel) p.vimeoFolder = fsel.value;
+  cfg().autoReview = document.getElementById('sy-autoreview').checked;
   p.uploadsOn = document.getElementById('sy-uploads').checked;
   p.uploadFolder = document.getElementById('sy-upfolder').value.trim();
   p.clientName = document.getElementById('sy-client').value.trim();
@@ -4368,6 +4400,7 @@ async function matchVimeo(){
         s.thumb = found.video.thumb || s.thumb || '';
         s.duration = found.video.duration || s.duration || 0;
         s.review = found.video.review || s.review || '';
+        applyAutoReview(s);
         s.vimeoMiss = false;
         if (promoteOnLink(s, false, statusForVideo(found.video))) promoted++;
         if (found.exact) exact++; else loose++;
@@ -4567,7 +4600,7 @@ function settleUploads(videos, p){
     // the video is actually finished.
     if (v.duration) s.duration = v.duration;
     if (v.thumb) s.thumb = v.thumb;
-    if (v.review && !s.review) s.review = v.review;
+    if (v.review && !s.review){ s.review = v.review; applyAutoReview(s); }
     done.push({ title: s.title, want });
   });
   return done;
@@ -4587,7 +4620,7 @@ function backfillFromFolder(videos, p){
     if (!v) return;
     if (!s.duration && v.duration){ s.duration = v.duration; n++; }
     if (!s.thumb && v.thumb) s.thumb = v.thumb;
-    if (!s.review && v.review) s.review = v.review;
+    if (!s.review && v.review){ s.review = v.review; applyAutoReview(s); }
   });
   return n;
 }
@@ -4754,6 +4787,14 @@ function promoteOnLink(s, byHand, key){
   return true;
 }
 
+/** Vimeo makes a review page for every video; this decides whether the
+    client is shown it the moment one appears. Only ever switches on at the
+    point a review link is first learned, so a toggle you turned off by hand
+    stays off. */
+function applyAutoReview(s){
+  if (cfg().autoReview && s && s.review && !s.reviewOn) s.reviewOn = true;
+}
+
 /** Copy a folder video's details onto a session — thumbnail and all. */
 function attachVideo(s, url, byHand){
   if (!s) return;
@@ -4764,6 +4805,7 @@ function attachVideo(s, url, byHand){
     s.thumb = v.thumb || s.thumb || '';
     s.duration = v.duration || s.duration || 0;
     s.review = v.review || s.review || '';
+    applyAutoReview(s);
   }
   promoteOnLink(s, byHand, statusForVideo(v));
 }

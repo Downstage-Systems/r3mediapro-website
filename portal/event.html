@@ -96,6 +96,19 @@
   text-decoration:underline; cursor:pointer;
 }
 .up-list{ list-style:none; padding:0; margin:16px 0 0; display:flex; flex-direction:column; gap:7px; }
+.up-sent{ margin-top:22px; }
+.up-sent-h{
+  display:flex; align-items:center; gap:10px; margin-bottom:9px;
+  font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700;
+}
+.up-sent-h .linkish{ font-size:.72rem; letter-spacing:0; text-transform:none; font-weight:600; }
+.up-rm{
+  flex:none; background:none; border:1px solid var(--line); border-radius:20px;
+  color:var(--muted); font-size:.7rem; padding:2px 10px; cursor:pointer;
+}
+.up-rm:hover{ border-color:#e63946; color:#e63946; }
+.up-when{ flex:none; font-size:.76rem; color:var(--muted); }
+.up-list li a{ color:var(--text) !important; border-bottom:1px dotted #45454f; }
 .up-list li{
   display:flex; align-items:center; gap:10px; font-size:.88rem;
   padding:8px 12px; border:1px solid var(--line); border-radius:7px; background:rgba(255,255,255,.02);
@@ -369,7 +382,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 9, 6:50 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 10, 7:37 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -403,6 +416,11 @@
         </div>
       </div>
       <ul id="up-list" class="up-list"></ul>
+      <div id="up-sent" class="up-sent" style="display:none">
+        <div class="up-sent-h"><span id="up-sent-n"></span>
+          <button type="button" class="linkish" id="up-refresh" onclick="loadUploads()">Refresh</button></div>
+        <ul id="up-sent-list" class="up-list"></ul>
+      </div>
     </div>
   </section>
 
@@ -813,6 +831,9 @@ function render(data){
     UPLOAD_MAX_MB = ev.uploadMaxMb || 25;
     document.getElementById('up-cap').textContent =
       `Up to ${UPLOAD_MAX_MB}MB per file. For anything larger, email rob@r3mediapro.com.`;
+    if (!uploadsListed){ uploadsListed = true; loadUploads(); }
+  } else {
+    document.getElementById('up-sent').style.display = 'none';
   }
 
   if (DEBUG) stampThumbDebug();
@@ -822,6 +843,7 @@ function render(data){
 
 let UPLOAD_MAX_MB = 25;
 let searchQ = '';
+let uploadsListed = false;
 let lastData = null;
 let uploadsWired = false;
 
@@ -845,6 +867,62 @@ function matchesSearch(s){
   const hay = [s.title, s.section, s.room, roomLabel(s.room, s.roomName), s.day, timeHuman(s.time),
                ...(s.older || []).map(o => o.title)].filter(Boolean).join(' ').toLowerCase();
   return hay.includes(searchQ);
+}
+
+/**
+ * Everything the client has sent for this event, read from the folder each
+ * time rather than remembered in the page — so it survives a refresh and
+ * shows uploads made from their phone as well as their desk.
+ */
+async function loadUploads(){
+  const box = document.getElementById('up-sent');
+  if (!box) return;
+  try {
+    const r = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ mode:'uploads', event: EVENT, pw: password }) });
+    const out = await r.json();
+    if (!out.ok || !out.files.length){ box.style.display = 'none'; return; }
+
+    box.style.display = 'block';
+    document.getElementById('up-sent-n').textContent =
+      `${out.files.length} file${out.files.length === 1 ? '' : 's'} you've sent`;
+    document.getElementById('up-sent-list').innerHTML = out.files.map(f => `
+      <li data-id="${esc(f.id)}">
+        <span class="nm"><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a></span>
+        <span class="up-when">${esc(niceWhen(f.at))}</span>
+        <span class="st">${esc(size(f.size))}</span>
+        <button type="button" class="up-rm" onclick="removeUpload('${esc(f.id)}', this)">Remove</button>
+      </li>`).join('');
+  } catch (e){ /* offline — leave whatever's on screen */ }
+}
+
+function niceWhen(iso){
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return days + ' days ago';
+  return d.toLocaleDateString([], { day:'numeric', month:'short' });
+}
+
+/** Removal trashes the file — recoverable from Drive for 30 days, so a
+    mis-click costs nothing and nobody can destroy anything outright. */
+async function removeUpload(id, btn){
+  const li = btn.closest('li');
+  const name = li.querySelector('.nm').textContent.trim();
+  if (!confirm(`Remove “${name}”?\n\nIt stops being part of what you've sent us. We can still recover it if this was a mistake.`)) return;
+  btn.disabled = true; btn.textContent = 'Removing…';
+  try {
+    const r = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ mode:'uploadRemove', event: EVENT, pw: password, id }) });
+    const out = await r.json();
+    if (!out.ok) throw new Error(out.error || 'could not remove it');
+    loadUploads();
+  } catch (e){
+    btn.disabled = false; btn.textContent = 'Remove';
+    alert(e.message);
+  }
 }
 
 function wireUploads(){
@@ -907,6 +985,7 @@ async function sendFiles(files){
       st.textContent = e.message; st.className = 'st bad';
     }
   }
+  loadUploads();          // fold the new arrivals into the persistent list
 }
 
 /**
