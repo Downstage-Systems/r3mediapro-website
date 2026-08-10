@@ -14,6 +14,7 @@
 <style>
 :root{
   --bg:#0c0c0e; --bg-alt:#131316; --card:#1a1a1e; --line:#2a2a30; --line-soft:#212127;
+  --row:#1a1a1f;   /* each session sits on its own surface, above the page */
   --text:#f4f4f5; --muted:#9d9da6; --red:#c1121f; --red-bright:#e63946;
   --s-notstarted:#6b6b74; --s-editing:#d98324; --s-exported:#3d8bfd;
   --s-uploaded:#8b5cf6; --s-delivered:#2ea86a;
@@ -133,7 +134,10 @@ table.grid th{
   color:var(--muted);padding:13px 10px;border-bottom:1px solid var(--line);
   position:sticky;top:0;background:var(--bg);z-index:20;white-space:nowrap;
 }
-table.grid td{padding:5px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+/* Rows are raised surfaces separated by a slot of page colour, rather than
+   hairlines on a flat black field — at a glance you see where one session
+   ends and the next begins. */
+table.grid td{padding:6px 10px;border-bottom:3px solid var(--bg);vertical-align:middle}
 table.grid th.sortable{cursor:pointer;user-select:none}
 table.grid th.sortable:hover{color:var(--text)}
 table.grid th.sortable i{
@@ -143,8 +147,13 @@ table.grid th.sortable i::after{content:'\2195'}
 table.grid th.sort-asc i,table.grid th.sort-desc i{opacity:1;color:var(--red-bright)}
 table.grid th.sort-asc i::after{content:'\2191'}
 table.grid th.sort-desc i::after{content:'\2193'}
-table.grid tbody tr{background:var(--tint, transparent);transition:background .12s}
-table.grid tbody tr:hover{background:var(--tint-hover, rgba(255,255,255,.018))}
+table.grid tbody tr{
+  background:linear-gradient(var(--tint, transparent),var(--tint, transparent)),var(--row);
+  transition:background .12s;
+}
+table.grid tbody tr:hover{
+  background:linear-gradient(var(--tint-hover, rgba(255,255,255,.03)),var(--tint-hover, rgba(255,255,255,.03))),var(--row);
+}
 /* Picked rows are outlined in red rather than washed with a background —
    the status tint is the whole point of the row colour and has to survive
    being clicked. Same treatment whether you clicked the row or ticked its
@@ -517,10 +526,13 @@ tr.secrow.dragging{opacity:.4}
    bar straight down, and both sit on one shared tint. */
 tr.hascuts td{border-bottom:0}
 tr.vsub td{
-  padding:0 10px 0 20px;background:var(--tint, transparent);
+  padding:0 10px 0 20px;
+  background:linear-gradient(var(--tint, transparent),var(--tint, transparent)),var(--row);
   box-shadow:inset 7px 0 0 var(--stripe, transparent);
 }
-tr.vsub:hover td{background:var(--tint-hover, rgba(255,255,255,.018))}
+tr.vsub:hover td{
+  background:linear-gradient(var(--tint-hover, rgba(255,255,255,.03)),var(--tint-hover, rgba(255,255,255,.03))),var(--row);
+}
 .vsub-in{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;padding:4px 0 6px}
 .vsub-lbl{
   font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
@@ -727,7 +739,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:27 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 10, 9:48 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -1851,7 +1863,12 @@ function render(){
     if (!olders || !olders.length) continue;
     el.classList.add('hascuts');
     // The strip and any cut opened from it belong to the block above them.
+    // Custom properties don't reach a sibling row, so the strip is handed the
+    // head row's colours outright — otherwise the block would change shade
+    // halfway down.
     const strip = cutStripEl(s, olders);
+    ['--tint', '--tint-hover', '--stripe'].forEach(v =>
+      strip.style.setProperty(v, el.style.getPropertyValue(v)));
     if (anySections) strip.style.setProperty('--secrail', sectionColor(sec));
     tbody.appendChild(strip);
     olders.forEach(o => {
@@ -2276,10 +2293,11 @@ function rebuildSectionOrder(){
 }
 
 function paintStatus(tr, st){
-  // 9% is enough to read as a colour band without fighting the text
+  // The tint sits over the row surface, not the page, so it can carry a
+  // little more colour without the text having to fight it.
   tr.style.setProperty('--stripe', st.hex);
-  tr.style.setProperty('--tint', st.key === 'notstarted' ? 'transparent' : st.hex + '14');
-  tr.style.setProperty('--tint-hover', st.hex + '22');
+  tr.style.setProperty('--tint', st.key === 'notstarted' ? 'transparent' : st.hex + '1c');
+  tr.style.setProperty('--tint-hover', st.hex + '2b');
   const sel = tr.querySelector('select.status');
   sel.style.color = st.hex;
   sel.style.borderColor = st.hex + '66';
