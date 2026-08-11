@@ -1185,7 +1185,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V15';
+var UI_BUILD = 'V16';
 
 var S = {
   serverBuild:'',
@@ -1429,7 +1429,7 @@ function dismissIntro(){
    quietly on an interval — but never over someone's half-typed edit, an open
    dialog, an upload, or a reorder in progress.
    ========================================================================= */
-var POLL_MS = 45000;
+var POLL_MS = 30000;   // booth-side lag on someone else's change; a call costs ~2.5s, so don't go lower
 
 function refreshSafe(){
   if(document.hidden || S.uploading || S.reorder) return false;
@@ -3206,7 +3206,10 @@ function submitNow(){
       return confirmThen(
         dup.kind === 'link' ? 'This link has already been sent' : 'This file has already been sent',
         duplicateBlurb(dup, videoId),
-        function(){ S.dupOk = true; submitNow(); },
+        // Opening the confirm hid the send window, and the upload's progress and
+        // success live inside it — so put it back before carrying on, or the
+        // upload runs where nobody can see it.
+        function(){ S.dupOk = true; show('mSubmit'); submitNow(); },
         { go:'Send anyway', danger:false });
     }
   }
