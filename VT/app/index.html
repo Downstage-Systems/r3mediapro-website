@@ -488,10 +488,27 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);
   border-radius:99px;animation:sp .7s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-.busy{position:fixed;top:0;left:0;right:0;height:2px;background:var(--accent);z-index:250;
-  transform-origin:left;animation:load 1.1s ease-in-out infinite;display:none}
+/* Now that the app paints instantly, this bar is the only sign that work is
+   still in flight — so it is sized to be seen, with a glow that reads on the
+   dark ground and a lit trailing edge so the direction is obvious. */
+.busy{position:fixed;top:0;left:0;right:0;height:5px;z-index:250;display:none;
+  background:var(--accent);                 /* fallback first: an unsupported  */
+  box-shadow:0 0 12px 1px rgba(0,0,0,.45);  /* gradient must not blank the bar */
+  transform-origin:left;animation:load 1.1s ease-in-out infinite}
+@supports (background: color-mix(in srgb, red 50%, blue)){
+  .busy{
+    background:linear-gradient(90deg,
+      color-mix(in srgb, var(--accent) 55%, transparent) 0%,
+      var(--accent) 55%,
+      color-mix(in srgb, var(--accent) 70%, #fff) 100%);
+    box-shadow:0 0 12px 1px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+}
 .busy.on{display:block}
 @keyframes load{0%{transform:scaleX(0)}50%{transform:scaleX(.7)}100%{transform:scaleX(1);opacity:0}}
+@media(prefers-reduced-motion:reduce){
+  .busy{animation:none;transform:scaleX(1);opacity:.85}   /* still shown, just not moving */
+}
 
 /* ---- send / upload stage overlay (form → sending → success) ---- */
 .sf-stage{position:absolute;inset:0;background:var(--panel);z-index:6;display:none;
@@ -1163,7 +1180,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V14';
+var UI_BUILD = 'V15';
 
 var S = {
   serverBuild:'',
