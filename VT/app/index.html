@@ -1097,7 +1097,9 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 <!-- ===== CONFIRM ===== -->
 <div class="modal" id="mConfirm">
   <div class="m-head"><h2 id="cfTitle">Are you sure?</h2><button class="x" onclick="closeAll()">&times;</button></div>
-  <div class="m-body"><div id="cfBody" style="font-size:13.5px;color:var(--txt-2);line-height:1.6"></div></div>
+  <!-- pre-line so a message can use blank lines to separate what happened from
+       what to do; textContent keeps it safe from anything a submitter typed. -->
+  <div class="m-body"><div id="cfBody" style="font-size:13.5px;color:var(--txt-2);line-height:1.6;white-space:pre-line;overflow-wrap:anywhere"></div></div>
   <div class="m-foot">
     <button class="btn" onclick="closeAll()">Cancel</button>
     <button class="btn danger" id="cfGo">Delete</button>
@@ -2869,6 +2871,7 @@ function openSubmit(id){
   renderWhoPicker();
   clearFile();
   sfStageHide();
+  S.dupOk = false;                    // each new submission gets its own check
   var goBtn = document.getElementById('sfGo');
   goBtn.disabled = false; goBtn.textContent = 'Send it in';
 
@@ -3050,9 +3053,42 @@ function clearFile(){
 function cancelSubmit(){
   if(S.uploading){
     return confirmThen('Stop the upload?','The partly-uploaded file will be discarded and nothing is recorded.',
-      function(){ S.abort = true; });
+      function(){ S.abort = true; }, {go:'Stop upload'});
   }
   closeAll();
+}
+
+/* Has this exact link, or a file by this name, already come in? The browser
+   already holds every version, so this costs nothing and catches the common
+   real mistakes: re-sending the same link, and sending a file to the wrong
+   video. It warns and names what it found — it never blocks. */
+function findDuplicate(link, fileName){
+  function normLink(x){ return String(x||'').trim().toLowerCase().replace(/\/+$/,''); }
+  function normName(x){ return String(x||'').trim().toLowerCase(); }
+  var L = normLink(link), F = normName(fileName), hit = null;
+  (S.videos||[]).forEach(function(v){
+    (v.history||[]).forEach(function(h){
+      if(hit) return;
+      if(L && normLink(h.link) === L)      hit = { kind:'link', what:h.link,     video:v, ver:h };
+      else if(F && normName(h.fileName) === F) hit = { kind:'file', what:h.fileName, video:v, ver:h };
+    });
+  });
+  return hit;
+}
+
+/* Spells out exactly what was found and where, so the sender can tell an
+   accidental double-send from a deliberate re-send. */
+function duplicateBlurb(d, videoId){
+  var v = d.video;
+  var where = (v.id === videoId)
+    ? 'already on this video'
+    : 'already on ' + ((v.number ? v.number + ' — ' : '') + (v.title || 'another video'));
+  var who  = d.ver.by ? ' by ' + d.ver.by : '';
+  var when = d.ver.time ? ' ' + ago(d.ver.time) : '';
+  return (d.kind === 'link' ? 'This link is ' : 'A file with this name is ') + where +
+         ' as ' + (d.ver.label || 'a previous version') + who + when + '.\n\n' +
+         (d.kind === 'link' ? 'Link: ' : 'File: ') + d.what + '\n\n' +
+         'Send it anyway if this is a new cut.';
 }
 
 function submitNow(){
@@ -3066,6 +3102,22 @@ function submitNow(){
   localStorage.setItem('mcbc_name', who.name);
   localStorage.setItem('mcbc_email', who.email);
   if(who.agency) localStorage.setItem('mcbc_agency', who.agency);
+
+  // Already seen this exact link or file name? Say so before it goes in, and
+  // name where it already sits. Asked once per attempt — never a hard block,
+  // because a genuine re-send of the same file is legitimate.
+  if(!S.dupOk){
+    var dup = findDuplicate(document.getElementById('sfLink').value,
+                            S.pendingFile ? S.pendingFile.name : '');
+    if(dup){
+      return confirmThen(
+        dup.kind === 'link' ? 'This link has already been sent' : 'This file has already been sent',
+        duplicateBlurb(dup, videoId),
+        function(){ S.dupOk = true; submitNow(); },
+        { go:'Send anyway', danger:false });
+    }
+  }
+  S.dupOk = false;
 
   // Not on the rundown yet — create the entry first, then send against it.
   if(videoId === '__newvideo__'){
@@ -3390,7 +3442,7 @@ function delVersion(versionId){
         if(S.historyId) openHistory(S.historyId);
         toast('Version removed.','ok');
       }).catch(err);
-    });
+    }, {go:'Remove'});
 }
 
 /* =========================================================================
@@ -3710,7 +3762,7 @@ function resetPlayed(){
       api('resetAllPlayed', S.token, S.eventId).then(function(r){
         S.videos=r.videos; closeAll(); renderAll(); toast('Show day reset.','ok');
       }).catch(err);
-    });
+    }, {go:'Reset', danger:false});
 }
 
 /* =========================================================================
@@ -3762,7 +3814,7 @@ function removeSec(i){
   if(used){
     confirmThen('Remove "'+(s.name||'this section')+'"?',
       used+' video(s) use it. They stay in the tracker but move to Unsectioned.',
-      function(){ S.secDraft.splice(i,1); renderSecList(); show('mSections'); });
+      function(){ S.secDraft.splice(i,1); renderSecList(); show('mSections'); }, {go:'Remove'});
   } else { S.secDraft.splice(i,1); renderSecList(); }
 }
 
@@ -4026,10 +4078,17 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-function confirmThen(title, body, fn){
+/* opts.go   — the confirming button's words. It should name the action, not say
+               "OK", so the button alone tells you what is about to happen.
+   opts.danger — red for destructive; a plain confirm shouldn't look like a delete. */
+function confirmThen(title, body, fn, opts){
+  opts = opts || {};
   document.getElementById('cfTitle').textContent = title;
   document.getElementById('cfBody').textContent = body;
-  document.getElementById('cfGo').onclick = function(){ closeAll(); fn(); };
+  var go = document.getElementById('cfGo');
+  go.textContent = opts.go || 'Delete';
+  go.className = 'btn ' + (opts.danger === false ? 'primary' : 'danger');
+  go.onclick = function(){ closeAll(); fn(); };
   show('mConfirm');
 }
 
