@@ -69,6 +69,13 @@
   .cta:focus-visible{outline:3px solid #fff; outline-offset:3px}
   .cta svg{width:17px; height:17px; fill:currentColor; flex:0 0 auto}
   .cta-note{font-size:13px; color:var(--dim); margin:12px 0 0}
+  /* Quiet insurance: multi-account Google sessions bounce to a Drive error page.
+     Sits under the button because that's where someone lands after hitting back. */
+  .cta-tip{
+    font-size:12.5px; color:var(--dim); margin:9px 0 0; max-width:52ch; line-height:1.5;
+    padding-left:11px; border-left:2px solid var(--line);
+  }
+  .cta-tip b{color:var(--muted); font-weight:650}
 
   hr.rule{border:0; height:1px; background:var(--line); margin:42px 0 34px}
 
@@ -155,6 +162,8 @@
     Open the Video Tracker
   </a>
   <p class="cta-note">You'll be asked for the access code from our email &mdash; once per device.</p>
+  <p class="cta-tip">Get a Google error instead? That happens when you're signed into more than one
+    Google account. Open this page in a <b>private window</b> and it'll go straight through.</p>
 
   <hr class="rule">
 
