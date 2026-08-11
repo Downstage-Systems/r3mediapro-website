@@ -1185,7 +1185,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V16';
+var UI_BUILD = 'V17';
 
 var S = {
   serverBuild:'',
@@ -1993,7 +1993,7 @@ function sendMessageNow(){
   S.submitter=who.name; S.submitterEmail=who.email; S.submitterAgency=who.agency||'';
   try{ localStorage.setItem('mcbc_name',who.name); localStorage.setItem('mcbc_email',who.email);
        if(who.agency) localStorage.setItem('mcbc_agency',who.agency); }catch(e){}
-  api('sendClientMessage', { text:text, from:who.name, email:who.email, agency:who.agency }, S.token, S.vtok)
+  api('sendClientMessage', { text:text, from:who.name, email:who.email, agency:who.agency }, S.token, S.vtok, S.eventId)
     .then(function(){ closeAll(); toast('Sent — the video team will see it. Thanks!','ok'); })
     .catch(err);
 }
@@ -3224,7 +3224,7 @@ function submitNow(){
     sfBusy('Adding the video…', { hint:'Setting it up, then sending your file.' });
     var newSec = document.getElementById('sfNewSection').value;
     api('createClientVideo', { title:newTitle, section:newSec, submitter:who.name,
-        submitterEmail:who.email, submitterAgency:who.agency }, S.token, S.vtok)
+        submitterEmail:who.email, submitterAgency:who.agency }, S.token, S.vtok, S.eventId)
       .then(function(r){
         S.videos = r.videos; if(r.sections) S.sections = r.sections;
         sendAgainst(r.id, who, note);          // sets its own sending/success stage
@@ -3244,7 +3244,7 @@ function sendAgainst(videoId, who, note){
     sfBusy('Sending your link…', { hint:'Just a moment.' });
     api('submitVersion', {videoId:videoId, link:link, note:note,
         submitter:who.name, submitterEmail:who.email, submitterAgency:who.agency,
-        clientTitle:document.getElementById('sfClientTitle').value.trim()}, S.token, S.vtok)
+        clientTitle:document.getElementById('sfClientTitle').value.trim()}, S.token, S.vtok, S.eventId)
       .then(function(r){
         S.videos = r.videos;
         if(r.submitters) S.submitters = r.submitters;
@@ -3345,12 +3345,12 @@ function runUpload(videoId, who, note){
         origName: file.name || '',            // the uploader's own file name, for display
         size:file.size, label: sess ? sess.label : '',
         submitter:who.name, submitterEmail:who.email, submitterAgency:who.agency,
-        clientTitle:clientTitle, note:note }, S.token, S.vtok);
+        clientTitle:clientTitle, note:note }, S.token, S.vtok, S.eventId);
   }
 
   api('createUploadSession',
       { videoId:videoId, fileName:file.name, mimeType:file.type||'application/octet-stream',
-        size:file.size, submitter:who.name, submitterAgency:who.agency }, S.token, S.vtok)
+        size:file.size, submitter:who.name, submitterAgency:who.agency }, S.token, S.vtok, S.eventId)
     .then(function(s){
       sess = s;
       return sendChunks(s.uploadUrl, file, started);
@@ -3639,7 +3639,7 @@ function sendFlag(id, flag, note){
             : (v && v.fileId ? 'Uploaded' : 'Link Provided');
   optimisticField(id, 'status', guess,
     function(){ return api('setClientFlag', id, flag,
-                  { submitter: S.submitter || '', note: note }, S.token, S.vtok); },
+                  { submitter: S.submitter || '', note: note }, S.token, S.vtok, S.eventId); },
     flag==='final'  ? 'Marked final — the video team can lock it in.'
   : flag==='coming' ? "Noted — the video team knows a new version is on the way."
   : 'Back to just received.');
