@@ -1163,7 +1163,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V13';
+var UI_BUILD = 'V14';
 
 var S = {
   serverBuild:'',
@@ -1300,8 +1300,36 @@ function busy(on){
 /* =========================================================================
    BOOT
    ========================================================================= */
-function boot(){
-  api('getBootstrap', S.token, S.vtok, S.eventId).then(function(d){
+/* Every Apps Script call costs ~2.5s of platform overhead no matter how little
+   work it does, so the app used to sit on a spinner on every open. It now paints
+   from the last payload this device saw, then quietly replaces it with the fresh
+   one. The cache is keyed by the credential in use, so one code can never read
+   another's, and it is dropped whenever someone locks or is sent back to the gate. */
+function cacheKey(){
+  var cred = (S.token||'') + '|' + (S.vtok||'') + '|' + (S.eventId||'');
+  var h = 0;
+  for(var i=0;i<cred.length;i++) h = (h*31 + cred.charCodeAt(i)) | 0;
+  return 'mcbc_cache_' + (h>>>0).toString(36);
+}
+function readCache(){
+  try{ var raw = localStorage.getItem(cacheKey()); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function writeCache(d){
+  try{ localStorage.setItem(cacheKey(), JSON.stringify({ t:Date.now(), d:d })); }
+  catch(e){ clearCache(); }          // over quota: better to have none than a stale half
+}
+function clearCache(){
+  try{
+    Object.keys(localStorage).forEach(function(k){
+      if(k.indexOf('mcbc_cache_')===0) localStorage.removeItem(k);
+    });
+  }catch(e){}
+}
+
+/* Everything that turns a bootstrap payload into the visible app. Shared so the
+   cached copy and the fresh one can never drift apart. */
+function applyBootstrap(d){
     S.videos=d.videos||[]; S.sections=d.sections||[];
     S.submitters=d.submitters||[]; S.messages=d.messages||[];
     S.statuses=d.statuses||[]; S.colours=d.colours||{}; S.palette=d.palette||[];
@@ -1312,7 +1340,9 @@ function boot(){
     S.config=d.config||{}; applyIdentity(d.me);
     S.sheetUrl=d.sheetUrl||'#'; S.appUrl=d.appUrl||''; S.serverBuild=d.serverBuild||'';
 
-    if(S.me.role!=='admin' && S.token){ S.token=''; localStorage.removeItem('mcbc_token'); }
+    // The token stopped being admin (PIN changed, say) — drop it, and drop the
+    // cached admin payload with it rather than leaving internal notes on disk.
+    if(S.me.role!=='admin' && S.token){ S.token=''; localStorage.removeItem('mcbc_token'); clearCache(); }
     applyTheme(S.config.theme);
 
     applyEventHeader();
@@ -1322,13 +1352,31 @@ function boot(){
     document.getElementById('boot').style.display='none';
     document.getElementById('gate').classList.remove('on');
     if(S.me.role==='admin') initLastSeen();
+    applyRole(); renderAll();
+}
+
+function boot(){
+  // Paint what this device last saw, so the tracker is usable while the round
+  // trip runs. The sync pill still shows the real age, so nothing pretends to
+  // be fresher than it is.
+  var cached = readCache();
+  var painted = false;
+  if(cached && cached.d){
+    try{ applyBootstrap(cached.d); S.lastSync = cached.t || 0; paintSync(); painted = true; }
+    catch(e){ clearCache(); }
+  }
+
+  return api('getBootstrap', S.token, S.vtok, S.eventId).then(function(d){
+    applyBootstrap(d);
+    writeCache(d);
     S.lastSync = Date.now();
     startPolling();
-    applyRole(); renderAll(); paintSync();
+    paintSync();
     maybeShowIntro();
   }).catch(function(e){
     var msg = String((e && e.message) || e);
-    if(msg.indexOf('PASSWORD_REQUIRED') >= 0){ showGate(); return; }
+    if(msg.indexOf('PASSWORD_REQUIRED') >= 0){ clearCache(); showGate(); return; }
+    if(painted){ paintSync(true); startPolling(); return; }   // stale beats nothing
     document.getElementById('boot').innerHTML =
       '<div style="text-align:center;padding:30px;max-width:540px">' +
       '<h3 style="color:#fca5a5;margin:0 0 10px">Could not load the tracker</h3>' +
@@ -1393,6 +1441,7 @@ function pullNow(manual){
     if(d.serverBuild) S.serverBuild=d.serverBuild;
     S.events=d.events||S.events;
     if(S.config.theme!==S.theme) applyTheme(S.config.theme);
+    writeCache(d);                       // keep the instant-open copy current
     applyEventHeader();
     if(S.me.role==='admin') renderEventSwitcher();
     if(d.messages) { var hadUnseen=freshMsgCount(); S.messages=d.messages; maybeRibbon(hadUnseen); }
@@ -1427,7 +1476,7 @@ function startPolling(){
    PASSWORD GATE
    ========================================================================= */
 function showGate(){
-  S.vtok=''; localStorage.removeItem('mcbc_view');
+  S.vtok=''; localStorage.removeItem('mcbc_view'); clearCache();
   document.getElementById('boot').style.display='none';
   document.getElementById('gate').classList.add('on');
   api('getGateInfo').then(function(g){
@@ -2091,6 +2140,31 @@ function needsReason(value){
 }
 function isIssueStatus(value){ return needsReason(value); }
 
+/* A call costs ~2.5s of Apps Script overhead, which is far too long to hold a
+   tap. These show the change at once, send it in the background, and put it
+   back if the server disagrees — being honest about a failure matters more than
+   looking fast. The video is re-found by id each time because a background
+   refresh may have replaced the array underneath us. */
+function optimisticField(videoId, field, value, call, okMsg){
+  var v = byId(videoId); if(!v) return;
+  var prev = v[field];
+  v[field] = value;
+  renderAll();
+  if(S.historyId===videoId) renderHistoryBody();
+
+  return call().then(function(r){
+    if(r && r.videos){ S.videos = r.videos; renderAll(); }
+    if(S.historyId===videoId) renderHistoryBody();
+    if(okMsg) toast(okMsg,'ok');
+  }).catch(function(e){
+    var back = byId(videoId);
+    if(back) back[field] = prev;
+    renderAll();
+    if(S.historyId===videoId) renderHistoryBody();
+    err(e);
+  });
+}
+
 function pickStatus(videoId, kind, value){
   closeStatusMenu();
   var v = byId(videoId);
@@ -2099,13 +2173,10 @@ function pickStatus(videoId, kind, value){
   // Flagging a problem without saying what it is helps nobody at 6am.
   if(kind==='showStatus' && needsReason(value)) return openIssue(videoId, value);
 
-  api(kind==='status' ? 'setStatus' : 'setShowStatus', videoId, value, S.token)
-    .then(function(r){
-      S.videos = r.videos;
-      renderAll();
-      if(S.historyId===videoId) renderHistoryBody();
-      toast((kind==='status'?'Status':'Show status')+': '+value, 'ok');
-    }).catch(err);
+  optimisticField(videoId, kind==='status' ? 'status' : 'showStatus', value,
+    function(){ return api(kind==='status' ? 'setStatus' : 'setShowStatus',
+                           videoId, value, S.token); },
+    (kind==='status'?'Status':'Show status')+': '+value);
 }
 
 /* The current cut's own file/link — a link posted over an upload (or the
@@ -3535,13 +3606,18 @@ function clientFlag(ev, id, which){
 }
 
 function sendFlag(id, flag, note){
-  api('setClientFlag', id, flag, { submitter: S.submitter || '', note: note }, S.token, S.vtok)
-    .then(function(r){
-      S.videos = r.videos; closeAll(); renderAll();
-      toast(flag==='final'  ? 'Marked final — the video team can lock it in.'
-          : flag==='coming' ? "Noted — the video team knows a new version is on the way."
-          : 'Back to just received.','ok');
-    }).catch(err);
+  closeAll();
+  var v = byId(id);
+  // What the server will land on, shown now so the tap lands instantly.
+  var guess = flag==='final'  ? 'Final'
+            : flag==='coming' ? 'New Version Coming'
+            : (v && v.fileId ? 'Uploaded' : 'Link Provided');
+  optimisticField(id, 'status', guess,
+    function(){ return api('setClientFlag', id, flag,
+                  { submitter: S.submitter || '', note: note }, S.token, S.vtok); },
+    flag==='final'  ? 'Marked final — the video team can lock it in.'
+  : flag==='coming' ? "Noted — the video team knows a new version is on the way."
+  : 'Back to just received.');
 }
 
 function openComing(id){
@@ -3751,9 +3827,9 @@ function setStatusNow(id, status){
 function togglePlayed(id){
   var v = byId(id); if(!v) return;
   if(S.me.role!=='admin') return toast('Only the video team can mark videos played.','err');
-  api('setPlayed', id, !v.played, S.token, S.eventId).then(function(r){
-    S.videos=r.videos; renderAll();
-  }).catch(err);
+  var next = !v.played;
+  optimisticField(id, 'played', next,
+    function(){ return apiQuiet('setPlayed', id, next, S.token, S.eventId); });
 }
 
 function resetPlayed(){
