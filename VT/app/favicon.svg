@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Video Tracker">
+  <!-- The tracker's own mark: the app's camera glyph on its gold tile, so the
+       browser tab matches the icon at the top of the app itself. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8b455"/>
+      <stop offset="1" stop-color="#c8933f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <g transform="translate(8,8) scale(2)" fill="#16120a">
+    <path d="M4 4h11a2 2 0 0 1 2 2v3.2l4.3-2.5a.8.8 0 0 1 1.2.7v9.2a.8.8 0 0 1-1.2.7L17 14.8V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+  </g>
+</svg>
