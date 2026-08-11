@@ -72,12 +72,12 @@
   font-size:.68rem; padding:3px 10px; flex:none; margin-left:6px;
   color:#c8a2ff; border:1px solid rgba(139,92,246,.45); background:rgba(139,92,246,.14);
 }
-.older{ margin-top:8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.older{ margin-top:8px; display:flex; flex-direction:column; align-items:flex-start; gap:5px; }
 .older .olabel{
   font-size:.68rem; letter-spacing:.1em; text-transform:uppercase;
-  color:var(--muted); opacity:.75;
-  flex:0 0 100%; margin:0 0 5px;   /* heading, not a first chip — versions start below it */
+  color:var(--muted); opacity:.75; margin:0 0 1px;   /* heading, not a first chip */
 }
+.ocut{ display:flex; align-items:center; gap:6px; }
 .vchip{
   display:inline-flex; align-items:center; gap:4px;
   padding:2px 9px; border-radius:20px; border:1px solid var(--line);
@@ -1162,7 +1162,9 @@ function olderHtml(s){
       ? `<a class="vchip" href="${esc(o.review)}" target="_blank" rel="noopener"
            title="Leave timestamped notes on version ${v}">&#9998;</a>`
       : '';
-    return watch + dl + rev;
+    // One line per cut: reading down the list is reading back through the
+    // versions, and a cut's own actions stay grouped with it.
+    return `<div class="ocut">${watch}${dl}${rev}</div>`;
   }).join('');
   return `<div class="older"><span class="olabel">Also available</span>${chips}</div>`;
 }
