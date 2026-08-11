@@ -1161,7 +1161,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V12';
+var UI_BUILD = 'V13';
 
 var S = {
   serverBuild:'',
@@ -1974,6 +1974,17 @@ var CLIENT_STATUS = {
   'Final'              : { label:'Final', col:'#6366f1' }
 };
 
+/* The cut count. Clients see it too, but always labelled as ours: their editing
+   houses number their own cuts V40/V50, so an unlabelled "v3" would read as a
+   contradiction of their numbering rather than a count of what we've received. */
+function verBadge(v){
+  var admin = S.me.role==='admin';
+  var tip = admin ? 'Current version'
+                  : 'Internal version — our count of cuts received, not your version number';
+  return '<span class="vbadge'+(v.version?'':' none')+'" title="'+esc(tip)+'">'+
+         esc(v.version || (admin ? 'no cut' : '—'))+'</span>';
+}
+
 /* Client's three-state segmented control: Received / New coming / Final.
    The active state is lit in its colour; the other two sit dimmed and grey. */
 function clientStatusSeg(v){
@@ -2264,8 +2275,7 @@ function cardHtml(v){
          (needsNumber(v) && S.me.role==='admin' ? '<span class="vttag">NEEDS VT#</span>' : '') +
          statusPill(v,'status') +
          '<span class="spacer"></span>' +
-         (S.me.role==='admin'
-           ? '<span class="vbadge'+(v.version?'':' none')+'">'+esc(v.version||'no cut')+'</span>' : '') +
+         verBadge(v) +
        '</div>';
   h += '<div class="c-title">'+esc(v.title||'(untitled)')+'</div>';
   if(v.clientTitle && v.clientTitle.toLowerCase()!==(v.title||'').toLowerCase())
@@ -2349,13 +2359,13 @@ function renderTable(){
              : th('status','Status')+th('uploader','Uploader');
   if(admin) h += '<th>Show</th>'+th('version','Ver')+'<th>Current file / link</th>'+'<th>Notes</th>'+
                  th('versions','Versions')+th('updated','Updated');
-  else h += '<th>File / link</th>';
+  else h += th('version','Internal ver')+'<th>File / link</th>';
   h += '<th style="text-align:right">Actions</th>';
   h += '</tr></thead><tbody>';
 
   groups.forEach(function(g){
     var t = tally(g.items);
-    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?11:6)+'">' +
+    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?11:7)+'">' +
          '<span class="sdot" style="background:'+sectionColour(g.name)+'"></span>' +
          esc(g.name)+' <span style="opacity:.6;font-weight:500;text-transform:none;letter-spacing:0">— ' +
          t.total+' videos · '+t.missing+' missing · '+
@@ -2370,8 +2380,7 @@ function renderTable(){
       var statusTd   = '<td>'+statusPill(v,'status')+'</td>';
       h += admin ? uploaderTd+statusTd : statusTd+uploaderTd;
       if(admin) h += '<td>'+statusPill(v,'showStatus')+'</td>';
-      if(S.me.role==='admin')
-        h += '<td><span class="vbadge'+(v.version?'':' none')+'">'+esc(v.version||'—')+'</span></td>';
+      h += '<td>'+verBadge(v)+'</td>';          // both sides; labelled per role
       if(S.me.role==='admin'){
         h += '<td class="t-link">'+(v.link
             ? '<a href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">'+esc(v.fileName || (v.fileId?'Drive upload':shortUrl(v.link)))+'</a>'
@@ -2519,7 +2528,7 @@ function renderReorder(){
          esc(v.title||'(untitled)')+'</div>' +
          '<div class="sd-sub">' +
            statusPill(v,'status') +
-           '<span class="vbadge'+(v.version?'':' none')+'">'+esc(v.version||'no cut')+'</span>' +
+           verBadge(v) +
            (v.uploader?'<span>'+esc(v.uploader)+'</span>':'') +
          '</div></div>';
     h += '<div class="nudge"><button onclick="nudgeDraft('+i+',-1)" title="Up">▲</button>' +
@@ -2574,8 +2583,7 @@ function renderShowday(){
              (videoIsNew(v)?' <span class="newtag noprint">NEW</span>':'')+'</div>';
       h +=   '<div class="sd-sub">' +
              (S.me.role==='admin' ? statusPill(v,'showStatus') : statusPill(v,'status')) +
-             (S.me.role==='admin'
-               ? '<span class="vbadge'+(v.version?'':' none')+'">'+esc(v.version||'no cut')+'</span>' : '') +
+             verBadge(v) +
              (v.uploader?'<span>'+esc(v.uploader)+'</span>':'') +
              (v.agency?'<span class="sep">·</span><span>'+esc(v.agency)+'</span>':'') +
              '</div>';
