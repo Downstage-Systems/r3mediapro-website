@@ -1,0 +1,229 @@
+<!doctype html>
+<!--
+  r3mediapro.com/VT  —  client door into the Video Tracker.
+
+  TO REPOINT AT A NEW DEPLOYMENT: change the two href="" values marked
+  TRACKER-LINK below. Nothing else on this page needs to change between events —
+  the copy is deliberately event-neutral so this URL can be reused every show.
+
+  Never put the access code on this page. It is public; the code goes to
+  partners separately.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Send Us Your Videos &mdash; Video Tracker</title>
+<meta name="description" content="Upload your videos or send links for the show, and track their status in one place.">
+<meta name="robots" content="noindex, follow">
+<link rel="icon" href="../assets/favicon-r3-32.png" sizes="32x32">
+<meta property="og:title" content="Send Us Your Videos — Video Tracker">
+<meta property="og:description" content="Upload your videos or send links for the show, and track their status in one place.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --bg:#0c0c0e; --bg-2:#131316; --card:#17171b; --card-2:#1c1c21;
+    --line:#2a2a30; --line-soft:#212127;
+    --text:#f4f4f5; --muted:#9d9da6; --dim:#6f6f78;
+    --gold:#e0a53a; --gold-deep:#b9791a; --gold-soft:rgba(224,165,58,.13);
+    --received:#34d399; --coming:#fb923c; --final:#818cf8;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(90% 55% at 50% -8%, rgba(224,165,58,.10), transparent 62%),
+      var(--bg);
+    color:var(--text); font-family:var(--sans); line-height:1.6;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:26px 20px 60px}
+
+  /* brand */
+  .brand{display:flex; align-items:center; gap:9px; margin-bottom:40px}
+  .brand img{width:auto; display:block}
+  .brand .mark{height:24px; opacity:.95}
+  .brand .word{height:11px; opacity:.6}   /* quiet — the page title carries the message */
+
+  /* hero */
+  .eyebrow{
+    font-size:11.5px; font-weight:700; letter-spacing:.17em; text-transform:uppercase;
+    color:var(--gold); margin:0 0 13px;
+  }
+  h1{
+    font-size:clamp(31px,6.2vw,46px); line-height:1.06; letter-spacing:-.022em;
+    font-weight:800; margin:0 0 16px; text-wrap:balance;
+  }
+  .lede{font-size:17px; color:var(--muted); margin:0 0 28px; max-width:56ch; text-wrap:pretty}
+
+  .cta{
+    display:inline-flex; align-items:center; gap:10px;
+    background:var(--gold); color:#1a1205; font-weight:750; font-size:16px;
+    padding:15px 26px; border-radius:11px; text-decoration:none;
+    box-shadow:0 8px 26px rgba(224,165,58,.2);
+    transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .cta:hover{background:#edb457; transform:translateY(-1px); box-shadow:0 10px 30px rgba(224,165,58,.28)}
+  .cta:active{transform:translateY(0)}
+  .cta:focus-visible{outline:3px solid #fff; outline-offset:3px}
+  .cta svg{width:17px; height:17px; fill:currentColor; flex:0 0 auto}
+  .cta-note{font-size:13px; color:var(--dim); margin:12px 0 0}
+
+  hr.rule{border:0; height:1px; background:var(--line); margin:42px 0 34px}
+
+  h2.sec{
+    font-size:11.5px; font-weight:700; letter-spacing:.15em; text-transform:uppercase;
+    color:var(--dim); margin:0 0 18px;
+  }
+
+  /* steps */
+  .steps{display:flex; flex-direction:column; gap:11px; margin:0}
+  .step{
+    display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start;
+    background:var(--card); border:1px solid var(--line); border-radius:13px; padding:17px 19px;
+  }
+  .step .n{
+    width:31px; height:31px; border-radius:9px; flex:0 0 auto; display:grid; place-items:center;
+    font-weight:800; font-size:14px; font-variant-numeric:tabular-nums;
+    color:var(--gold); background:var(--gold-soft); border:1px solid rgba(224,165,58,.28);
+  }
+  .step h3{margin:3px 0 4px; font-size:16px; font-weight:700; letter-spacing:-.01em}
+  .step p{margin:0; font-size:14.5px; color:var(--muted)}
+  .step p + p{margin-top:7px}
+  .step b{color:var(--text); font-weight:650}
+
+  /* statuses */
+  .states{display:grid; grid-template-columns:repeat(3,1fr); gap:11px; margin-top:16px}
+  .state{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:15px 16px}
+  .state .tag{display:flex; align-items:center; gap:8px; font-weight:750; font-size:14px; margin-bottom:6px}
+  .state .dot{width:9px; height:9px; border-radius:99px; flex:0 0 auto}
+  .state p{margin:0; font-size:13px; color:var(--muted); line-height:1.5}
+  .s1 .tag{color:var(--received)} .s1 .dot{background:var(--received)}
+  .s2 .tag{color:var(--coming)}   .s2 .dot{background:var(--coming)}
+  .s3 .tag{color:var(--final)}    .s3 .dot{background:var(--final)}
+
+  /* facts */
+  .facts{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:18px;
+    border:1px dashed var(--line); border-radius:13px; padding:19px 21px; margin-top:26px;
+  }
+  .facts div{font-size:13px; color:var(--muted)}
+  .facts b{display:block; color:var(--text); font-size:13.5px; font-weight:700; margin-bottom:3px}
+
+  /* closing cta */
+  .close{
+    margin-top:34px; background:var(--card-2); border:1px solid var(--line);
+    border-radius:14px; padding:26px 24px; text-align:center;
+  }
+  .close h3{margin:0 0 6px; font-size:19px; font-weight:750; letter-spacing:-.01em}
+  .close p{margin:0 0 19px; font-size:14.5px; color:var(--muted)}
+
+  footer{
+    margin-top:44px; padding-top:20px; border-top:1px solid var(--line);
+    display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    font-size:13px; color:var(--dim);
+  }
+  footer a{color:var(--gold); text-decoration:none}
+  footer a:hover{text-decoration:underline}
+
+  @media(max-width:560px){
+    .states,.facts{grid-template-columns:1fr}
+    .cta{width:100%; justify-content:center}
+    .brand{margin-bottom:30px}
+    .brand .word{display:none}   /* the mark alone; the wordmark would overflow */
+  }
+  @media(prefers-reduced-motion:reduce){ .cta{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="brand" href="/" aria-label="R3 Media Production home">
+    <img class="mark" src="../assets/r3-mark.png" alt="">
+    <img class="word" src="../assets/mp-text.png" alt="R3 Media Production">
+  </a>
+
+  <p class="eyebrow">Video Tracker</p>
+  <h1>Send us your videos</h1>
+  <p class="lede">One place for every cut &mdash; upload a file or paste a link, and see exactly
+    where each video stands. No more chasing versions through email.</p>
+
+  <!-- TRACKER-LINK (1 of 2) -->
+  <a class="cta" href="https://script.google.com/macros/s/AKfycbwSNGWQmyLeb0S-NrkjUnJmgFW0qkkuPZ83oTqIQBWFvMiKQLIXSGZ3r_NDQlz7k9ia/exec">
+    <svg viewBox="0 0 24 24"><path d="M11 16V7.8L8.4 10.4 7 9l5-5 5 5-1.4 1.4L13 7.8V16h-2zM5 18h14v2H5z"/></svg>
+    Open the Video Tracker
+  </a>
+  <p class="cta-note">You'll be asked for the access code from our email &mdash; once per device.</p>
+
+  <hr class="rule">
+
+  <h2 class="sec">How it works</h2>
+  <div class="steps">
+    <div class="step">
+      <span class="n">1</span>
+      <div>
+        <h3>Find your video</h3>
+        <p>Everything is listed by session or speaker &mdash; use the section menu to jump to yours.</p>
+        <p>Not listed yet? Tap <b>Upload Video or Link</b>, then <b>&ldquo;+ Not on the list &mdash;
+          add a new one,&rdquo;</b> give it a title and pick where it plays.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="n">2</span>
+      <div>
+        <h3>Send it in</h3>
+        <p><b>Paste a link</b> &mdash; Frame.io, Vimeo, Google Drive, Dropbox, WeTransfer &mdash;
+          <b>or upload the file</b> straight from your computer. Large masters are fine.</p>
+        <p>Add your name so we know who it came from. That's it.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="n">3</span>
+      <div>
+        <h3>Keep it current</h3>
+        <p>Tap the status on your video so we always know where it stands. That one tap tells us
+          whether to lock it in or wait for a better cut.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="states">
+    <div class="state s1">
+      <span class="tag"><span class="dot"></span>Received</span>
+      <p>We've got it. Nothing more needed from you right now.</p>
+    </div>
+    <div class="state s2">
+      <span class="tag"><span class="dot"></span>New version coming</span>
+      <p>A better cut is on the way &mdash; we'll hold off until it lands.</p>
+    </div>
+    <div class="state s3">
+      <span class="tag"><span class="dot"></span>Final</span>
+      <p>This is the one. Cleared to go into the show.</p>
+    </div>
+  </div>
+
+  <div class="facts">
+    <div><b>Big files are fine</b>Multi-gigabyte masters upload straight from your browser.</div>
+    <div><b>Your uploads stay private</b>They go only to the video team &mdash; nothing is public.</div>
+    <div><b>Questions?</b>Tap <b style="display:inline">Message the Video Team</b> inside the tracker.</div>
+  </div>
+
+  <div class="close">
+    <h3>Ready when you are</h3>
+    <p>Have your access code handy &mdash; you'll only enter it once on this device.</p>
+    <!-- TRACKER-LINK (2 of 2) -->
+    <a class="cta" href="https://script.google.com/macros/s/AKfycbwSNGWQmyLeb0S-NrkjUnJmgFW0qkkuPZ83oTqIQBWFvMiKQLIXSGZ3r_NDQlz7k9ia/exec">
+      <svg viewBox="0 0 24 24"><path d="M11 16V7.8L8.4 10.4 7 9l5-5 5 5-1.4 1.4L13 7.8V16h-2zM5 18h14v2H5z"/></svg>
+      Open the Video Tracker
+    </a>
+  </div>
+
+  <footer>
+    <span>Questions before you start? <a href="mailto:Rob@r3mediapro.com">Rob@r3mediapro.com</a></span>
+    <span>Rob Spradling</span>
+  </footer>
+
+</div>
+</body>
+</html>
