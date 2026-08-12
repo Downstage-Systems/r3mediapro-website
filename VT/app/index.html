@@ -979,6 +979,28 @@ tr.selrow td{background:var(--accent-soft)}
   </div>
 </div>
 
+<!-- ===== NUMBER SELECTED ===== -->
+<div class="modal" id="mNumber">
+  <div class="m-head"><h2 id="numTitle">Number videos</h2><button class="x" onclick="closeAll()">&times;</button></div>
+  <div class="m-body">
+    <div class="note">They are numbered in the order they appear on screen, so set your
+      sort and sections the way you want them first.</div>
+    <div class="field">
+      <label>Start at <span class="req">*</span></label>
+      <input id="numStart" autocomplete="off" oninput="renderNumPreview()" placeholder="VT1">
+      <div class="hint">Letters then a number, e.g. <b>VT1</b>. Counting continues from there.</div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>What they&rsquo;ll get</label>
+      <div class="hint" id="numPreview" style="font-family:var(--mono);color:var(--txt-2);white-space:pre-line;line-height:1.7"></div>
+    </div>
+  </div>
+  <div class="m-foot">
+    <button class="btn" onclick="closeAll()">Cancel</button>
+    <button class="btn primary" id="numGo" onclick="commitNumbering()">Number them</button>
+  </div>
+</div>
+
 <!-- ===== HISTORY DRAWER ===== -->
 <div class="drawer" id="dHistory">
   <div class="m-head"><h2 id="hTitle">Version history</h2><button class="x" onclick="closeAll()">&times;</button></div>
@@ -1216,7 +1238,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V18';
+var UI_BUILD = 'V19';
 
 var S = {
   serverBuild:'',
@@ -2463,17 +2485,22 @@ function cardHtml(v){
 /* =========================================================================
    RENDER — table
    ========================================================================= */
+/* The table's row order, available outside the renderer — bulk numbering has to
+   hand out numbers in the same order the eye reads them. */
+function sortRows(arr){
+  var k = S.sort.key, d = S.sort.dir;
+  return arr.slice().sort(function(a,b){
+    if(k==='number') return cmpNumber(a,b)*d;
+    if(k==='versions') return (a.history.length-b.history.length)*d;
+    if(k==='updated') return ((a.updated||0)-(b.updated||0))*d;
+    return String(a[k]||'').localeCompare(String(b[k]||''))*d;
+  });
+}
+
 function renderTable(){
   var groups = sectionGroups(filtered());
   var k = S.sort.key, d = S.sort.dir;
-  function sortIt(arr){
-    return arr.slice().sort(function(a,b){
-      if(k==='number') return cmpNumber(a,b)*d;
-      if(k==='versions') return (a.history.length-b.history.length)*d;
-      if(k==='updated') return ((a.updated||0)-(b.updated||0))*d;
-      return String(a[k]||'').localeCompare(String(b[k]||''))*d;
-    });
-  }
+
   function th(key,label){
     var on = S.sort.key===key;
     return '<th onclick="sortBy(\''+key+'\')">'+label+
@@ -2503,7 +2530,7 @@ function renderTable(){
          t.total+' videos · '+t.missing+' missing · '+
          (S.me.role==='admin' ? t.ready+' in show' : t.have+' received')+'</span></td></tr>';
 
-    sortIt(g.items).forEach(function(v){
+    sortRows(g.items).forEach(function(v){
       var col = S.colours[v.status]||'#64748b';
       h += '<tr'+(isCut(v)?' class="cut"':'')+(isSel(v.id)?' selrow':'')+'>';
       if(admin) h += '<td class="selcol"><input type="checkbox" data-sel="'+v.id+'"'+
@@ -3796,11 +3823,83 @@ function paintSelection(){
     '<span class="n">'+n+'</span><span>video'+(n===1?'':'s')+' selected</span>' +
     '<span style="flex:1"></span>' +
     '<button class="btn sm ghost" onclick="clearSel()">Clear</button>' +
+    '<button class="btn sm" onclick="openNumbering()">Number</button>' +
     '<button class="btn sm danger" onclick="deleteSelected()">Delete selected</button>';
   bar.classList.add('on');
   document.querySelectorAll('[data-sel]').forEach(function(cb){
     cb.checked = isSel(cb.getAttribute('data-sel'));
   });
+}
+
+/* ---- bulk numbering ------------------------------------------------------
+   The job after importing a rundown: give every video its VT number. One at a
+   time is a round trip each, so the whole run goes in a single call. Order
+   comes from what is on screen, which is the order the rundown is already in. */
+function selectedInScreenOrder(){
+  var out = [];
+  sectionGroups(filtered()).forEach(function(g){
+    sortRows(g.items).forEach(function(v){ if(isSel(v.id)) out.push(v); });
+  });
+  // anything selected but filtered out of view still gets numbered, at the end
+  Object.keys(SEL).forEach(function(id){
+    if(!out.some(function(v){ return v.id===id; })){ var v=byId(id); if(v) out.push(v); }
+  });
+  return out;
+}
+
+/* "VT10" -> {prefix:'VT', n:10}. A bare number is fine; so is a bare prefix. */
+function splitNumber(s){
+  var m = /^([A-Za-z]*)\s*(\d*)$/.exec(String(s||'').trim());
+  if(!m) return null;
+  return { prefix: m[1] || '', n: m[2]==='' ? null : parseInt(m[2],10) };
+}
+
+function numberingPlan(){
+  var start = splitNumber(document.getElementById('numStart').value);
+  if(!start || start.n===null) return null;
+  return selectedInScreenOrder().map(function(v,i){
+    return { id:v.id, number: start.prefix + (start.n + i), title:v.title };
+  });
+}
+
+function openNumbering(){
+  if(!selCount()) return;
+  document.getElementById('numTitle').textContent =
+    'Number '+selCount()+' video'+(selCount()===1?'':'s');
+  document.getElementById('numStart').value = nextNumberGuess() || 'VT1';
+  renderNumPreview();
+  show('mNumber');
+  setTimeout(function(){ document.getElementById('numStart').select(); },120);
+}
+
+function renderNumPreview(){
+  var plan = numberingPlan();
+  var el = document.getElementById('numPreview');
+  var go = document.getElementById('numGo');
+  if(!plan){
+    el.textContent = 'Enter a starting number like VT1.';
+    go.disabled = true; return;
+  }
+  go.disabled = false;
+  var shown = plan.slice(0,3).map(function(p){ return p.number+' · '+p.title; });
+  if(plan.length > 4) shown.push('…');
+  if(plan.length > 3) { var last = plan[plan.length-1]; shown.push(last.number+' · '+last.title); }
+  el.textContent = shown.join('\n');
+}
+
+function commitNumbering(){
+  var plan = numberingPlan();
+  if(!plan || !plan.length) return toast('Enter a starting number like VT1.','err');
+  api('numberVideos', plan.map(function(p){ return {id:p.id, number:p.number}; }),
+      S.token, S.eventId)
+    .then(function(r){
+      S.videos = r.videos || S.videos;
+      if(r.sections) S.sections = r.sections;
+      SEL = {};
+      closeAll(); renderAll();
+      toast('Numbered '+(r.numbered!=null?r.numbered:plan.length)+' video'+
+            (r.numbered===1?'':'s')+'.','ok');
+    }).catch(err);
 }
 
 function deleteSelected(){
@@ -3871,18 +3970,46 @@ function saveVideo(){
   if(!p.number && !p.title) return toast('Give it at least a number or a title.','err');
   var wasEditing = !!S.editing;
 
+  // Show the edit at once and save behind it. Typing a VT number is a two-second
+  // job that used to cost a full round trip of staring at a dialog; the write
+  // still happens, and the old values come back if the server refuses.
+  var before = null;
+  if(wasEditing){
+    var v = byId(S.editing);
+    if(v){
+      before = { number:v.number, title:v.title, section:v.section, uploader:v.uploader,
+                 uploaderEmail:v.uploaderEmail, agency:v.agency, showStatus:v.showStatus,
+                 status:v.status, due:v.due, order:v.order, notes:v.notes };
+      v.number=p.number; v.title=p.title; v.section=p.section;
+      v.uploader=p.uploader; v.uploaderEmail=p.uploaderEmail; v.agency=p.agency;
+      v.showStatus=p.showStatus; v.status=p.status; v.due=p.due;
+      v.order = p.order===''? null : Number(p.order);
+      v.notes=p.notes;
+    }
+  }
+  var editedId = S.editing;
+  closeAll(); renderAll();
+  if(wasEditing) toast('Video updated.','ok');
+
   api(wasEditing ? 'updateVideo' : 'addVideo', p, S.token, S.eventId).then(function(r){
     S.videos = r.videos; if(r.sections) S.sections = r.sections;
     // a brand-new section name typed into the form should exist as a section
     if(p.section && !S.sections.some(function(s){ return s.name===p.section; })){
-      return api('assignSection', [r.id || S.editing], p.section, S.token, S.eventId).then(function(r2){
+      return api('assignSection', [r.id || editedId], p.section, S.token, S.eventId).then(function(r2){
         S.videos=r2.videos; S.sections=r2.sections;
       });
     }
   }).then(function(){
-    closeAll(); renderAll();
-    toast(wasEditing ? 'Video updated.' : 'Video added.','ok');
-  }).catch(err);
+    renderAll();
+    if(!wasEditing) toast('Video added.','ok');
+  }).catch(function(e){
+    if(before){                                  // put it back rather than lie
+      var back = byId(editedId);
+      if(back) Object.keys(before).forEach(function(k){ back[k] = before[k]; });
+      renderAll();
+    }
+    err(e);
+  });
 }
 
 /* ---- inline notes, on the board and in the list ----------------------- */
