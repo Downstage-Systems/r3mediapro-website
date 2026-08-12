@@ -536,6 +536,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
   display:grid;place-items:center;animation:pop .3s cubic-bezier(.2,.9,.3,1.1)}
 .sf-x svg{width:34px;height:34px;fill:none;stroke:#ef4444;stroke-width:3;stroke-linecap:round}
 
+.onhand{font-size:12px;color:var(--green);font-weight:600}
 .agencyline{font-size:11.5px;color:var(--txt-3);margin-top:2px;line-height:1.3}
 
 /* ---- bulk selection (admin) ---- */
@@ -895,6 +896,17 @@ tr.selrow td{background:var(--accent-soft)}
       <div class="hint" id="linkHint">Or paste the whole line from the email — we'll pull the URL out.</div>
     </div>
 
+    <div class="or-rule adminOnly" id="handRule" style="display:none"><span>or it arrived another way</span></div>
+    <div class="field adminOnly" id="handField" style="display:none">
+      <input id="sfHand" placeholder="e.g. USB drive from Dana at the desk, Thu 4pm"
+             oninput="syncSendSurfaces()">
+      <div class="hint">For a cut handed over in person &mdash; no link, no upload. It counts as
+        received and the note is kept in the history, so later you know where it came from.</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="btn sm" onclick="markHandedOver()">Mark as received</button>
+      </div>
+    </div>
+
     <div class="field" id="sfNextWrap"><div class="hint" id="sfNext"></div></div>
 
     <div class="field">
@@ -1238,7 +1250,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V19';
+var UI_BUILD = 'V20';
 
 var S = {
   serverBuild:'',
@@ -1625,13 +1637,18 @@ function isCut(v){ return v.showStatus === 'Deleted'; }
 /* Cut videos are excluded from every count. A video pulled from the rundown is
    not "missing" — chasing it would waste someone's morning. It keeps its row,
    its number and its whole history; it just stops being part of the show. */
+/* Do we have this video at all? A link or an upload is the usual answer, but a
+   cut handed over on a drive counts too — it has a version and no link. Anything
+   that renders a URL still tests v.link; this is only "is it in". */
+function hasCut(v){ return !!(v && (v.link || v.version)); }
+
 function tally(list){
   var live = list.filter(function(v){ return !isCut(v); });
   var t = { total:live.length, have:0, missing:0, uploaded:0, linked:0, coming:0, final:0,
             downloaded:0, needsTest:0, ready:0, issues:0, played:0,
             cut: list.length - live.length };
   live.forEach(function(v){
-    if(v.link) t.have++; else t.missing++;
+    if(hasCut(v)) t.have++; else t.missing++;
     if(v.status==='Uploaded') t.uploaded++;
     if(v.status==='Link Provided') t.linked++;
     if(v.status==='New Version Coming') t.coming++;
@@ -2416,7 +2433,7 @@ function cardHtml(v){
   var pend = v.history.filter(function(h){ return h.review==='Pending'; }).length;
   var isUp = !!v.fileId;
 
-  var h = '<div class="card'+(v.link?'':' missing')+(videoIsNew(v)?' isnew':'')+(isCut(v)?' cut':'')+'">';
+  var h = '<div class="card'+(hasCut(v)?'':' missing')+(videoIsNew(v)?' isnew':'')+(isCut(v)?' cut':'')+'">';
   h += '<div class="accent-edge" style="background:'+col+'"></div>';
   h += '<div class="c-top">' +
          '<span class="vnum">'+esc(v.number||'—')+'</span>' +
@@ -2440,6 +2457,8 @@ function cardHtml(v){
   if(v.link){
     h += '<span class="host">'+hostIcon(v.link)+esc(isUp?'Drive upload':hostName(v.link))+'</span>';
     h += '<span class="url">'+esc(v.fileName || shortUrl(v.link))+'</span>';
+  } else if(hasCut(v)){
+    h += '<span class="host">&#9679;</span><span class="url">'+esc(v.fileName || 'On hand — handed over')+'</span>';
   } else h += '<span class="none">Nothing received yet</span>';
   h += '</div>';
 
@@ -2548,7 +2567,9 @@ function renderTable(){
       if(S.me.role==='admin'){
         h += '<td class="t-link">'+(v.link
             ? '<a href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">'+esc(v.fileName || (v.fileId?'Drive upload':shortUrl(v.link)))+'</a>'
-            : '<span style="color:var(--red);font-size:12px">missing</span>')+'</td>';
+            : hasCut(v)
+              ? '<span class="onhand" title="Handed over — no link">'+esc(v.fileName || 'On hand')+'</span>'
+              : '<span style="color:var(--red);font-size:12px">missing</span>')+'</td>';
         h += '<td class="t-notes" data-note="'+v.id+'" onclick="editNote(\''+v.id+'\',event)" title="Click to edit">'+
              (v.notes ? esc(v.notes) : '<span class="addnote">+ note</span>')+'</td>';
         h += '<td>'+v.history.length+'</td>';
@@ -2557,7 +2578,9 @@ function renderTable(){
         h += '<td class="t-link">'+(v.link
             ? '<a href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">'+
               esc(v.fileName || (v.fileId?'Drive upload':shortUrl(v.link)))+'</a>'
-            : '<span style="color:var(--txt-3);font-size:12px">—</span>')+'</td>';
+            : hasCut(v)
+              ? '<span class="onhand" title="The video team has this one">'+esc(v.fileName || 'With the team')+'</span>'
+              : '<span style="color:var(--txt-3);font-size:12px">—</span>')+'</td>';
       }
       h += '<td><div class="t-acts">' +
            (S.me.role==='admin' && v.link ? '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>' : '') +
@@ -2740,7 +2763,7 @@ function renderShowday(){
     items.forEach(function(v){
       if(isCut(v) && S.hideCut) return;
       running++;
-      h += '<div class="sd-row'+(v.link&&!isCut(v)?'':' blocked')+(isCut(v)?' cut noprint':'')+'">';
+      h += '<div class="sd-row'+(hasCut(v)&&!isCut(v)?'':' blocked')+(isCut(v)?' cut noprint':'')+'">';
       h += '<div class="sd-ord">'+(v.order!=null?v.order:running)+'</div>';
       h += '<div class="sd-main">';
       h +=   '<div class="sd-title">'+esc(v.number?v.number+' — ':'')+esc(v.title||'(untitled)')+
@@ -2764,7 +2787,7 @@ function renderShowday(){
              ? v.history.length+(v.history.length===1?' version':' versions')
              : 'History')+'</button>';
       h += '</div>';
-      h += '<div class="sd-print-flag">'+(v.link?'':'NO FILE')+'</div>';
+      h += '<div class="sd-print-flag">'+(hasCut(v)?'':'NO FILE')+'</div>';
       h += '</div>';
     });
   });
@@ -3020,6 +3043,7 @@ function openSubmit(id){
   document.getElementById('sfNote').value='';
   document.getElementById('sfClientTitle').value='';
   document.getElementById('sfNewTitle').value='';
+  document.getElementById('sfHand').value='';
   // Section / speaker choices for a not-on-the-list video, in rundown order.
   var secSel = document.getElementById('sfNewSection');
   var preSec = (S.fSection && S.fSection!==UNSECTIONED) ? S.fSection : '';
@@ -3251,6 +3275,42 @@ function duplicateBlurb(d, videoId){
          ' as ' + (d.ver.label || 'a previous version') + who + when + '.\n\n' +
          (d.kind === 'link' ? 'Link: ' : 'File: ') + d.what + '\n\n' +
          'Send it anyway if this is a new cut.';
+}
+
+/* A cut that arrived on a drive or by hand: no link, no upload, but we have it.
+   Team-side only — the point is to stop the board saying "missing" for something
+   sitting in the booth, and to keep a note of where it came from. */
+function markHandedOver(){
+  if(S.me.role!=='admin') return;
+  var videoId = document.getElementById('sfVideo').value;
+  if(!videoId) return toast('Pick a video first.','err');
+  if(videoId === '__newvideo__')
+    return toast('Add it to the rundown first, then mark it received.','err');
+  var where = document.getElementById('sfHand').value.trim();
+  if(!where) return toast('Say where it came from — "USB from Dana", say.','err');
+
+  var who = resolveWho();
+  if(!who) return;
+  var v = byId(videoId);
+
+  sfBusy('Recording it…', { hint:'Just a moment.' });
+  api('recordHandoff', {
+      videoId: videoId, note: where,
+      submitter: who.name, submitterEmail: who.email, submitterAgency: who.agency,
+      fileName: document.getElementById('sfClientTitle').value.trim()
+    }, S.token, S.vtok, S.eventId)
+    .then(function(r){
+      S.videos = r.videos;
+      if(r.submitters) S.submitters = r.submitters;
+      renderAll();
+      sfSuccess('Marked as received',
+        (v && v.number ? v.number+' ' : '') + 'is on hand — the note is in its history.');
+      setTimeout(closeAll, 1500);
+    })
+    .catch(function(e){
+      sfError('Couldn’t record it', String((e&&e.message)||e),
+        function(){ show('mSubmit'); markHandedOver(); });
+    });
 }
 
 function submitNow(){
