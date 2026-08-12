@@ -536,6 +536,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
   display:grid;place-items:center;animation:pop .3s cubic-bezier(.2,.9,.3,1.1)}
 .sf-x svg{width:34px;height:34px;fill:none;stroke:#ef4444;stroke-width:3;stroke-linecap:round}
 
+.ordcell{font-variant-numeric:tabular-nums;color:var(--txt-2);font-size:12.5px}
 .onhand{font-size:12px;color:var(--green);font-weight:600}
 .agencyline{font-size:11.5px;color:var(--txt-3);margin-top:2px;line-height:1.3}
 
@@ -2516,6 +2517,16 @@ function sortRows(arr){
     if(k==='number') return cmpNumber(a,b)*d;
     if(k==='versions') return (a.history.length-b.history.length)*d;
     if(k==='updated') return ((a.updated||0)-(b.updated||0))*d;
+    if(k==='order'){
+      // Unplaced videos always trail, whichever way you sort — flipping the
+      // arrow shouldn't float everything without a slot to the top.
+      var ao = a.order==null ? null : Number(a.order);
+      var bo = b.order==null ? null : Number(b.order);
+      if(ao===null && bo===null) return 0;
+      if(ao===null) return 1;
+      if(bo===null) return -1;
+      return (ao-bo)*d;
+    }
     return String(a[k]||'').localeCompare(String(b[k]||''))*d;
   });
 }
@@ -2533,7 +2544,7 @@ function renderTable(){
   var admin = S.me.role==='admin';
   var h = '<div class="tbl-wrap"><table'+(admin?'':' class="slim"')+'><thead><tr>';
   if(admin) h += '<th class="selcol"><input type="checkbox" id="selAll" onclick="selectAllShown(this.checked)" title="Select everything shown"></th>';
-  h += th('number','#')+th('title','Title');
+  h += th('number','#') + (admin ? th('order','Order') : '') + th('title','Title');
   h += admin ? th('uploader','Uploader')+th('status','Status')
              : th('status','Status')+th('uploader','Uploader');
   if(admin) h += '<th>Show</th>'+th('version','Ver')+'<th>Current file / link</th>'+'<th>Notes</th>'+
@@ -2544,7 +2555,7 @@ function renderTable(){
 
   groups.forEach(function(g){
     var t = tally(g.items);
-    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'">' +
+    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?13:7)+'">' +
          (S.me.role==='admin'
            ? '<input type="checkbox" class="selsect" onclick="selectSection('+JSON.stringify(g.name)+',this.checked)" title="Select this whole section">'
            : '') +
@@ -2559,6 +2570,7 @@ function renderTable(){
       if(admin) h += '<td class="selcol"><input type="checkbox" data-sel="'+v.id+'"'+
                      (isSel(v.id)?' checked':'')+' onclick="toggleSel(\''+v.id+'\',this.checked)"></td>';
       h += '<td><span class="vnum">'+esc(v.number||'—')+'</span>'+(videoIsNew(v)?' <span class="newtag">NEW</span>':'')+'</td>';
+      if(admin) h += '<td class="ordcell">'+(v.order==null?'<span style="color:var(--txt-3)">—</span>':v.order)+'</td>';
       h += '<td class="t-title">'+esc(v.title||'(untitled)')+'</td>';
       var uploaderTd = '<td>'+(v.uploader
             ? '<span class="uploader">'+avatar(v.uploader)+esc(v.uploader)+'</span>'
