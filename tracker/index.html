@@ -576,15 +576,28 @@ tr.cutrow td.handle{opacity:.75}
   font-size:.62rem;font-weight:800;letter-spacing:.06em;
   border:1px solid;border-radius:20px;padding:1px 7px;margin-right:6px;
 }
-.title-cell{white-space:nowrap}
-.title-cell .cell{display:inline-block;vertical-align:middle;width:calc(100% - 44px)}
+/* Signed off. Deliberately quiet — green like Delivered, but an outline
+   rather than a fill, so a table of final cuts doesn't read as a wall. */
+.finchip{
+  display:inline-flex;flex:none;align-items:center;vertical-align:middle;
+  font-size:.58rem;font-weight:800;letter-spacing:.1em;
+  color:var(--s-delivered);border:1px solid rgba(46,168,106,.5);
+  background:rgba(46,168,106,.12);border-radius:20px;padding:1px 7px;margin-right:6px;
+}
+/* Flex, not calc(100% - Npx): the chips ahead of the title vary — version
+   always, FINAL sometimes, a fold-back button on an opened older cut — and a
+   hard-coded reservation for each combination was both fragile and wrong the
+   moment one changed size. The title simply takes whatever is left.
+   The flex container is an inner wrapper, not the td: making the cell itself
+   a flex container drops it out of table layout and collapses its width. */
+.title-cell{white-space:normal}
+.title-in{display:flex;align-items:center;min-width:0;width:100%}
+.title-cell .cell{flex:1 1 auto;min-width:0;width:auto}
 /* the title shows all of itself, wrapping as needed — never an ellipsis */
 textarea.titlebox{
   resize:none;overflow:hidden;white-space:normal;word-break:break-word;
   line-height:1.3;font-family:inherit;min-height:31px;
 }
-.title-cell.oldcut .cell{width:calc(100% - 62px)}
-
 /* Still readable, still editable — just visibly not part of the tally. */
 tr.uncounted .title-cell input, tr.uncounted [data-fname]{opacity:.62}
 .dupe-r.hid{opacity:.5}
@@ -677,6 +690,7 @@ h4.sec:first-child{margin-top:0}
   td.handle{display:none}
   .grid td:nth-child(2){order:0;flex:0 0 auto}
   .title-cell{order:1;flex:1 1 calc(100% - 40px);display:flex;align-items:center;gap:4px;min-width:0;white-space:normal}
+  .title-cell .title-in{gap:4px}
   .title-cell .cell{font-weight:600;padding:7px 6px;min-width:0;flex:1 1 auto;width:auto}
   .mexp{
     display:inline-flex;flex:none;align-items:center;justify-content:center;
@@ -741,7 +755,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 11, 1:33 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 8:28 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -876,6 +890,9 @@ h4.sec:first-child{margin-top:0}
       <button onclick="closeMenus();addRowBelow()">Add row below</button>
       <button onclick="closeMenus();bulkBumpVersion()">Bump version</button>
       <button onclick="closeMenus();bulkTarget()">Set target date&hellip;</button>
+      <hr>
+      <button onclick="closeMenus();bulkFinal(true)">Mark as Final</button>
+      <button onclick="closeMenus();bulkFinal(false)">Remove Final mark</button>
       <hr>
       <button onclick="closeMenus();bulkReview(true)">Show review link to client</button>
       <button onclick="closeMenus();bulkReview(false)">Hide review link</button>
@@ -1553,8 +1570,8 @@ function load(){
 let history = [], histAt = -1, restoring = false;
 const HISTORY_MAX = 40;
 
-function pushHistory(){
-  if (restoring || syncing) return;
+function pushHistory(force){
+  if (restoring || (syncing && !force)) return;
   const snap = JSON.stringify(db);
   if (history[histAt] === snap) return;
   history = history.slice(0, histAt + 1);
@@ -1939,11 +1956,12 @@ function rowEl(s){
     <td class="col-sess"><input class="cell num" data-f="seq" value="${s.seq || ''}" inputmode="numeric"></td>
     <td><input class="cell" data-f="day" value="${esc(s.day || '')}" placeholder="&mdash;" spellcheck="false"></td>
     <td><input class="cell" data-f="time" value="${esc(timeHuman(s.time))}" placeholder="&mdash;" spellcheck="false"></td>
-    <td class="title-cell${isOld ? ' oldcut' : ''}">${
+    <td class="title-cell${isOld ? ' oldcut' : ''}${s.final ? ' hasfinal' : ''}"><div class="title-in">${
       isOld ? `<button class="vtag-btn" data-act="vmin" title="Fold this cut back into the block"
                  style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1} &#9662;</button>`
             : `<span class="vchip-t" style="color:${verHue(s.version)};border-color:${verHue(s.version)}66">V${s.version || 1}</span>`
-    }<textarea class="cell titlebox autogrow" data-f="title" rows="1" placeholder="Session title" spellcheck="false">${esc(s.title)}</textarea><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></td>
+    }${s.final ? `<span class="finchip" title="Signed off — this is the final cut">FINAL</span>` : ''
+    }<textarea class="cell titlebox autogrow" data-f="title" rows="1" placeholder="Session title" spellcheck="false">${esc(s.title)}</textarea><button class="mexp" data-act="mexp" title="More fields">&#8943;</button></div></td>
     <td><div class="fname"><code data-fname></code><button class="copy" data-act="copy">Copy</button></div></td>
     <td class="status-cell">
       <span class="status-dot" style="background:${st.hex}"></span>
@@ -2149,13 +2167,18 @@ function rowEl(s){
     } else if (act === 'clearfb'){
       const rec = find(s.id);
       if (rec && confirm('Clear the note(s) your client left on this session?')){
-        rec.feedback = ''; save(); render();
+        clearFeedbackEverywhere(rec);
       }
     } else if (act === 'clearv'){
       const rec = find(s.id); if (rec){ rec.vimeo = ''; save(); render(); }
     } else if (act === 'sel'){
       hardPick(s.id, e.target.checked, tr);
     } else {
+      // Clicking into a field to type isn't "picking this row" when boxes are
+      // ticked — wiping a five-row selection because you fixed a typo is how
+      // a bulk action quietly lands on one row.
+      const typing = e.target.matches && e.target.matches('input, textarea, select');
+      if (typing && selected.size && !softSel) return;
       softPick(s.id);
     }
   });
@@ -2207,12 +2230,19 @@ function clearPicks(quiet){
    the header's select-all are part of picking, so they don't count as "off". */
 document.addEventListener('mousedown', e => {
   if (!selected.size && !softSel) return;
+  // The toolbar is part of acting on a pick — "Sections" then "Assign" needs
+  // the ticks to still be there when the panel opens.
   if (e.target.closest('#tbody tr') || e.target.closest('.bulk') ||
-      e.target.closest('.overlay') || e.target.closest('thead')) return;
+      e.target.closest('.overlay') || e.target.closest('thead') ||
+      e.target.closest('.toolbar')) return;
   clearPicks();
 });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape' && (selected.size || softSel)) clearPicks();
+  if (e.key !== 'Escape') return;
+  // Escape inside a field means "leave the field", not "drop my selection".
+  const t = e.target;
+  if (t && t.matches && t.matches('input, textarea, select')) return;
+  if (selected.size || softSel) clearPicks();
 });
 
 /** The two standalone status menus. Rebuilt with the table because the
@@ -2608,6 +2638,17 @@ function bulkTarget(){
   toast(d ? `Target set on ${n} session(s).` : `Target cleared on ${n} session(s).`);
 }
 
+/** A cut you've signed off. Independent of status and of version — a V3 can
+    sit in Editing without being final, and a V1 can be the final cut. */
+function bulkFinal(on){
+  if (!selected.size) return toast('Tick the rows first, or click one.', true);
+  let n = 0;
+  proj().sessions.forEach(s => { if (selected.has(s.id) && !!s.final !== on){ s.final = on; n++; } });
+  if (!n) return toast(on ? 'Already marked Final.' : 'None of those were marked Final.');
+  save(); render();
+  toast(`${n} ${n === 1 ? 'session' : 'sessions'} ${on ? 'marked Final.' : 'no longer Final.'}`);
+}
+
 function bulkReview(on){
   const p = proj();
   let n = 0, noLink = 0;
@@ -2704,6 +2745,14 @@ document.addEventListener('drop', e => {
   const targetId = isHeader ? tr.dataset.first : (tr.dataset.id || tr.dataset.head);
   if (from < 0 || targetId === dragId) return cleanupDrag();
   const [moved] = list.splice(from, 1);
+  // The earlier cuts render inside the dragged row's block, so they move with
+  // it in the data too — otherwise exports, Renumber and the Sheet's order
+  // column would show them stranded where the block used to be.
+  const kids = [];
+  (cutsOf.get(dragId) || []).forEach(o => {
+    const i = list.findIndex(x => x.id === o.id);
+    if (i > -1) kids.push(...list.splice(i, 1));
+  });
   let to = list.findIndex(s => s.id === targetId);
   if (to < 0) to = list.length;
   // Dropping under a section's heading means joining it — a row that kept
@@ -2711,8 +2760,9 @@ document.addEventListener('drop', e => {
   const adopt = isHeader ? tr.dataset.sec
               : (list[after ? Math.min(to, list.length - 1) : to] || {}).section || '';
   const changed = (moved.section || '') !== adopt;
-  if (changed) moved.section = adopt;
-  list.splice(isHeader ? to : (after ? to + 1 : to), 0, moved);
+  if (changed){ moved.section = adopt; kids.forEach(k => k.section = adopt); }
+  const at = isHeader ? to : (after ? to + 1 : to);
+  list.splice(at, 0, moved, ...kids);
   reindex(); rebuildSectionOrder();
   cleanupDrag(); save(); render();
   if (changed) toast(adopt ? `Moved into “${adopt}”.` : 'Moved out of its section.');
@@ -3680,7 +3730,10 @@ function restoreJSON(file){
       const data = JSON.parse(fr.result);
       if (!data.projects || !Array.isArray(data.projects)) throw new Error('not a tracker backup');
       if (!confirm(`Restore ${data.projects.length} project(s)? This replaces everything currently in the tracker.`)) return;
-      db = data; load(); save(); render();
+      // load() re-reads localStorage, so the backup must be persisted first —
+      // assigning db and then calling load() just reloads the old data.
+      localStorage.setItem(KEY, JSON.stringify(data));
+      load(); save(); render();
       toast('Backup restored.');
     } catch(e){ toast('That file is not a tracker backup.', true); }
   };
@@ -3721,7 +3774,7 @@ function renderClientView(){
 
   const rows = list.map(s => {
     const st = S_BY_KEY[s.status] || STATUSES[0];
-    const meta = [roomLabel(s.room), timeHuman(s.time)].filter(Boolean).join(' &middot; ');
+    const meta = [roomLabel(s.room), timeHuman(s.time)].filter(Boolean).map(esc).join(' &middot; ');
     return `      <tr>
         <td>
           <div class="t">${esc(s.title || 'Untitled session')}</div>
@@ -3765,8 +3818,8 @@ function downloadClientView(){
    ===================================================================== */
 
 const SYNC_KEY = 'r3-vet-sync-v1';
-const NEEDS_SCRIPT = 32;              // Apps Script VERSION this build expects
-let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {} }, lastAt: '' };
+const NEEDS_SCRIPT = 33;              // Apps Script VERSION this build expects
+let sync = { url: '', token: '', auto: true, baseline: { p: {}, s: {}, sc: {} }, lastAt: '' };
 let syncState = 'off';               // off | ok | busy | error | offline
 /* Set when the server rejects the token. Polling every 25 seconds against a
    token the script won't accept is what trips its lockout, and the lockout is
@@ -3784,11 +3837,11 @@ let pushTimer = null, pollTimer = null, syncing = false, lastEditAt = 0;
  * the Sheet as authoritative for rows it already has, while genuinely
  * local-only rows still push. Safe by construction rather than by care.
  */
-const HASH_VERSION = 4;
+const HASH_VERSION = 5;
 
 function checkHashVersion(){
   if (sync.hashVersion === HASH_VERSION) return false;
-  sync.baseline = { p: {}, s: {} };
+  sync.baseline = { p: {}, s: {}, sc: {} };
   sync.hashVersion = HASH_VERSION;
   saveSync();
   return true;
@@ -3815,7 +3868,8 @@ function prefClear(key){
 
 function loadSync(){
   try { Object.assign(sync, JSON.parse(localStorage.getItem(SYNC_KEY) || '{}')); } catch(e){}
-  sync.baseline = sync.baseline || { p: {}, s: {} };
+  sync.baseline = sync.baseline || { p: {}, s: {}, sc: {} };
+  sync.baseline.sc = sync.baseline.sc || {};   // older stored sync objects predate the core map
   sync.prefs = sync.prefs || {};
   // carry over anything saved before prefs synced
   if (sync.namingDefaults){
@@ -3835,7 +3889,17 @@ function syncOn(){ return !!(sync.url && sync.token) && !tokenRejected; }
 function sHash(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status, !!s.uncounted, !!s.hidden,
                                           s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
                                           s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
-                                          s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', s.order]); }
+                                          s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', !!s.final, s.order]); }
+/* The same fingerprint without `order`. A sort or drag touches every row's
+   order at once, and under the full hash that made every row "mine" — a stale
+   machine sorting its table would then overwrite every remote edit at once
+   (the 7 Aug failure family, triggered by an ordinary sort). Rows whose only
+   change is order are pushed as order-only updates that the server writes
+   into the order column without claiming the rest of the row. */
+function sHashCore(s){ return JSON.stringify([s.room, s.seq, s.day || '', s.time, s.title, s.version, s.status, !!s.uncounted, !!s.hidden,
+                                          s.section || '', s.notes || '', s.clientNote || '', s.vimeo || '',
+                                          s.thumb || '', s.duration || 0, s.download || '', s.drive || '',
+                                          s.review || '', !!s.reviewOn, s.feedback || '', s.target || '', !!s.final]); }
 function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || '', p.clientPassword || '',
                                           p.vimeoFolder || '', p.clientName || '', p.welcome || '',
                                           p.details || [], p.eta || '', p.sectionOrder || [], p.settings, p.roomNames || {},
@@ -3843,7 +3907,7 @@ function pHash(p){ return JSON.stringify([p.name, p.eventCode, p.eventSlug || ''
 
 function localChanges(){
   const now = new Date().toISOString();
-  const out = { projects: [], sessions: [], hashes: { p: {}, s: {} } };
+  const out = { projects: [], sessions: [], orders: [], hashes: { p: {}, s: {} } };
   const liveP = new Set(), liveS = new Set();
   db.projects.forEach(p => {
     liveP.add(p.id);
@@ -3860,6 +3924,11 @@ function localChanges(){
       liveS.add(s.id);
       out.hashes.s[s.id] = sHash(s);
       if (sync.baseline.s[s.id] !== out.hashes.s[s.id]){
+        const baseCore = (sync.baseline.sc || {})[s.id];
+        if (baseCore !== undefined && baseCore === sHashCore(s)){
+          out.orders.push({ id: s.id, order: s.order });
+          return;
+        }
         out.sessions.push({ id: s.id, projectId: p.id, room: s.room || '', seq: s.seq || 0, day: s.day || '',
                             time: s.time || '', title: s.title || '', version: s.version || 1,
                             status: s.status || 'notstarted', section: s.section || '',
@@ -3868,7 +3937,7 @@ function localChanges(){
                             download: s.download || '', drive: s.drive || '',
                             review: s.review || '', reviewOn: !!s.reviewOn, feedback: s.feedback || '',
                             target: s.target || '', order: s.order, uncounted: !!s.uncounted, hidden: !!s.hidden,
-                            updated: now, deleted: false });
+                            final: !!s.final, updated: now, deleted: false });
       }
     });
   });
@@ -3917,13 +3986,15 @@ function healBaseline(){
  * dirty, and goes out on the next push instead.
  */
 function commitBaseline(sent){
-  const b = { p: {}, s: {} };
+  const b = { p: {}, s: {}, sc: {} };
   db.projects.forEach(p => {
     const h = pHash(p);
     b.p[p.id] = (sent.p[p.id] === h) ? h : sync.baseline.p[p.id];
     p.sessions.forEach(s => {
       const sh = sHash(s);
-      b.s[s.id] = (sent.s[s.id] === sh) ? sh : sync.baseline.s[s.id];
+      const kept = sent.s[s.id] === sh;
+      b.s[s.id] = kept ? sh : sync.baseline.s[s.id];
+      b.sc[s.id] = kept ? sHashCore(s) : (sync.baseline.sc || {})[s.id];
     });
   });
   sync.baseline = b;
@@ -3932,13 +4003,18 @@ function commitBaseline(sent){
 }
 
 function setBaseline(){
-  const b = { p: {}, s: {} };
-  db.projects.forEach(p => { b.p[p.id] = pHash(p); p.sessions.forEach(s => { b.s[s.id] = sHash(s); }); });
+  const b = { p: {}, s: {}, sc: {} };
+  db.projects.forEach(p => { b.p[p.id] = pHash(p);
+    p.sessions.forEach(s => { b.s[s.id] = sHash(s); b.sc[s.id] = sHashCore(s); }); });
   sync.baseline = b; sync.lastAt = new Date().toISOString(); saveSync();
 }
 
 function mergeRemote(data){
+  let adopted = 0;
   const mine = localChanges();
+  // Rows whose only local change is their position: remote fields win, the
+  // local order is kept, and the order goes out on this same sync.
+  const orderOnly = new Set(mine.orders.map(x => x.id));
   // With no baseline there's no evidence this machine edited anything, so it
   // has no business claiming rows the Sheet already has. Rows the Sheet has
   // never seen are still genuinely ours and survive untouched below.
@@ -3948,6 +4024,7 @@ function mergeRemote(data){
 
   (data.projects || []).forEach(rp => {
     if (dirtyP.has(rp.id)) return;                       // my edit wins; it'll push
+    adopted++;
     const local = db.projects.find(p => p.id === rp.id);
     if (rp.deleted){ if (local) db.projects = db.projects.filter(p => p.id !== rp.id); return; }
     // A row with no name and no sessions is debris, not a project.
@@ -3973,6 +4050,7 @@ function mergeRemote(data){
   const byId = {}; db.projects.forEach(p => byId[p.id] = p);
   (data.sessions || []).forEach(rs => {
     if (dirtyS.has(rs.id)) return;
+    adopted++;
     let found = null, holder = null;
     for (const p of db.projects){ const s = p.sessions.find(x => x.id === rs.id); if (s){ found = s; holder = p; break; } }
     if (rs.deleted){ if (holder) holder.sessions = holder.sessions.filter(x => x.id !== rs.id); return; }
@@ -3981,10 +4059,12 @@ function mergeRemote(data){
     const rec = { id: rs.id, room: rs.room || '', seq: rs.seq || 0, day: rs.day || '', time: rs.time || '',
                   title: rs.title || '', version: rs.version || 1, status: rs.status || 'notstarted',
                   section: rs.section || '', notes: rs.notes || '', clientNote: rs.clientNote || '',
-                  vimeo: rs.vimeo || '', thumb: rs.thumb || '', duration: rs.duration || 0,
+                  vimeo: normalizeVimeo(rs.vimeo || ''), thumb: rs.thumb || '', duration: rs.duration || 0,
                   download: rs.download || '', drive: rs.drive || '',
                   review: rs.review || '', reviewOn: !!rs.reviewOn, feedback: rs.feedback || '',
-                  target: rs.target || '', order: rs.order, uncounted: !!rs.uncounted, hidden: !!rs.hidden };
+                  target: rs.target || '', order: rs.order, uncounted: !!rs.uncounted, hidden: !!rs.hidden,
+                  final: !!rs.final };
+    if (orderOnly.has(rs.id) && found) rec.order = found.order;
     if (found){
       Object.assign(found, rec);
       if (holder !== owner){ holder.sessions = holder.sessions.filter(x => x.id !== rs.id); owner.sessions.push(found); }
@@ -4014,6 +4094,7 @@ function mergeRemote(data){
   db.projects = db.projects.filter(p => String(p.name || '').trim() || p.sessions.length);
   if (!db.projects.length) db.projects = [blankProject('Untitled Project')];
   if (!db.projects.some(p => p.id === db.activeId)) db.activeId = db.projects[0].id;
+  return adopted;
 }
 
 // Apps Script intermittently answers with a Google error page instead of the
@@ -4050,6 +4131,23 @@ async function api(payload, query, tries){
   throw last;
 }
 
+/** The server unions feedback on every push so a stale machine can't erase a
+    client's note — which means clearing on purpose needs its own call that
+    writes the cell directly. Local-only clears would just resurrect on the
+    next poll. */
+async function clearFeedbackEverywhere(rec){
+  rec.feedback = '';
+  save(); render();
+  if (!syncOn()) return;
+  try {
+    await api({ mode: 'clearfb', token: sync.token, id: rec.id });
+  } catch (err){
+    toast('Cleared here, but the Sheet still has it — it may come back. (' + err.message + ')', true);
+  }
+}
+
+let syncFails = 0;
+
 async function syncNow(quiet){
   if (!syncOn() || syncing) return;
   syncing = true; setSyncState('busy');
@@ -4059,17 +4157,26 @@ async function syncNow(quiet){
       sync.warnedStale = true; saveSync();
       toast('Your Apps Script is older than this app — open Sync and hit Test connection.', true);
     }
-    mergeRemote(remote);
+    const adopted = mergeRemote(remote);
     const mine = localChanges();
-    if (mine.projects.length || mine.sessions.length || Object.keys(sync.prefs || {}).length){
+    if (mine.projects.length || mine.sessions.length || mine.orders.length ||
+        Object.keys(sync.prefs || {}).length){
       await api({ mode: 'push', token: sync.token, projects: mine.projects,
-                  sessions: mine.sessions, prefs: sync.prefs || {} });
+                  sessions: mine.sessions, orders: mine.orders, prefs: sync.prefs || {} });
     }
     commitBaseline(mine.hashes);
     save(); render();
+    // Sync pulls don't snapshot (pushHistory is suppressed while syncing), so
+    // undo's previous step still predates the merge — and undoing across it
+    // would mark every merged row dirty and push the reversion over other
+    // machines' work. Snapshot the post-merge state so undo can't reach back
+    // past what other machines did.
+    if (adopted) pushHistory(true);
+    syncFails = 0;
     setSyncState('ok');
     if (!quiet) toast('Synced with the Sheet.');
   } catch (err){
+    syncFails++;
     if (isTokenError(err)) { flagBadToken(err); }
     else {
       setSyncState(navigator.onLine ? 'error' : 'offline');
@@ -4079,9 +4186,11 @@ async function syncNow(quiet){
   } finally {
     syncing = false;
     // Anything typed mid-flight is still dirty — send it rather than leaving
-    // it to sit until the next 25s poll.
+    // it to sit until the next 25s poll. But a push that keeps failing must
+    // not turn this into a 2-second hammer: after a few straight failures the
+    // regular poll takes over.
     const left = localChanges();
-    if (left.projects.length || left.sessions.length) queuePush();
+    if ((left.projects.length || left.sessions.length || left.orders.length) && syncFails < 3) queuePush();
   }
 }
 
@@ -4929,9 +5038,9 @@ async function autoMatchVimeo(){
 
     save(); render();
     const say = [];
-    if (busy.length)    say.push(`${busy.length} still uploading &mdash; ${sLabel('uploaded')}`);
-    if (fresh.length)   say.push(`${fresh.length} linked &mdash; ${sLabel('delivered')}`);
-    if (settled.length) say.push(`${settled.length} finished processing &mdash; ${sLabel('delivered')}`);
+    if (busy.length)    say.push(`${busy.length} still uploading — ${sLabel('uploaded')}`);
+    if (fresh.length)   say.push(`${fresh.length} linked — ${sLabel('delivered')}`);
+    if (settled.length) say.push(`${settled.length} finished processing — ${sLabel('delivered')}`);
     toast(say.join(', ') + '.');
   } catch (err){
     /* offline, or Vimeo hiccuped — the manual button still reports properly */

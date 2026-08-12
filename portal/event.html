@@ -400,7 +400,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 11, 10:41 AM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 12, 8:28 AM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -481,7 +481,8 @@ const API = 'https://script.google.com/macros/s/AKfycbxcQZAx8leuJsUp4f-qkTcsfenX
 
 const COLOURS = {
   notstarted:'#6b6b74', editing:'#d98324', exported:'#3d8bfd',
-  uploaded:'#8b5cf6', delivered:'#2ea86a', issue:'#e63946'
+  uploaded:'#8b5cf6', delivered:'#2ea86a', issue:'#e63946',
+  undeliverable:'#7a6552'
 };
 
 // The board is empty until the fetch returns, so a browser-restored scroll
@@ -498,6 +499,16 @@ let lastDelivered = null;
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* An inline handler is HTML-decoded before it's compiled as JavaScript, so
+   esc()'s &#39; turns back into a quote that closes the string it sits in.
+   Anything dropped into an onclick JS string gets escaped as JS first. */
+const jsq = s => esc(String(s == null ? '' : s).replace(/[\\'"\r\n]/g, c =>
+  ({'\\':'\\\\', "'":"\\'", '"':'\\"', '\r':'', '\n':''}[c])));
+
+/* Only ever link somewhere a browser should follow. A javascript: or data:
+   URL reaching an href is a script the page didn't write. */
+const safeUrl = u => /^(https?:|mailto:)/i.test(String(u || '').trim()) ? String(u).trim() : '';
 
 function timeHuman(hhmm){
   if (!hhmm) return '';
@@ -554,10 +565,25 @@ async function fetchBoard(){
                     'Contact rob@r3mediapro.com.');
   }
   lastFetch = Date.now();
-  const url = API + '?mode=portal&event=' + encodeURIComponent(EVENT) + '&pw=' + encodeURIComponent(password);
+  // POST, not a query string: a GET puts the client's password into browser
+  // history, Apps Script's execution log and any proxy in between — on the one
+  // page whose whole job is being password-gated.
+  const ctl = new AbortController();
+  // And a timeout, so a connection that hangs rather than fails doesn't leave
+  // the page stuck on "Checking…" with Refresh greyed out.
+  const bell = setTimeout(() => ctl.abort(), 30000);
   let res;
-  try { res = await fetch(url, { redirect: 'follow' }); }
-  catch (e){ throw new Error('Could not reach the server — check your internet connection.'); }
+  try {
+    res = await fetch(API, {
+      method: 'POST', redirect: 'follow', signal: ctl.signal,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ mode: 'portal', event: EVENT, pw: password })
+    });
+  } catch (e){
+    throw new Error(e.name === 'AbortError'
+      ? 'The server took too long to answer — showing the last update.'
+      : 'Could not reach the server — check your internet connection.');
+  } finally { clearTimeout(bell); }
   if (!res.ok) throw new Error('The server returned an error (' + res.status + ').');
   return res.json();
 }
@@ -726,11 +752,14 @@ function closeNote(id){
   f.previousElementSibling.style.display = '';
 }
 
+let sendingNote = false;
+
 async function sendNote(id){
   const box = document.getElementById('nt-' + id);
   const stat = document.getElementById('ns-' + id);
   const text = box.value.trim();
-  if (!text) return;
+  if (!text || sendingNote) return;
+  sendingNote = true;
   stat.textContent = 'Sending…';
   try {
     const res = await fetch(API, {
@@ -748,7 +777,7 @@ async function sendNote(id){
   } catch (e){
     stat.style.color = '#e63946';
     stat.textContent = 'Didn\u2019t send — try again, or email rob@r3mediapro.com.';
-  }
+  } finally { sendingNote = false; }
 }
 
 function render(data){
@@ -871,11 +900,34 @@ function render(data){
     });
   }
 
+  // A background poll rebuilds every row. Anything the client was part-way
+  // through typing lives in those rows, so carry it across the rebuild —
+  // losing two sentences to a refresh they didn't ask for is unforgivable.
+  const openNotes = {};
+  document.querySelectorAll('.addnote form').forEach(f => {
+    if (f.style.display === 'none') return;
+    const box = f.querySelector('textarea');
+    openNotes[f.id.replace(/^nf-/, '')] = { text: box ? box.value : '', focus: document.activeElement === box };
+  });
+
   document.getElementById('sections').innerHTML = groups.length
     ? groups.map((g, i) => sectionHtml(g, groups.length, i)).join('')
     : searchQ
       ? `<p class="vsearch-none">No sessions match &ldquo;${esc(searchQ)}&rdquo;.</p>`
       : '<div class="vt-section"><p class="muted">Nothing posted yet — check back soon.</p></div>';
+
+  Object.keys(openNotes).forEach(id => {
+    const f = document.getElementById('nf-' + id);
+    const box = document.getElementById('nt-' + id);
+    if (!f || !box) return;
+    f.style.display = 'block';
+    if (f.previousElementSibling) f.previousElementSibling.style.display = 'none';
+    box.value = openNotes[id].text;
+    if (openNotes[id].focus){
+      const at = box.value.length;
+      box.focus(); try { box.setSelectionRange(at, at); } catch (e){}
+    }
+  });
 
   if (!firstLoaded){
     const first = folded.find(r => r.vimeoId);
@@ -959,7 +1011,11 @@ async function loadUploads(){
     const r = await fetch(API, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ mode:'uploads', event: EVENT, pw: password }) });
     const out = await r.json();
-    if (!out.ok || !out.files.length){ box.style.display = 'none'; return; }
+    if (!out.ok || !(out.files || []).length){
+      box.style.display = 'none';
+      document.getElementById('up-sent-list').innerHTML = '';   // never leave a removed file listed
+      return;
+    }
 
     box.style.display = 'block';
     document.getElementById('up-sent-n').textContent =
@@ -969,7 +1025,7 @@ async function loadUploads(){
         <span class="nm" title="${esc(f.name)}">${esc(f.name)}</span>
         <span class="up-when">${esc(niceWhen(f.at))}</span>
         <span class="st">${esc(size(f.size))}</span>
-        <button type="button" class="up-rm" onclick="removeUpload('${esc(f.id)}', this)">Remove</button>
+        <button type="button" class="up-rm" onclick="removeUpload('${jsq(f.id)}', this)">Remove</button>
       </li>`).join('');
   } catch (e){ /* offline — leave whatever's on screen */ }
 }
@@ -1167,20 +1223,20 @@ function foldVersions(rows){
 }
 
 function olderHtml(s){
-  const list = (s.older || []).filter(o => o.vimeo);
+  const list = (s.older || []).filter(o => o.vimeoId);
   if (!list.length) return '';
   const chips = list.map(o => {
     const v = o.version || 1;
     const watch = `<a class="vchip" href="#" title="Play version ${v}"
-        onclick="playVideo('${esc(o.id)}'); return false;">&#9654; v${v}</a>`;
+        onclick="playVideo('${jsq(o.id)}'); return false;">&#9654; v${v}</a>`;
     const dl = o.download
-      ? `<a class="vchip" href="${esc(o.download)}" target="_blank" rel="noopener"
+      ? `<a class="vchip" href="${esc(safeUrl(o.download))}" target="_blank" rel="noopener"
            title="Download version ${v}">&#11015;</a>`
       : '';
     // review is only present when the toggle was on for that cut, so an old
     // version keeps its notes page exactly as long as it had one
     const rev = o.review
-      ? `<a class="vchip" href="${esc(o.review)}" target="_blank" rel="noopener" data-pause
+      ? `<a class="vchip" href="${esc(safeUrl(o.review))}" target="_blank" rel="noopener" data-pause
            title="Leave timestamped notes on version ${v}">&#9998;</a>`
       : '';
     // One line per cut: reading down the list is reading back through the
@@ -1202,32 +1258,35 @@ function actionsHtml(s, where){
   const gap = underPlayer ? '' : '<span class="empty-slot"></span>';
   const slots = [
     ready && !underPlayer
-      ? `<a class="btn sm" href="#" onclick="playVideo('${esc(s.id)}'); return false;">&#9654; Watch</a>`
+      ? `<a class="btn sm" href="#" onclick="playVideo('${jsq(s.id)}'); return false;">&#9654; Watch</a>`
       : gap,
     s.download
-      ? `<a class="btn sm ghost" href="${esc(s.download)}" target="_blank" rel="noopener">&#11015; Download${
+      ? `<a class="btn sm ghost" href="${esc(safeUrl(s.download))}" target="_blank" rel="noopener">&#11015; Download${
            s.downloadSize ? ' <span style="opacity:.6;font-size:.86em">' + size(s.downloadSize) + '</span>' : ''}</a>`
       : ready
         ? `<span class="btn sm ghost prepping" title="Vimeo is still preparing the download file. Streaming works now; this appears on its own when it's ready.">&#8987; Preparing&hellip;</span>`
         : gap,
     s.review
-      ? `<a class="btn sm ghost" href="${esc(s.review)}" target="_blank" rel="noopener" data-pause
+      ? `<a class="btn sm ghost" href="${esc(safeUrl(s.review))}" target="_blank" rel="noopener" data-pause
             title="Leave timestamped notes on Vimeo">&#9998; Review</a>`
       : gap,
     ready
-      ? `<a class="btn sm ghost" href="${esc(s.vimeo)}" target="_blank" rel="noopener" data-pause>View on Vimeo</a>`
+      ? `<a class="btn sm ghost" href="${esc(safeUrl(s.vimeo))}" target="_blank" rel="noopener" data-pause>View on Vimeo</a>`
       : gap,
-    s.drive ? `<a class="btn sm ghost" href="${esc(s.drive)}" target="_blank" rel="noopener">Drive</a>` : gap
+    s.drive ? `<a class="btn sm ghost" href="${esc(safeUrl(s.drive))}" target="_blank" rel="noopener">Drive</a>` : gap
   ];
   return `<div class="actions${underPlayer ? ' under-player' : ''}">${slots.join('')}</div>`;
 }
 
 function rowHtml(s){
   const colour = COLOURS[s.status] || '#6b6b74';
-  const ready  = !!s.vimeo;
+  // Keyed on vimeoId, not the page URL: playVideo() resolves through
+  // playIndex, which only holds rows that have one — otherwise Watch and the
+  // play overlay appear and silently do nothing.
+  const ready  = !!s.vimeoId;
 
   const thumb = ready && s.thumb
-    ? `<div class="thumb" onclick="playVideo('${esc(s.id)}')">
+    ? `<div class="thumb" onclick="playVideo('${jsq(s.id)}')">
          <img src="${esc(s.thumb)}" alt="" loading="lazy"
               onerror="this.parentNode.classList.add('empty'); this.remove();">
          <div class="play">&#9654;</div>
@@ -1261,12 +1320,12 @@ function rowHtml(s){
           ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
           ${older}
           <div class="addnote">
-            <a href="#" onclick="openNote('${esc(s.id)}'); return false;">&#43; Add a note</a>
-            <form id="nf-${esc(s.id)}" style="display:none" onsubmit="event.preventDefault(); sendNote('${esc(s.id)}');">
+            <a href="#" onclick="openNote('${jsq(s.id)}'); return false;">&#43; Add a note</a>
+            <form id="nf-${esc(s.id)}" style="display:none" onsubmit="event.preventDefault(); sendNote('${jsq(s.id)}');">
               <textarea id="nt-${esc(s.id)}" rows="2" placeholder="Anything you'd like changed on this one?"></textarea>
               <div class="row">
                 <button type="submit" class="btn sm">Send</button>
-                <button type="button" class="btn sm ghost" onclick="closeNote('${esc(s.id)}')">Cancel</button>
+                <button type="button" class="btn sm ghost" onclick="closeNote('${jsq(s.id)}')">Cancel</button>
                 <span id="ns-${esc(s.id)}" class="stat"></span>
               </div>
             </form>
