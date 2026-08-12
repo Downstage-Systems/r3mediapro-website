@@ -3882,8 +3882,9 @@ function paintSelection(){
   bar.innerHTML =
     '<span class="n">'+n+'</span><span>video'+(n===1?'':'s')+' selected</span>' +
     '<span style="flex:1"></span>' +
-    '<button class="btn sm ghost" onclick="clearSel()">Clear</button>' +
+    '<button class="btn sm ghost" onclick="clearSel()">Deselect</button>' +
     '<button class="btn sm" onclick="openNumbering()">Number</button>' +
+    '<button class="btn sm ghost" onclick="clearNumbering()">Clear numbers</button>' +
     '<button class="btn sm danger" onclick="deleteSelected()">Delete selected</button>';
   bar.classList.add('on');
   document.querySelectorAll('[data-sel]').forEach(function(cb){
@@ -3960,6 +3961,33 @@ function commitNumbering(){
       toast('Numbered '+(r.numbered!=null?r.numbered:plan.length)+' video'+
             (r.numbered===1?'':'s')+'.','ok');
     }).catch(err);
+}
+
+/* The counterpart to Number: hand the numbers back. Useful after a renumber goes
+   in wrong, or when a chunk of the rundown moves and you want to redo the run.
+   The same endpoint does it — an empty number simply clears the cell. */
+function clearNumbering(){
+  var withNums = Object.keys(SEL).map(byId).filter(function(v){ return v && v.number; });
+  if(!withNums.length) return toast('None of those have a number yet.','err');
+
+  var names = withNums.map(function(v){ return v.number+' — '+(v.title||'untitled'); });
+  var preview = names.slice(0,6).join('\n') + (names.length>6 ? '\n…and '+(names.length-6)+' more' : '');
+
+  confirmThen(
+    'Clear the number on '+withNums.length+' video'+(withNums.length===1?'':'s')+'?',
+    preview + '\n\nThey go back to NEEDS VT# and can be numbered again. '
+            + 'Nothing else about them changes.',
+    function(){
+      api('numberVideos', withNums.map(function(v){ return { id:v.id, number:'' }; }),
+          S.token, S.eventId)
+        .then(function(r){
+          S.videos = r.videos || S.videos;
+          if(r.sections) S.sections = r.sections;
+          closeAll(); renderAll();
+          toast('Cleared '+withNums.length+' number'+(withNums.length===1?'':'s')+'.','ok');
+        }).catch(err);
+    },
+    { go:'Clear '+withNums.length, danger:false });
 }
 
 function deleteSelected(){
