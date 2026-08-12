@@ -536,6 +536,27 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
   display:grid;place-items:center;animation:pop .3s cubic-bezier(.2,.9,.3,1.1)}
 .sf-x svg{width:34px;height:34px;fill:none;stroke:#ef4444;stroke-width:3;stroke-linecap:round}
 
+/* ---- bulk selection (admin) ---- */
+.selcol{width:34px;text-align:center;padding-left:10px !important;padding-right:0 !important}
+.selcol input,.selsect{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;vertical-align:middle}
+.selsect{margin-right:9px}
+tr.selrow td{background:var(--accent-soft)}
+.selbar{
+  position:fixed;left:50%;bottom:18px;transform:translate(-50%,140%);
+  display:flex;align-items:center;gap:11px;z-index:240;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:13px;
+  padding:11px 14px;box-shadow:var(--shadow);font-size:13.5px;color:var(--txt);
+  width:min(520px,calc(100vw - 28px));
+  transition:transform .18s cubic-bezier(.2,.9,.3,1.1);
+}
+.selbar.on{transform:translate(-50%,0)}
+.selbar .n{
+  font-weight:800;background:var(--accent);color:#14100a;
+  border-radius:8px;padding:2px 9px;font-variant-numeric:tabular-nums;
+}
+@media(prefers-reduced-motion:reduce){ .selbar{transition:none} }
+@media print{ .selbar{display:none} }
+
 /* ============================  STATUS MENU  ============================ */
 .pill.editable{cursor:pointer;position:relative;padding-right:20px;transition:.12s}
 .pill.editable:after{content:'';position:absolute;right:7px;top:50%;margin-top:-2px;
@@ -1185,7 +1206,7 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V17';
+var UI_BUILD = 'V18';
 
 var S = {
   serverBuild:'',
@@ -1542,6 +1563,7 @@ function applyIdentity(me){
 }
 
 function applyRole(){
+  if(S.me.role!=='admin') SEL = {};   // no selecting from the client view
   var admin = S.me.role==='admin';
   var els = document.querySelectorAll('.adminOnly');
   for(var i=0;i<els.length;i++) els[i].style.display = admin ? '' : 'none';
@@ -1609,7 +1631,7 @@ function filtered(){
 /* =========================================================================
    RENDER — shell
    ========================================================================= */
-function renderAll(){ renderStats(); renderFilters(); renderView(); }
+function renderAll(){ renderStats(); renderFilters(); renderView(); paintSelection(); }
 
 function renderStats(){
   var t = tally(S.videos);
@@ -2449,6 +2471,7 @@ function renderTable(){
 
   var admin = S.me.role==='admin';
   var h = '<div class="tbl-wrap"><table'+(admin?'':' class="slim"')+'><thead><tr>';
+  if(admin) h += '<th class="selcol"><input type="checkbox" id="selAll" onclick="selectAllShown(this.checked)" title="Select everything shown"></th>';
   h += th('number','#')+th('title','Title');
   h += admin ? th('uploader','Uploader')+th('status','Status')
              : th('status','Status')+th('uploader','Uploader');
@@ -2460,7 +2483,10 @@ function renderTable(){
 
   groups.forEach(function(g){
     var t = tally(g.items);
-    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?11:7)+'">' +
+    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'">' +
+         (S.me.role==='admin'
+           ? '<input type="checkbox" class="selsect" onclick="selectSection('+JSON.stringify(g.name)+',this.checked)" title="Select this whole section">'
+           : '') +
          '<span class="sdot" style="background:'+sectionColour(g.name)+'"></span>' +
          esc(g.name)+' <span style="opacity:.6;font-weight:500;text-transform:none;letter-spacing:0">— ' +
          t.total+' videos · '+t.missing+' missing · '+
@@ -2468,7 +2494,9 @@ function renderTable(){
 
     sortIt(g.items).forEach(function(v){
       var col = S.colours[v.status]||'#64748b';
-      h += '<tr'+(isCut(v)?' class="cut"':'')+'>';
+      h += '<tr'+(isCut(v)?' class="cut"':'')+(isSel(v.id)?' selrow':'')+'>';
+      if(admin) h += '<td class="selcol"><input type="checkbox" data-sel="'+v.id+'"'+
+                     (isSel(v.id)?' checked':'')+' onclick="toggleSel(\''+v.id+'\',this.checked)"></td>';
       h += '<td><span class="vnum">'+esc(v.number||'—')+'</span>'+(videoIsNew(v)?' <span class="newtag">NEW</span>':'')+'</td>';
       h += '<td class="t-title">'+esc(v.title||'(untitled)')+'</td>';
       var uploaderTd = '<td>'+(v.uploader?'<span class="uploader">'+avatar(v.uploader)+esc(v.uploader)+'</span>':'<span style="color:var(--txt-3)">—</span>')+'</td>';
@@ -3715,6 +3743,76 @@ function nextNumberGuess(){
 function needsNumber(v){ return !String(v.number||'').trim(); }
 function unnumberedCount(){ return S.videos.filter(needsNumber).length; }
 
+/* ---- bulk selection (admin, list view) ----------------------------------
+   Built for the case that actually happens: a bulk import that went in wrong.
+   Deleting eighty rows one at a time would be minutes of round trips, so the
+   whole set goes in a single call. Selection lives only in memory — a refresh
+   clears it, which is the safe direction for something that ends in a delete. */
+var SEL = {};
+function isSel(id){ return !!SEL[id]; }
+function selCount(){ return Object.keys(SEL).length; }
+
+function toggleSel(id, on){
+  if(on) SEL[id] = true; else delete SEL[id];
+  paintSelection();
+}
+function selectSection(name, on){
+  filtered().filter(function(v){ return (v.section||UNSECTIONED) === name; })
+    .forEach(function(v){ if(on) SEL[v.id]=true; else delete SEL[v.id]; });
+  renderAll();
+}
+function selectAllShown(on){
+  filtered().forEach(function(v){ if(on) SEL[v.id]=true; else delete SEL[v.id]; });
+  renderAll();
+}
+function clearSel(){ SEL = {}; renderAll(); }
+
+/* The bar is the only thing that tells you a selection exists, so it has to
+   survive every re-render — hence rebuilding it rather than toggling a class. */
+function paintSelection(){
+  var n = selCount();
+  var bar = document.getElementById('selBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'selBar'; bar.className = 'selbar';
+    document.body.appendChild(bar);
+  }
+  if(!n || S.me.role!=='admin'){ bar.classList.remove('on'); bar.innerHTML=''; return; }
+  bar.innerHTML =
+    '<span class="n">'+n+'</span><span>video'+(n===1?'':'s')+' selected</span>' +
+    '<span style="flex:1"></span>' +
+    '<button class="btn sm ghost" onclick="clearSel()">Clear</button>' +
+    '<button class="btn sm danger" onclick="deleteSelected()">Delete selected</button>';
+  bar.classList.add('on');
+  document.querySelectorAll('[data-sel]').forEach(function(cb){
+    cb.checked = isSel(cb.getAttribute('data-sel'));
+  });
+}
+
+function deleteSelected(){
+  var ids = Object.keys(SEL);
+  if(!ids.length) return;
+  var names = ids.map(function(id){ var v=byId(id);
+      return v ? ((v.number ? v.number+' — ' : '')+(v.title||'untitled')) : id; });
+  var preview = names.slice(0,6).join('\n') + (names.length>6 ? '\n…and '+(names.length-6)+' more' : '');
+
+  confirmThen(
+    'Delete '+ids.length+' video'+(ids.length===1?'':'s')+'?',
+    preview + '\n\nThis removes them and their version history from the tracker. '
+            + 'Files already uploaded to Drive are NOT deleted. This cannot be undone.',
+    function(){
+      api('deleteVideos', ids, S.token, S.eventId).then(function(r){
+        S.videos = r.videos || S.videos;
+        if(r.sections) S.sections = r.sections;
+        SEL = {};
+        closeAll(); renderAll();
+        toast('Deleted '+(r.removed!=null?r.removed:ids.length)+' video'+
+              ((r.removed===1)?'':'s')+'.','ok');
+      }).catch(err);
+    },
+    { go:'Delete '+ids.length });
+}
+
 function deleteVideoConfirm(){
   var id = S.editing;                        // capture before closeAll clears it
   if(!id) return;
@@ -4021,6 +4119,7 @@ function commitEvent(){
 /* ---- event switcher (admin) ---- */
 function switchEvent(id){
   if(!id || id===S.eventId) return;
+  SEL = {};                      // ids mean nothing in another event
   S.eventId = id;
   try{ localStorage.setItem('mcbc_event', S.eventId); }catch(e){}
   pullNow(true).then(function(){
