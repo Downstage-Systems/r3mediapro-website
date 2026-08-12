@@ -571,33 +571,54 @@ function roomLabel(code, name){
   return code;
 }
 
-async function fetchBoard(){
-  if (!API || API.indexOf('PASTE_YOUR') === 0){
-    throw new Error('This page hasn’t been connected to the tracker yet (setup step 4). ' +
-                    'Contact rob@r3mediapro.com.');
-  }
-  lastFetch = Date.now();
-  // POST, not a query string: a GET puts the client's password into browser
-  // history, Apps Script's execution log and any proxy in between — on the one
-  // page whose whole job is being password-gated.
+/* POST keeps the client's password out of browser history, Apps Script's
+   execution log and any proxy in between — but /exec answers POST through a
+   redirect hop that has proved unreliable (404s and 50s hangs while plain GET
+   answered in 8s). So POST is preferred, not depended on: one failure and this
+   session falls back to GET and stays there. A client seeing their videos
+   beats tidy logs. */
+let boardPost = true;
+
+async function boardVia(method, ms){
   const ctl = new AbortController();
-  // And a timeout, so a connection that hangs rather than fails doesn't leave
-  // the page stuck on "Checking…" with Refresh greyed out.
-  const bell = setTimeout(() => ctl.abort(), 30000);
+  // A timeout so a hung connection doesn't strand the page on "Checking…" —
+  // but generous, because Apps Script legitimately takes tens of seconds.
+  const bell = setTimeout(() => ctl.abort(), ms);
   let res;
   try {
-    res = await fetch(API, {
-      method: 'POST', redirect: 'follow', signal: ctl.signal,
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ mode: 'portal', event: EVENT, pw: password })
-    });
+    res = method === 'POST'
+      ? await fetch(API, { method:'POST', redirect:'follow', signal: ctl.signal,
+                           headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+                           body: JSON.stringify({ mode:'portal', event: EVENT, pw: password }) })
+      : await fetch(API + '?mode=portal&event=' + encodeURIComponent(EVENT) +
+                    '&pw=' + encodeURIComponent(password),
+                    { redirect:'follow', signal: ctl.signal });
   } catch (e){
     throw new Error(e.name === 'AbortError'
       ? 'The server took too long to answer — showing the last update.'
       : 'Could not reach the server — check your internet connection.');
   } finally { clearTimeout(bell); }
   if (!res.ok) throw new Error('The server returned an error (' + res.status + ').');
-  return res.json();
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e){
+    // Apps Script hands back its own HTML error page often enough that this
+    // has to be treated as a transport failure, not as data.
+    throw new Error('The server answered with a page instead of data.');
+  }
+}
+
+async function fetchBoard(){
+  if (!API || API.indexOf('PASTE_YOUR') === 0){
+    throw new Error('This page hasn’t been connected to the tracker yet (setup step 4). ' +
+                    'Contact rob@r3mediapro.com.');
+  }
+  lastFetch = Date.now();
+  if (boardPost){
+    try { return await boardVia('POST', 20000); }
+    catch (e){ boardPost = false; }        // don't pay for it again this visit
+  }
+  return boardVia('GET', 60000);
 }
 
 async function unlock(){
@@ -650,17 +671,23 @@ async function refresh(loud){
   const hdr = document.getElementById('hdr-updated');
   if (loud){ txt.textContent = 'Checking…'; if (hdr) hdr.textContent = 'Checking…'; }
   if (btn) btn.disabled = true;
+  let data;
   try {
-    const data = await fetchBoard();
-    if (data.ok) render(data);
+    data = await fetchBoard();
   } catch (e){
-    txt.textContent = 'Couldn’t reach the server — showing the last update.';
+    txt.textContent = e.message && /took too long/.test(e.message)
+      ? 'The server is being slow — showing the last update.'
+      : 'Couldn’t reach the server — showing the last update.';
     document.getElementById('dot').style.background = '#d98324';
     if (hdr) hdr.textContent = 'Offline';
     document.getElementById('dot2').style.background = '#d98324';
   } finally {
     if (btn) btn.disabled = false;
   }
+  // Rendering happens outside that catch on purpose: a fault in drawing the
+  // page is not the server being unreachable, and reporting it as "Offline"
+  // sent us looking at the network for a bug that was never there.
+  if (data && data.ok) render(data);
 }
 
 let firstLoaded = false;
