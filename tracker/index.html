@@ -280,6 +280,11 @@ td.status-cell .tgt{
 }
 td.status-cell .tgt:hover{border-color:var(--line)}
 td.status-cell .tgt:not([value=""]){color:var(--text)}
+/* Past its date and still outstanding. Amber, not red — it's a nudge to
+   re-date or deliver, not an error. The client sees "Expected Soon". */
+td.status-cell .tgt.late{
+  color:#e0a244;border-color:rgba(217,131,36,.55);background:rgba(217,131,36,.10);
+}
 .rowx{color:#55555f;font-size:1.05rem;line-height:1;padding:6px 8px;border-radius:4px}
 .rowx:hover{color:var(--red-bright);background:rgba(230,57,70,.1)}
 
@@ -578,6 +583,7 @@ tr.cutrow td.handle{opacity:.75}
 }
 /* Signed off. Deliberately quiet — green like Delivered, but an outline
    rather than a fill, so a table of final cuts doesn't read as a wall. */
+.legend .late-k{color:#e0a244}
 .finchip{
   display:inline-flex;flex:none;align-items:center;vertical-align:middle;
   font-size:.58rem;font-weight:800;letter-spacing:.1em;
@@ -755,7 +761,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 8:28 AM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 9:16 AM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -1969,8 +1975,10 @@ function rowEl(s){
         ${STATUSES.map(o => `<option value="${o.key}" ${o.key === s.status ? 'selected' : ''}>${esc(sLabel(o.key))}</option>`).join('')}
       </select>
       <div class="tgtrow">
-        <input class="cell tgt" type="date" data-f="target" value="${esc(s.target || '')}"
-               title="Optional. Shown to the client as “Expected …” until the video is up.">
+        <input class="cell tgt${isLate(s) ? ' late' : ''}" type="date" data-f="target" value="${esc(s.target || '')}"
+               title="${isLate(s)
+                 ? 'This date has passed — the client now sees “Expected Soon” instead of the date.'
+                 : 'Optional. Shown to the client as “Expected …” until the video is up.'}">
         ${s.target ? '<button class="tgtx" data-act="cleartgt" title="Clear the expected date">&times;</button>' : ''}
       </div>
     </td>
@@ -2393,6 +2401,23 @@ function refreshComputed(){
     keeps behaving the same. */
 function hiddenCount(){ return proj().sessions.filter(s => s.hidden).length; }
 
+/**
+ * An expected date that has gone by on something still outstanding. Compared
+ * as plain YYYY-MM-DD strings against today — parsing the value as a Date
+ * makes it UTC midnight, which reads a day early west of Greenwich. The date
+ * itself isn't late until the day after, and anything delivered or not being
+ * delivered at all is never late.
+ */
+function todayYMD(){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function isLate(s){
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.target || ''))) return false;
+  if (s.status === 'delivered' || s.status === 'deleted' || notCounted(s)) return false;
+  return s.target < todayYMD();
+}
+
 function notCounted(s){
   return s.status === 'undeliverable' || !!s.uncounted || !!s.hidden;
 }
@@ -2426,6 +2451,9 @@ function updateStrip(){
   document.getElementById('legend').innerHTML =
     STATUSES.filter(s => counts[s.key] || !s.off)
       .map(s => `<span class="k"><span class="dot" style="background:${s.hex}"></span>${esc(sLabel(s.key))} <b>${counts[s.key]}</b></span>`).join('') +
+    (() => { const n = p.sessions.filter(isLate).length;
+       return n ? `<span class="k late-k" title="Past their expected date — the client sees “Expected Soon” until you re-date or deliver them">` +
+                  `<span class="dot" style="background:#d98324"></span>${n} past their date</span>` : ''; })() +
     `<span class="done"><b>${done}</b> of <b>${total}</b> delivered${total ? ' &nbsp;&middot;&nbsp; ' + Math.round(done/total*100) + '%' : ''}` +
     `${spare ? ` &nbsp;&middot;&nbsp; ${spare} undeliverable` : ''}</span>`;
 }
