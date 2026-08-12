@@ -1567,15 +1567,15 @@ function startPolling(){
 /* =========================================================================
    PASSWORD GATE
    ========================================================================= */
+/* The gate deliberately names no event. Several run at once behind their own
+   codes, so until someone types one there is nothing to name — and the only
+   guess available was "whichever event is flagged active", which put an
+   internal event's name on a public page. It also cost a round trip before the
+   box could settle, so dropping it makes the gate appear at once. */
 function showGate(){
   S.vtok=''; localStorage.removeItem('mcbc_view'); clearCache();
   document.getElementById('boot').style.display='none';
   document.getElementById('gate').classList.add('on');
-  api('getGateInfo').then(function(g){
-    applyTheme(g.theme);
-    document.getElementById('gateName').textContent =
-      ((g.eventName||'Video Tracker')+' '+(g.eventYear||'')).trim();
-  }).catch(function(){});
   setTimeout(function(){ document.getElementById('gatePw').focus(); },150);
 }
 
