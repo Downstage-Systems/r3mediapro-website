@@ -536,7 +536,6 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
   display:grid;place-items:center;animation:pop .3s cubic-bezier(.2,.9,.3,1.1)}
 .sf-x svg{width:34px;height:34px;fill:none;stroke:#ef4444;stroke-width:3;stroke-linecap:round}
 
-.ordcell{font-variant-numeric:tabular-nums;color:var(--txt-2);font-size:12.5px}
 .onhand{font-size:12px;color:var(--green);font-weight:600}
 .agencyline{font-size:11.5px;color:var(--txt-3);margin-top:2px;line-height:1.3}
 
@@ -1274,7 +1273,8 @@ var S = {
   viewAs:'', meReal:{role:'client',email:''},
   lastSeen:Number(localStorage.getItem('mcbc_lastseen')||0), fNew:false, fUnnumbered:false, fShow:'',
   view:'table', q:'', fStatus:[], fUploader:'', fSection:'',
-  sort:{key:'number',dir:1}, hidePlayed:false, closedSections:{},
+  // 'order' is the running order set on Show Day — the order the rundown plays in
+  sort:{key:'order',dir:1}, hidePlayed:false, closedSections:{},
   editing:null, historyId:null, submitMode:'link', pendingFile:null,
   uploading:false, abort:false, secDraft:[], renderedSections:[],
   sheetUrl:'#', appUrl:''
@@ -1790,6 +1790,8 @@ function renderFilters(){
     h += '<div class="fspace"></div>';
     if(S.fStatus.length||S.fUploader||S.fSection||S.q)
       h += '<button class="btn ghost sm" onclick="clearFilters()">Clear filters</button>';
+    if(S.sort.key!=='order')
+      h += '<button class="btn ghost sm" onclick="resetSort()" title="Back to the running order">&#8635; Running order</button>';
     document.getElementById('filters').innerHTML = h;
     return;
   }
@@ -1819,6 +1821,8 @@ function renderFilters(){
   }
   if(S.fStatus.length||S.fUploader||S.fSection||S.q||S.fNew||S.fUnnumbered||S.fShow)
     h += '<button class="btn ghost sm" onclick="clearFilters()">Clear filters</button>';
+  if(S.sort.key!=='order')
+    h += '<button class="btn ghost sm" onclick="resetSort()" title="Back to the running order">&#8635; Running order</button>';
   document.getElementById('filters').innerHTML = h;
 }
 
@@ -2427,7 +2431,7 @@ function renderBoard(){
     return '<div class="sect'+(closed?' closed':'')+'">' +
            sectionHeadHtml(g, i, true) +
            '<div class="sect-body"><div class="grid">' +
-           g.items.slice().sort(cmpNumber).map(cardHtml).join('') +
+           g.items.slice().sort(cmpRunning).map(cardHtml).join('') +
            '</div></div></div>';
   }).join('');
 }
@@ -2511,6 +2515,19 @@ function cardHtml(v){
    ========================================================================= */
 /* The table's row order, available outside the renderer — bulk numbering has to
    hand out numbers in the same order the eye reads them. */
+/* The running order — what Show Day's drag-and-drop writes. This is the order
+   the rundown actually plays in, so it is what every view leads with. Videos
+   with no slot yet fall to the end, in video-number order so they stay
+   predictable rather than arbitrary. */
+function cmpRunning(a,b){
+  var ao = a.order==null ? null : Number(a.order);
+  var bo = b.order==null ? null : Number(b.order);
+  if(ao===null && bo===null) return cmpNumber(a,b);
+  if(ao===null) return 1;
+  if(bo===null) return -1;
+  return ao-bo;
+}
+
 function sortRows(arr){
   var k = S.sort.key, d = S.sort.dir;
   return arr.slice().sort(function(a,b){
@@ -2522,7 +2539,7 @@ function sortRows(arr){
       // arrow shouldn't float everything without a slot to the top.
       var ao = a.order==null ? null : Number(a.order);
       var bo = b.order==null ? null : Number(b.order);
-      if(ao===null && bo===null) return 0;
+      if(ao===null && bo===null) return cmpNumber(a,b)*d;
       if(ao===null) return 1;
       if(bo===null) return -1;
       return (ao-bo)*d;
@@ -2544,7 +2561,7 @@ function renderTable(){
   var admin = S.me.role==='admin';
   var h = '<div class="tbl-wrap"><table'+(admin?'':' class="slim"')+'><thead><tr>';
   if(admin) h += '<th class="selcol"><input type="checkbox" id="selAll" onclick="selectAllShown(this.checked)" title="Select everything shown"></th>';
-  h += th('number','#') + (admin ? th('order','Order') : '') + th('title','Title');
+  h += th('number','#')+th('title','Title');
   h += admin ? th('uploader','Uploader')+th('status','Status')
              : th('status','Status')+th('uploader','Uploader');
   if(admin) h += '<th>Show</th>'+th('version','Ver')+'<th>Current file / link</th>'+'<th>Notes</th>'+
@@ -2555,7 +2572,7 @@ function renderTable(){
 
   groups.forEach(function(g){
     var t = tally(g.items);
-    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?13:7)+'">' +
+    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'">' +
          (S.me.role==='admin'
            ? '<input type="checkbox" class="selsect" onclick="selectSection('+JSON.stringify(g.name)+',this.checked)" title="Select this whole section">'
            : '') +
@@ -2570,7 +2587,6 @@ function renderTable(){
       if(admin) h += '<td class="selcol"><input type="checkbox" data-sel="'+v.id+'"'+
                      (isSel(v.id)?' checked':'')+' onclick="toggleSel(\''+v.id+'\',this.checked)"></td>';
       h += '<td><span class="vnum">'+esc(v.number||'—')+'</span>'+(videoIsNew(v)?' <span class="newtag">NEW</span>':'')+'</td>';
-      if(admin) h += '<td class="ordcell">'+(v.order==null?'<span style="color:var(--txt-3)">—</span>':v.order)+'</td>';
       h += '<td class="t-title">'+esc(v.title||'(untitled)')+'</td>';
       var uploaderTd = '<td>'+(v.uploader
             ? '<span class="uploader">'+avatar(v.uploader)+esc(v.uploader)+'</span>'
@@ -2610,9 +2626,13 @@ function renderTable(){
   return h;
 }
 
+/* Column sorts are a temporary lens; this puts the rundown back in the order it
+   plays in. Only offered while a different sort is active. */
+function resetSort(){ S.sort = {key:'order', dir:1}; renderView(); renderFilters(); }
+
 function sortBy(k){
   if(S.sort.key===k) S.sort.dir*=-1; else { S.sort.key=k; S.sort.dir=1; }
-  renderView();
+  renderView(); renderFilters();
 }
 
 /* =========================================================================
