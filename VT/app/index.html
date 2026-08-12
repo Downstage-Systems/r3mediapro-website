@@ -546,12 +546,16 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 tr.selrow td{background:var(--accent-soft)}
 .selbar{
   position:fixed;left:50%;bottom:18px;transform:translate(-50%,140%);
-  display:flex;align-items:center;gap:11px;z-index:240;
+  display:flex;align-items:center;justify-content:center;gap:10px;z-index:240;
   background:var(--panel-2);border:1px solid var(--line);border-radius:13px;
   padding:11px 14px;box-shadow:var(--shadow);font-size:13.5px;color:var(--txt);
-  width:min(520px,calc(100vw - 28px));
+  /* sized by its contents, not a guess: four buttons never fitted 520px and
+     spilled past the rounded edge. Wraps to a second line before it overflows. */
+  width:max-content;max-width:calc(100vw - 24px);flex-wrap:wrap;
   transition:transform .18s cubic-bezier(.2,.9,.3,1.1);
 }
+.selbar .lbl{white-space:nowrap}
+.selbar .btn{flex:0 0 auto;white-space:nowrap}
 .selbar.on{transform:translate(-50%,0)}
 .selbar .n{
   font-weight:800;background:var(--accent);color:#14100a;
@@ -3880,8 +3884,7 @@ function paintSelection(){
   }
   if(!n || S.me.role!=='admin'){ bar.classList.remove('on'); bar.innerHTML=''; return; }
   bar.innerHTML =
-    '<span class="n">'+n+'</span><span>video'+(n===1?'':'s')+' selected</span>' +
-    '<span style="flex:1"></span>' +
+    '<span class="n">'+n+'</span><span class="lbl">video'+(n===1?'':'s')+' selected</span>' +
     '<button class="btn sm ghost" onclick="clearSel()">Deselect</button>' +
     '<button class="btn sm" onclick="openNumbering()">Number</button>' +
     '<button class="btn sm ghost" onclick="clearNumbering()">Clear numbers</button>' +
