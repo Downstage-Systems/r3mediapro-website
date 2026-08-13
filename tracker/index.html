@@ -761,7 +761,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 8:05 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 8:23 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -4438,7 +4438,7 @@ function openCredentials(){
   lines.push(`Here are the details for your private ${p.name} page:`);
   lines.push('');
   lines.push(clientUrl());
-  lines.push(`Access code: ${p.eventSlug}   (already in the link — nothing to type)`);
+  lines.push(`Access code: ${p.eventSlug}   (already in the link, nothing to type)`);
   lines.push(p.clientPassword
     ? `Password: ${p.clientPassword}`
     : 'No password is set on this page — anyone with the link can open it.');
@@ -4447,13 +4447,13 @@ function openCredentials(){
   lines.push('');
   lines.push('Any trouble getting in, just reply to this email.');
   lines.push('');
-  lines.push('-Cheers');
+  lines.push(brandOf(p).signoff);
   lines.push('Rob Spradling');
   lines.push(brandOf(p).name);
   lines.push('rob@r3mediapro.com');
 
   document.getElementById('mail-title').textContent = 'Access details';
-  document.getElementById('mail-subject').value = `Your access details — ${p.name}`;
+  document.getElementById('mail-subject').value = `Your access details: ${p.name}`;
   document.getElementById('mail-body').value = lines.join('\n');
   document.getElementById('mail-warn').textContent = p.clientPassword
     ? ''
@@ -4484,7 +4484,7 @@ function openHandoff(){
   if (p.clientPassword) lines.push(`Password: ${p.clientPassword}`);
   lines.push('');
   if (d.complete){
-    lines.push(`Here is everything that's there — ${d.total} in total:`);
+    lines.push(`Here is everything that's there, ${d.total} in total:`);
     lines.push('');
     deliverableList(d.rows).forEach(l => lines.push(l));
     if (d.spare.length){
@@ -4497,7 +4497,7 @@ function openHandoff(){
   } else {
     // Deliberately evergreen while work is outstanding — a count would be out
     // of date the moment you cut the next session, and the page is live.
-    lines.push('Sessions appear there as they are finished, so the link stays current — no need to wait for another email.');
+    lines.push('Sessions appear there as they are finished, so the link stays current. No need to wait for another email.');
     if (p.eta) lines.push(p.eta);
   }
   lines.push('');
@@ -4507,20 +4507,20 @@ function openHandoff(){
   lines.push('• Click any session to play it in the player at the top, or use Download to save the full-quality file.');
   lines.push('• Please save the files to your own drive or server. They are guaranteed available for one year from delivery.');
   if (anyReview) lines.push('• Where you see a Review button, that opens Vimeo so you can leave notes at exact timestamps.');
-  lines.push('• Want a change on something? Use "Add a note" underneath that session and it comes straight to me.');
+  lines.push(`• Want a change on something? Use "Add a note" underneath that session and it comes straight to ${brandOf(p).me}.`);
   lines.push('');
   lines.push('Feel free to share the link and password with your team.');
   lines.push('');
   lines.push('Any questions, just reply to this email.');
   lines.push('');
-  lines.push('-Cheers');
+  lines.push(brandOf(p).signoff);
   lines.push('Rob Spradling');
   lines.push(brandOf(p).name);
   lines.push('rob@r3mediapro.com');
 
   document.getElementById('mail-title').textContent = 'Delivery email';
   document.getElementById('mail-subject').value = d.complete
-    ? `All ${d.total} video${d.total === 1 ? '' : 's'} ready — ${p.name}`
+    ? `All ${d.total} video${d.total === 1 ? '' : 's'} ready: ${p.name}`
     : `Your videos from ${p.name}`;
   document.getElementById('mail-body').value = lines.join('\n');
   document.getElementById('mail-warn').textContent = p.clientPassword
@@ -4560,8 +4560,14 @@ function mailCopy(btn){
  * it's been switched, and switching it is a real edit.
  */
 const BRANDS = {
-  r3:  { name: 'R3 Media Production', portal: 'https://r3mediapro.com/portal/event.html' },
-  evp: { name: 'Event Video Pros',    portal: 'https://eventvideopros.com/portal/event.html' }
+  // `me` / `signoff`: R3 is Rob working under his own name, EVP is pitched to
+  // corporate clients as a team, so the same sentence has to read "straight to
+  // me" on one and "straight to us" on the other. EVP's house style also bars
+  // em dashes as connectors, so none of this copy uses them.
+  r3:  { name: 'R3 Media Production', portal: 'https://r3mediapro.com/portal/event.html',
+         me: 'me', signoff: '-Cheers' },
+  evp: { name: 'Event Video Pros',    portal: 'https://eventvideopros.com/portal/event.html',
+         me: 'us', signoff: 'Thanks,' }
 };
 function brandKey(p){ return ((p || proj()).settings || {}).brand === 'evp' ? 'evp' : 'r3'; }
 function brandOf(p){ return BRANDS[brandKey(p)]; }
