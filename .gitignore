@@ -1,5 +1,5 @@
 .DS_Store
-# full-resolution originals: drop them in assets/BTS and I will crop web copies
+# Full-resolution originals: drop them in assets/BTS and I will crop web copies.
+# Do NOT add "*.JPG" here - macOS is case-insensitive, so it silently swallows
+# the lowercase assets/bts-*.jpg web crops too.
 assets/BTS/
-*.JPG
-*.jpeg
