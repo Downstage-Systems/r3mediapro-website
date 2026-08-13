@@ -1,1 +1,5 @@
 .DS_Store
+# full-resolution originals: drop them in assets/BTS and I will crop web copies
+assets/BTS/
+*.JPG
+*.jpeg
