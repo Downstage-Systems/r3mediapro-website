@@ -761,7 +761,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 9:09 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 9:48 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -4135,17 +4135,35 @@ function mergeRemote(data){
 // Apps Script intermittently answers with a Google error page instead of the
 // script's own response, so a single failed call means nothing — retry before
 // believing it. Real answers ("bad token") are never retried.
+/* Each attempt is bounded. Before this there was no timeout at all, so a
+   hung call had no ceiling and three retries of one could freeze a sync for
+   minutes with nothing on screen to explain it.
+
+   Sized from 20 rounds measured against /exec on 12 Aug 2026. GET answered
+   17 of 20 and usually inside 4s. POST, which every push uses and which goes
+   through a redirect hop, answered only 10 of 20 and took 10 to 38 seconds
+   either way. The successes clustered at or under 20s while the failures ran
+   past 23s, so 30s on the early attempts clears every success seen with room
+   to spare while cutting a true hang short, and the last attempt is patient
+   in case a large push genuinely is slow.
+
+   Retrying stays worth it: the failures are intermittent rather than
+   sustained, and a call often succeeded seconds after one failed. */
+const API_BUDGET = [30000, 30000, 75000];
+
 async function api(payload, query, tries){
   tries = tries || 3;
   const url = sync.url + (query || '');
-  const opts = payload
+  const base = payload
     ? { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' }
     : { method: 'GET', redirect: 'follow' };
 
   let last;
   for (let i = 0; i < tries; i++){
+    const ctl = new AbortController();
+    const bell = setTimeout(() => ctl.abort(), API_BUDGET[Math.min(i, API_BUDGET.length - 1)]);
     try {
-      const res = await fetch(url, opts);
+      const res = await fetch(url, Object.assign({}, base, { signal: ctl.signal }));
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); }
@@ -4157,11 +4175,12 @@ async function api(payload, query, tries){
       if (data.ok === false) throw new Error(data.error || 'server said no');
       return data;
     } catch (err){
+      if (err.name === 'AbortError') err = new Error('Google took too long to answer');
       last = err;
-      const worthRetrying = /hiccup|unreadable|HTTP (429|5\d\d)|Failed to fetch|NetworkError|Load failed/i.test(err.message);
+      const worthRetrying = /hiccup|unreadable|took too long|HTTP (429|5\d\d)|Failed to fetch|NetworkError|Load failed/i.test(err.message);
       if (!worthRetrying || i === tries - 1) throw err;
       await new Promise(r => setTimeout(r, 500 * (i + 1)));
-    }
+    } finally { clearTimeout(bell); }
   }
   throw last;
 }
