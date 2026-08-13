@@ -761,7 +761,7 @@ h4.sec:first-child{margin-top:0}
     </a>
     <div class="wordmark">Video Editing Tracker</div>
     <div class="spacer"></div>
-    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 2:34 PM MT</span>
+    <span class="muted" id="buildstamp" style="font-size:.72rem;color:var(--muted);opacity:.5" title="Which build of the tracker you're running">build Aug 12, 8:05 PM MT</span>
     <span class="saveping" id="saveping">Saved</span>
     <button class="pill" id="sync-pill" onclick="openSync()" title="Sync settings">Not synced</button>
     <button class="btn ghost sm" onclick="syncNow()" title="Sync now" id="btn-syncnow">&#8635;</button>
@@ -1130,6 +1130,13 @@ h4.sec:first-child{margin-top:0}
       <p id="sy-result" style="font-size:.82rem;color:var(--muted);margin-top:12px"></p>
 
       <h4 class="sec">Client page for “<span id="sy-project"></span>”</h4>
+      <label class="lbl" for="sy-brand">Delivered as</label>
+      <select class="field" id="sy-brand" style="max-width:260px" onchange="saveSyncSettings()"
+              title="Which brand this client sees. It sets the domain their link points at, and the page skins itself to match.">
+        <option value="r3">R3 Media Production</option>
+        <option value="evp">Event Video Pros</option>
+      </select>
+      <div class="help" style="margin:6px 0 14px">Sets the domain the client's link uses, and the look of their page.</div>
       <div class="setgrid">
         <div>
           <label class="lbl" for="sy-slug">Event slug</label>
@@ -4350,6 +4357,7 @@ function openSync(){
   document.getElementById('sy-slug').value = p.eventSlug || '';
   document.getElementById('sy-pw').value = p.clientPassword || '';
   document.getElementById('sy-project').textContent = p.name;
+  document.getElementById('sy-brand').value = brandKey(p);
   document.getElementById('sy-autoreview').checked = !!cfg().autoReview;
   document.getElementById('sy-uploads').checked = !!p.uploadsOn;
   document.getElementById('sy-upfolder').value = p.uploadFolder || '';
@@ -4379,6 +4387,7 @@ function saveSyncSettings(){
   p.clientPassword = document.getElementById('sy-pw').value.trim();
   const fsel = document.getElementById('sy-folder');
   if (fsel) p.vimeoFolder = fsel.value;
+  cfg().brand = document.getElementById('sy-brand').value === 'evp' ? 'evp' : 'r3';
   cfg().autoReview = document.getElementById('sy-autoreview').checked;
   p.uploadsOn = document.getElementById('sy-uploads').checked;
   p.uploadFolder = document.getElementById('sy-upfolder').value.trim();
@@ -4440,7 +4449,7 @@ function openCredentials(){
   lines.push('');
   lines.push('-Cheers');
   lines.push('Rob Spradling');
-  lines.push('R3 Media Production');
+  lines.push(brandOf(p).name);
   lines.push('rob@r3mediapro.com');
 
   document.getElementById('mail-title').textContent = 'Access details';
@@ -4506,7 +4515,7 @@ function openHandoff(){
   lines.push('');
   lines.push('-Cheers');
   lines.push('Rob Spradling');
-  lines.push('R3 Media Production');
+  lines.push(brandOf(p).name);
   lines.push('rob@r3mediapro.com');
 
   document.getElementById('mail-title').textContent = 'Delivery email';
@@ -4540,11 +4549,26 @@ function mailCopy(btn){
 }
 
 /* --------- the client's own page --------- */
-const PORTAL_BASE = 'https://r3mediapro.com/portal/event.html';
+/**
+ * Which of the two brands a project is delivered under. EVP is the
+ * corporate-event brand; R3 is the Denver-local one. It decides the domain the
+ * client's link points at, and the page brands itself from that hostname.
+ *
+ * Deliberately read with a fallback instead of joining DEFAULT_SETTINGS:
+ * adding a key there rewrites every project's fingerprint, which is the change
+ * class that cost a day's work on 7 Aug. A project only carries `brand` once
+ * it's been switched, and switching it is a real edit.
+ */
+const BRANDS = {
+  r3:  { name: 'R3 Media Production', portal: 'https://r3mediapro.com/portal/event.html' },
+  evp: { name: 'Event Video Pros',    portal: 'https://eventvideopros.com/portal/event.html' }
+};
+function brandKey(p){ return ((p || proj()).settings || {}).brand === 'evp' ? 'evp' : 'r3'; }
+function brandOf(p){ return BRANDS[brandKey(p)]; }
 
 function clientUrl(){
   const p = proj();
-  return p.eventSlug ? PORTAL_BASE + '?event=' + encodeURIComponent(p.eventSlug) : '';
+  return p.eventSlug ? brandOf(p).portal + '?event=' + encodeURIComponent(p.eventSlug) : '';
 }
 
 function needSlug(){

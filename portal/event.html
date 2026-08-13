@@ -4,12 +4,74 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
-  <title>Your Event | R3 Media Production</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-r3-32.png">
-  <link rel="icon" type="image/png" sizes="256x256" href="../assets/favicon-r3.png">
-  <link rel="apple-touch-icon" href="../assets/favicon-r3.png">
+  <title>Your Event</title>
   <link rel="stylesheet" href="../css/styles.css">
+  <script>
+  /* One portal, two brands. Which one is decided by the domain it's served
+     from, not by the data: the gate screen paints before any API call, and a
+     client should never see the wrong logo for a second. The tracker picks the
+     domain when it builds the link. ?brand= is for previewing only. */
+  (function(){
+    var q = new URLSearchParams(location.search).get('brand');
+    var evp = q ? q === 'evp' : /eventvideopros/i.test(location.hostname);
+    window.BRAND = evp
+      ? { key:'evp', name:'Event Video Pros', mark:'../assets/evp-mark.png',
+          wordmark:'../assets/evp-wordmark.png', icon:'../assets/favicon.png' }
+      : { key:'r3',  name:'R3 Media Production', mark:'../assets/r3-mark.png',
+          wordmark:'../assets/mp-text.png', icon:'../assets/favicon-r3.png' };
+    document.documentElement.className = 'brand-' + window.BRAND.key;
+    document.title = 'Your Event | ' + window.BRAND.name;
+    var ico = window.BRAND.icon;
+    document.write('<link rel="icon" type="image/png" href="' + ico + '">' +
+                   '<link rel="apple-touch-icon" href="' + ico + '">');
+  })();
+  </script>
   <style>
+    /* The page owns its palette rather than borrowing the host site's. The two
+       stylesheets use different variable names (EVP has no --text, --muted or
+       --red-bright), so leaning on them left half the page unstyled on one of
+       the domains. Restating them here makes the portal render correctly
+       wherever it is served, and gives the EVP skin one place to change.
+       EVP is deliberately light against R3's dark: slate blue is the brand
+       colour, gold the accent. The style guide's electric blue is not used. */
+    html.brand-r3{
+      --bg:#0c0c0e; --bg-alt:#131316; --card:#1a1a1e; --line:#2a2a30;
+      --text:#f4f4f5; --muted:#9d9da6; --red:#c1121f; --red-bright:#e63946;
+      --accent:#e63946; --shade:rgba(255,255,255,.02);
+    }
+    html.brand-evp{
+      --bg:#ffffff; --bg-alt:#F8F9FA; --card:#F8F9FA; --line:#E3E6EA;
+      --text:#2E2E2E; --muted:#6C757D; --red:#3A4677; --red-bright:#4C5A99;
+      --accent:#C19A36; --shade:rgba(76,90,153,.04);
+    }
+    html.brand-evp body{ background:var(--bg); color:var(--text); }
+    /* Surfaces tuned as "a shade lighter than black" have to become a shade
+       darker than white, not stay almost invisible. */
+    html.brand-evp .vsearch,
+    html.brand-evp .up-list li{ background:var(--shade); }
+    html.brand-evp .dropbox:hover,
+    html.brand-evp .dropbox.over{ background:rgba(76,90,153,.06); }
+    html.brand-evp .thumb{ background:linear-gradient(135deg,#EEF0F7,#E3E6EA); }
+    html.brand-evp .thumb.empty{ color:#AEB4C0; }
+    html.brand-evp .gate-logo .mp{ filter:none; opacity:1; }
+    html.brand-evp .vt .note{ color:#3A4677; border-left-color:rgba(76,90,153,.45); }
+    html.brand-evp .expected{ color:#8A6D1F; border-left-color:rgba(193,154,54,.65); }
+    html.brand-evp #player-wrap{ background:#111; }
+    html.brand-evp .pactions{ background:var(--bg-alt); }
+    html.brand-evp .up-list li a{ border-bottom-color:#C3C9D2; }
+    html.brand-evp .addnote > a{ color:#6C757D; border-bottom-color:#C3C9D2; }
+    html.brand-evp .kicker{ color:var(--accent); }
+    /* The empty part of the bar was a dark fill, which on white read as though
+       the bar were full and black. */
+    html.brand-evp .prog-bar{ background:#E3E6EA; }
+    /* One-piece lockup, so it is sized directly rather than as mark + wordmark */
+    html.brand-evp .site-header .brand img.evp-lock{ height:26px; width:auto; max-width:none; }
+    html.brand-evp .gate-logo img.evp-lock{ height:40px; width:auto; }
+    @media (max-width:620px){
+      html.brand-evp .site-header .brand img.evp-lock{ height:21px; }
+      html.brand-evp .gate-logo img.evp-lock{ height:32px; }
+    }
+
     .badge{
       display:inline-block; padding:5px 12px; border-radius:20px; font-size:.72rem;
       font-weight:700; letter-spacing:.04em; white-space:nowrap; vertical-align:middle;
@@ -305,10 +367,7 @@
 
 <header class="site-header">
   <div class="wrap nav">
-    <a class="brand" href="../index.html">
-      <img src="../assets/r3-mark.png" alt="R3 Media Production logo">
-      <img class="mp-text" src="../assets/mp-text.png" alt="Media Production">
-    </a>
+    <a class="brand" href="../index.html" id="brand-lockup"></a>
     <nav class="links portal-tools" id="portal-tools" style="display:none;">
       <span class="hdr-live" id="hdr-live" title="This page updates itself as videos are finished">
         <i id="dot2"></i><span id="hdr-updated">Live</span>
@@ -330,10 +389,7 @@
 <!-- ---------- password gate ---------- -->
 <section id="gate">
   <div class="page-hero"><div class="wrap" style="text-align:center;">
-    <div class="gate-logo">
-      <img src="../assets/r3-mark.png" alt="R3 Media Production">
-      <img class="mp" src="../assets/mp-text.png" alt="Media Production">
-    </div>
+    <div class="gate-logo" id="gate-lockup"></div>
     <h1 style="font-size:clamp(1.6rem,3.5vw,2.2rem);">This page is password protected</h1>
     <p style="margin:12px auto 0; max-width:46ch;">Your access code is already in this link. Enter the
     <b>password</b> from your delivery email to see your videos.</p>
@@ -400,7 +456,7 @@
 
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:30px;">
         <span class="live"><i id="dot"></i> <span id="live-txt">Live</span></span>
-        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 12, 2:34 PM MT</span>
+        <span class="muted" id="buildstamp" style="font-size:.72rem;opacity:.55" title="Which build of this page you're looking at">build Aug 12, 8:05 PM MT</span>
         <span id="ev-sum" class="muted" style="font-size:.85rem;"></span>
         <span id="new-note" class="new-note" style="display:none"></span>
       </div>
@@ -465,7 +521,7 @@
 <footer class="site-footer">
   <div class="wrap">
     <div class="footer-bottom" style="margin-top:0; padding-top:0; border-top:0;">
-      <span>&copy; 2026 R3 Media Production &middot; This page is private &mdash; please don't share the link publicly.</span>
+      <span>&copy; 2026 <span id="foot-brand">R3 Media Production</span> &middot; This page is private. Please don't share the link publicly.</span>
       <span><a href="mailto:rob@r3mediapro.com">rob@r3mediapro.com</a></span>
     </div>
   </div>
@@ -595,8 +651,8 @@ async function boardVia(method, ms){
                     { redirect:'follow', signal: ctl.signal });
   } catch (e){
     throw new Error(e.name === 'AbortError'
-      ? 'The server took too long to answer — showing the last update.'
-      : 'Could not reach the server — check your internet connection.');
+      ? 'The server took too long to answer. Showing the last update.'
+      : 'Could not reach the server. Check your internet connection.');
   } finally { clearTimeout(bell); }
   if (!res.ok) throw new Error('The server returned an error (' + res.status + ').');
   const text = await res.text();
@@ -676,8 +732,8 @@ async function refresh(loud){
     data = await fetchBoard();
   } catch (e){
     txt.textContent = e.message && /took too long/.test(e.message)
-      ? 'The server is being slow — showing the last update.'
-      : 'Couldn’t reach the server — showing the last update.';
+      ? 'The server is being slow. Showing the last update.'
+      : 'Couldn’t reach the server. Showing the last update.';
     document.getElementById('dot').style.background = '#d98324';
     if (hdr) hdr.textContent = 'Offline';
     document.getElementById('dot2').style.background = '#d98324';
@@ -811,11 +867,11 @@ async function sendNote(id){
     if (!data.ok) throw new Error(data.error || 'could not save');
     box.value = '';
     stat.style.color = '#2ea86a';
-    stat.textContent = 'Sent — thanks, Rob will see it.';
+    stat.textContent = 'Sent. Thanks, Rob will see it.';
     setTimeout(() => { closeNote(id); stat.textContent = ''; stat.style.color = ''; }, 2500);
   } catch (e){
     stat.style.color = '#e63946';
-    stat.textContent = 'Didn\u2019t send — try again, or email rob@r3mediapro.com.';
+    stat.textContent = 'Didn\u2019t send. Try again, or email rob@r3mediapro.com.';
   } finally { sendingNote = false; }
 }
 
@@ -836,7 +892,7 @@ function render(data){
       playIndex.set(o.id, o);
     });
   });
-  document.title = (ev.name || 'Your Event') + ' | R3 Media Production';
+  document.title = (ev.name || 'Your Event') + ' | ' + window.BRAND.name;
   document.getElementById('ev-name').textContent = ev.name || 'Your Event';
 
   const client = document.getElementById('ev-client');
@@ -846,7 +902,7 @@ function render(data){
   document.getElementById('ev-welcome').textContent = ev.welcome ||
     `All of your ${ev.isEvent === false ? 'project' : 'event'} deliverables live on this page. ` +
     'Stream any video below, or use the download buttons to save the full-quality files. ' +
-    'This page is private to your team — feel free to share it internally along with the password.';
+    'This page is private to your team, so feel free to share it internally along with the password.';
 
     // Rows marked undeliverable in the tracker keep their place and their
   // status here, they just don't count towards the total — otherwise one
@@ -915,7 +971,7 @@ function render(data){
   document.getElementById('hdr-updated').textContent =
     'Updated ' + new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
   document.getElementById('dot').style.background = '#2ea86a';
-  document.getElementById('live-txt').textContent = 'Live — updated ' + new Date().toLocaleTimeString();
+  document.getElementById('live-txt').textContent = 'Live, updated ' + new Date().toLocaleTimeString();
 
   // group into sections, in the order the tracker set
   const shown = folded.filter(matchesSearch);
@@ -953,7 +1009,7 @@ function render(data){
     ? groups.map((g, i) => sectionHtml(g, groups.length, i)).join('')
     : searchQ
       ? `<p class="vsearch-none">No sessions match &ldquo;${esc(searchQ)}&rdquo;.</p>`
-      : '<div class="vt-section"><p class="muted">Nothing posted yet — check back soon.</p></div>';
+      : '<div class="vt-section"><p class="muted">Nothing posted yet. Check back soon.</p></div>';
 
   Object.keys(openNotes).forEach(id => {
     const f = document.getElementById('nf-' + id);
@@ -1377,7 +1433,26 @@ function rowHtml(s){
   </tr>`;
 }
 
+/* The two logo lockups and the footer name.
+   The brands are not the same shape: R3's mark and wordmark are separate
+   pieces stacked together, while evp-wordmark.png is already a full lockup.
+   Emitting the R3 arrangement for both drew the EVP mark twice at double
+   width and pushed it over the heading. */
+function paintBrand(){
+  const b = window.BRAND;
+  const lock = b.key === 'evp'
+    ? `<img class="evp-lock" src="${b.wordmark}" alt="${b.name}">`
+    : `<img src="${b.mark}" alt="${b.name}"><img class="mp mp-text" src="${b.wordmark}" alt="${b.name}">`;
+  const head = document.getElementById('brand-lockup');
+  const gate = document.getElementById('gate-lockup');
+  if (head) head.innerHTML = lock;
+  if (gate) gate.innerHTML = lock;
+  const foot = document.getElementById('foot-brand');
+  if (foot) foot.textContent = b.name;
+}
+
 (async function start(){
+  paintBrand();
   const bs = document.getElementById('buildstamp');
   if (bs && bs.textContent.indexOf('__') === 0) bs.textContent = '';
 
