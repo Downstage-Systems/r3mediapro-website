@@ -3,6 +3,10 @@
 Static site, no build step. This folder IS the git repo root; it deploys to
 GitHub Pages on every push to `main`.
 
+Lives at `~/Documents/*R3 Media Productions/07_Websites/R3Mediapro Website/`
+(moved under `07_Websites` Aug 15 2026, alongside the EVP site). Source brand
+assets are in `../../../06_Brand Assets/`.
+
 ## Repo (moved Aug 2026 — do not use the old URL)
 
     https://github.com/R3MediaPro/r3mediapro-website
