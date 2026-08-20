@@ -268,6 +268,7 @@ tr.sect-row td{background:var(--bg-2);font-weight:700;font-size:12px;text-transf
 tr.sect-row td .selsect{margin-right:3px;accent-color:var(--accent)}
 td.t-title{font-weight:550;max-width:300px}
 td.t-due{white-space:nowrap;font-size:12.5px;color:var(--txt-2)}
+.reqbtn{margin-left:7px;padding:1px 8px;font-size:11px}
 td.t-due .duetxt.late{color:var(--red);font-weight:650}
 td.t-link{max-width:200px}
 td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
@@ -1083,6 +1084,16 @@ tr.selrow td{background:var(--accent-soft)}
         and the URL never changes.</div>
     </div>
     <div class="field">
+      <label>What senders can open</label>
+      <label style="display:flex;align-items:center;gap:9px;font-weight:600;cursor:pointer">
+        <input type="checkbox" id="cfgLinks" onchange="toggleClientLinks(this.checked)"
+               style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+        <span>Let senders open the full file or link</span>
+      </label>
+      <div class="hint" id="cfgLinksHint"></div>
+    </div>
+
+    <div class="field">
       <label>Appearance</label>
       <div class="themerow" id="themeRow"></div>
       <div class="hint">Applies for everyone — the client sees it too.</div>
@@ -1205,11 +1216,16 @@ tr.selrow td{background:var(--accent-soft)}
         <input id="dtDue" type="date">
         <div class="hint">When you expect to send it. Leave blank if you don't know yet.</div></div>
       <div class="field"><label>Agency / company</label>
-        <input id="dtAgency" placeholder="e.g. Volt"></div>
+        <input id="dtAgency" list="dlAgency" autocomplete="off">
+        <datalist id="dlAgency"></datalist></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Who's sending it</label><input id="dtUploader" placeholder="Name"></div>
-      <div class="field"><label>Their email</label><input id="dtEmail" type="email" placeholder="name@company.com"></div>
+      <div class="field"><label>Who's sending it</label>
+        <input id="dtUploader" list="dlSender" autocomplete="off" onchange="fillFromSender(this.value)">
+        <datalist id="dlSender"></datalist></div>
+      <div class="field"><label>Their email</label>
+        <input id="dtEmail" type="email" list="dlEmail" autocomplete="off">
+        <datalist id="dlEmail"></datalist></div>
     </div>
     <div class="field"><label>Your title for it <span style="font-weight:400;color:var(--txt-3)">optional</span></label>
       <input id="dtClientTitle" placeholder="What you call this video">
@@ -1292,7 +1308,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V23';
+var UI_BUILD = 'V24';
 
 var S = {
   serverBuild:'',
@@ -2671,12 +2687,7 @@ function renderTable(){
         h += '<td>'+v.history.length+'</td>';
         h += '<td style="color:var(--txt-3);font-size:12px;white-space:nowrap">'+(v.updated?esc(ago(v.updated)):'—')+'</td>';
       } else {
-        h += '<td class="t-link">'+(v.link
-            ? '<a href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">'+
-              esc(v.fileName || (v.fileId?'Drive upload':shortUrl(v.link)))+'</a>'
-            : hasCut(v)
-              ? '<span class="onhand" title="The video team has this one">'+esc(v.fileName || 'With the team')+'</span>'
-              : '<span style="color:var(--txt-3);font-size:12px">—</span>')+'</td>';
+        h += '<td class="t-link">'+clientLinkCell(v)+'</td>';
       }
       h += '<td><div class="t-acts">' +
            (S.me.role==='admin' && v.link ? '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>' : '') +
@@ -2710,6 +2721,98 @@ function fmtDue(d){
   return M[Number(p[1])-1]+' '+Number(p[2]);
 }
 
+/* What a sender sees in the File / link column. With links off they still get
+   to know the team has it and what it is called — the difference is only
+   whether they can open someone else's cut. One shared access code means the
+   whole slate is visible to every agency, so this is the switch that matters. */
+function clientLinkCell(v){
+  var open = S.config.allowClientLinks !== false;
+  var name = v.fileName || (v.fileId ? 'Drive upload' : (v.link ? shortUrl(v.link) : ''));
+  if(v.link && open)
+    return '<a href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">'+esc(name)+'</a>';
+  if(hasCut(v))
+    return '<span class="onhand" title="The video team has this one">'+
+           esc(v.fileName || 'With the team')+'</span>' +
+           (open ? '' : ' <button class="btn sm ghost reqbtn" onclick="requestFile(\''+v.id+'\')">Request</button>');
+  return '<span style="color:var(--txt-3);font-size:12px">—</span>';
+}
+
+/* A request is just a message. The team already has a feed with an unread
+   badge, so this lands where they are already looking rather than inventing a
+   second inbox with its own state to keep in sync. */
+function requestFile(id){
+  var v = byId(id); if(!v) return;
+  var who = S.submitter || '';
+  var text = 'Requesting the file or link for ' + (v.number ? v.number + ' — ' : '') +
+             (v.title || 'a video') + '.';
+  // confirmThen writes the body with textContent, so this is plain text —
+  // markup would show up as literal angle brackets.
+  confirmThen('Ask for this file?',
+    'The video team gets a message asking for “' + (v.title || 'this video') + '”. ' +
+    'They will send it over if it is ready to share.',
+    function(){
+      api('sendClientMessage', { text:text, from:who, email:S.submitterEmail||'',
+                                 agency:S.submitterAgency||'' }, S.token, S.vtok, S.eventId)
+        .then(function(){ toast('Asked — the video team will get back to you.','ok'); })
+        .catch(err);
+    }, { go:'Send the request' });
+}
+
+/* Agency and sender come from people who have already sent something in, so
+   the second video from the same agency is two clicks, not retyping. */
+function fillDetailLists(){
+  var ag = {}, nm = {}, em = {};
+  (S.submitters||[]).forEach(function(x){
+    if(x.agency) ag[x.agency] = 1;
+    if(x.name)   nm[x.name]   = 1;
+    if(x.email)  em[x.email]  = 1;
+  });
+  (S.videos||[]).forEach(function(v){          // agencies set on videos count too
+    if(v.agency) ag[v.agency] = 1;
+    if(v.uploader) nm[v.uploader] = 1;
+    if(v.uploaderEmail) em[v.uploaderEmail] = 1;
+  });
+  function fill(elId, keys){
+    var el = document.getElementById(elId); if(!el) return;
+    el.innerHTML = Object.keys(keys).sort(function(a,b){
+      return a.toLowerCase().localeCompare(b.toLowerCase()); })
+      .map(function(k){ return '<option value="'+esc(k)+'">'; }).join('');
+  }
+  fill('dlAgency', ag); fill('dlSender', nm); fill('dlEmail', em);
+}
+
+/* Picking a known sender fills in the rest of what we know about them. Never
+   clobbers something already typed — a blank is not a correction. */
+function fillFromSender(name){
+  var hit = (S.submitters||[]).filter(function(x){ return x.name === name; })[0];
+  if(!hit){
+    hit = (S.videos||[]).filter(function(v){ return v.uploader === name; })[0];
+    if(hit) hit = { email:hit.uploaderEmail, agency:hit.agency };
+  }
+  if(!hit) return;
+  var e = document.getElementById('dtEmail'), a = document.getElementById('dtAgency');
+  if(e && !e.value.trim() && hit.email)  e.value = hit.email;
+  if(a && !a.value.trim() && hit.agency) a.value = hit.agency;
+}
+
+function toggleClientLinks(on){
+  var was = S.config.allowClientLinks !== false;
+  S.config.allowClientLinks = !!on;              // paint first, roll back on failure
+  paintClientLinks(); renderAll();
+  api('setClientLinks', !!on, S.token, S.eventId)
+    .then(function(){ toast(on ? 'Senders can open files.' : 'Senders can only request files.','ok'); })
+    .catch(function(e){ S.config.allowClientLinks = was; paintClientLinks(); renderAll(); err(e); });
+}
+
+function paintClientLinks(){
+  var box = document.getElementById('cfgLinks'); if(!box) return;
+  var on = S.config.allowClientLinks !== false;
+  box.checked = on;
+  document.getElementById('cfgLinksHint').innerHTML = on
+    ? 'Senders can open any file or link in the list — including other agencies\u2019 cuts.'
+    : 'Senders see that a cut has arrived but cannot open it. They get a <b>Request</b> button that messages you instead.';
+}
+
 var DT_ID = null;
 function openDetails(id){
   var v = byId(id); if(!v) return;
@@ -2721,6 +2824,7 @@ function openDetails(id){
   document.getElementById('dtEmail').value       = v.uploaderEmail || S.submitterEmail || '';
   document.getElementById('dtClientTitle').value = v.clientTitle || '';
   document.getElementById('dtNotes').value       = v.notes || '';
+  fillDetailLists();
   show('mDetails');
 }
 
@@ -4441,6 +4545,7 @@ function openMore(){
   document.getElementById('themeRow').innerHTML = h;
   var nn = document.getElementById('bulkNoNum');
   if(nn){ nn.checked = false; onBulkNoNum(); }   // fresh each time Tools opens
+  paintClientLinks();
 
   var sb = S.serverBuild || '?';
   var match = sb === UI_BUILD;
