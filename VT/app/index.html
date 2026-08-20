@@ -267,6 +267,8 @@ tr.sect-row td{background:var(--bg-2);font-weight:700;font-size:12px;text-transf
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
 tr.sect-row td .selsect{margin-right:3px;accent-color:var(--accent)}
 td.t-title{font-weight:550;max-width:300px}
+td.t-due{white-space:nowrap;font-size:12.5px;color:var(--txt-2)}
+td.t-due .duetxt.late{color:var(--red);font-weight:650}
 td.t-link{max-width:200px}
 td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .t-acts{display:flex;gap:5px;justify-content:flex-end}
@@ -1192,6 +1194,35 @@ tr.selrow td{background:var(--accent-soft)}
   </div>
 </div>
 
+<!-- ===== CLIENT DETAILS ===== -->
+<div class="modal" id="mDetails">
+  <div class="m-head"><h2 id="dtTitle">Video details</h2><button class="x" onclick="closeAll()">&times;</button></div>
+  <div class="m-body">
+    <div class="note">Keep the video team posted. Nothing here changes the cut itself &mdash;
+      to send a new one, use <b>+ New Version</b>.</div>
+    <div class="row2">
+      <div class="field"><label>Expected delivery date</label>
+        <input id="dtDue" type="date">
+        <div class="hint">When you expect to send it. Leave blank if you don't know yet.</div></div>
+      <div class="field"><label>Agency / company</label>
+        <input id="dtAgency" placeholder="e.g. Volt"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Who's sending it</label><input id="dtUploader" placeholder="Name"></div>
+      <div class="field"><label>Their email</label><input id="dtEmail" type="email" placeholder="name@company.com"></div>
+    </div>
+    <div class="field"><label>Your title for it <span style="font-weight:400;color:var(--txt-3)">optional</span></label>
+      <input id="dtClientTitle" placeholder="What you call this video">
+      <div class="hint">The video team keeps their own name for it; this sits alongside.</div></div>
+    <div class="field"><label>Note for the video team <span style="font-weight:400;color:var(--txt-3)">optional</span></label>
+      <textarea id="dtNotes" style="min-height:60px" placeholder="e.g. Waiting on music clearance."></textarea></div>
+  </div>
+  <div class="m-foot">
+    <button class="btn" onclick="closeAll()">Cancel</button>
+    <button class="btn primary" id="dtSave" onclick="saveDetails()">Save</button>
+  </div>
+</div>
+
 <!-- ===== CONFIRM ===== -->
 <div class="modal" id="mConfirm">
   <div class="m-head"><h2 id="cfTitle">Are you sure?</h2><button class="x" onclick="closeAll()">&times;</button></div>
@@ -1261,7 +1292,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V22';
+var UI_BUILD = 'V23';
 
 var S = {
   serverBuild:'',
@@ -2554,6 +2585,15 @@ function sortRows(arr){
     if(k==='number') return cmpNumber(a,b)*d;
     if(k==='versions') return (a.history.length-b.history.length)*d;
     if(k==='updated') return ((a.updated||0)-(b.updated||0))*d;
+    if(k==='due'){
+      // Undated videos trail whichever way you sort. Flipping the arrow to
+      // find the soonest deadline shouldn't bury it under everything blank.
+      var ad=String(a.due||''), bd=String(b.due||'');
+      if(!ad && !bd) return cmpNumber(a,b)*d;
+      if(!ad) return 1;
+      if(!bd) return -1;
+      return ad.localeCompare(bd)*d;      // ISO dates sort as strings
+    }
     if(k==='order'){
       // Unplaced videos always trail, whichever way you sort — flipping the
       // arrow shouldn't float everything without a slot to the top.
@@ -2584,6 +2624,7 @@ function renderTable(){
   h += th('number','#')+th('title','Title');
   h += admin ? th('uploader','Uploader')+th('status','Status')
              : th('status','Status')+th('uploader','Uploader');
+  h += th('due','Expected');
   if(admin) h += '<th>Show</th>'+th('version','Ver')+'<th>Current file / link</th>'+'<th>Notes</th>'+
                  th('versions','Versions')+th('updated','Updated');
   else h += th('version','Internal ver')+'<th>File / link</th>';
@@ -2593,7 +2634,7 @@ function renderTable(){
   groups.forEach(function(g){
     var t = tally(g.items);
     var sc = sectionColour(g.name);
-    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'"' +
+    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?13:8)+'"' +
          ' style="background:linear-gradient('+rgba(sc,.26)+','+rgba(sc,.26)+'),var(--bg-2);' +
          'box-shadow:inset 3px 0 0 '+sc+'">' +
          (S.me.role==='admin'
@@ -2616,6 +2657,7 @@ function renderTable(){
             (v.agency?'<div class="agencyline">'+esc(v.agency)+'</div>':'')+'</td>';
       var statusTd   = '<td>'+statusPill(v,'status')+'</td>';
       h += admin ? uploaderTd+statusTd : statusTd+uploaderTd;
+      h += '<td class="t-due">'+dueCell(v)+'</td>';
       if(admin) h += '<td>'+statusPill(v,'showStatus')+'</td>';
       h += '<td>'+verBadge(v)+'</td>';          // both sides; labelled per role
       if(S.me.role==='admin'){
@@ -2640,12 +2682,79 @@ function renderTable(){
            (S.me.role==='admin' && v.link ? '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>' : '') +
            '<button class="btn sm ghost" onclick="openSubmit(\''+v.id+'\')">+ New Version</button>' +
            '<button class="btn sm ghost" onclick="openHistory(\''+v.id+'\')">History</button>' +
-           (S.me.role==='admin'?'<button class="btn sm ghost" onclick="openVideo(\''+v.id+'\')">Edit</button>':'') +
+           (S.me.role==='admin'
+             ? '<button class="btn sm ghost" onclick="openVideo(\''+v.id+'\')">Edit</button>'
+             : '<button class="btn sm ghost" onclick="openDetails(\''+v.id+'\')">Details</button>') +
            '</div></td></tr>';
     });
   });
   h += '</tbody></table></div>';
   return h;
+}
+
+/* The Expected column. A date the client set is the useful one, so it reads
+   plainly; overdue reads red, because a date that has quietly passed is the
+   whole reason for showing it at all. */
+function dueCell(v){
+  var d = String(v.due||'').trim();
+  if(!d) return '<span style="color:var(--txt-3)">—</span>';
+  var today = new Date(); today = today.toISOString().slice(0,10);
+  var late = d < today && !hasCut(v);
+  return '<span class="duetxt'+(late?' late':'')+'"'+(late?' title="Past the expected date"':'')+'>'+
+         esc(fmtDue(d))+'</span>';
+}
+function fmtDue(d){
+  var p = d.split('-');
+  if(p.length!==3) return d;
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return M[Number(p[1])-1]+' '+Number(p[2]);
+}
+
+var DT_ID = null;
+function openDetails(id){
+  var v = byId(id); if(!v) return;
+  DT_ID = id;
+  document.getElementById('dtTitle').textContent = (v.number? v.number+' · ':'') + (v.title||'Video details');
+  document.getElementById('dtDue').value         = String(v.due||'').slice(0,10);
+  document.getElementById('dtAgency').value      = v.agency || S.submitterAgency || '';
+  document.getElementById('dtUploader').value    = v.uploader || S.submitter || '';
+  document.getElementById('dtEmail').value       = v.uploaderEmail || S.submitterEmail || '';
+  document.getElementById('dtClientTitle').value = v.clientTitle || '';
+  document.getElementById('dtNotes').value       = v.notes || '';
+  show('mDetails');
+}
+
+function saveDetails(){
+  var v = byId(DT_ID); if(!v) return;
+  var patch = {
+    due         : document.getElementById('dtDue').value,
+    agency      : document.getElementById('dtAgency').value.trim(),
+    uploader    : document.getElementById('dtUploader').value.trim(),
+    uploaderEmail: document.getElementById('dtEmail').value.trim(),
+    clientTitle : document.getElementById('dtClientTitle').value.trim(),
+    notes       : document.getElementById('dtNotes').value.trim(),
+    submitter   : document.getElementById('dtUploader').value.trim() || S.submitter || ''
+  };
+  var before = { due:v.due, agency:v.agency, uploader:v.uploader,
+                 uploaderEmail:v.uploaderEmail, clientTitle:v.clientTitle, notes:v.notes };
+  // Paint it immediately and put it back if the server disagrees — same bargain
+  // the status pills make, and the reason this feels instant on a 2.5s call.
+  v.due=patch.due; v.agency=patch.agency; v.uploader=patch.uploader;
+  v.uploaderEmail=patch.uploaderEmail; v.clientTitle=patch.clientTitle; v.notes=patch.notes;
+  renderAll(); closeAll();
+  if(patch.uploader) S.submitter = patch.uploader;
+  if(patch.agency)   S.submitterAgency = patch.agency;
+  try{
+    if(patch.uploader) localStorage.setItem('vt_name', patch.uploader);
+    if(patch.agency)   localStorage.setItem('vt_agency', patch.agency);
+  }catch(e){}
+  api('setClientDetails', DT_ID, patch, S.token, S.vtok, S.eventId).then(function(r){
+    if(r && r.videos){ S.videos = r.videos; renderAll(); }
+    toast('Saved — thanks.','ok');
+  }).catch(function(e){
+    for(var k in before) v[k] = before[k];
+    renderAll(); err(e);
+  });
 }
 
 /* Column sorts are a temporary lens; this puts the rundown back in the order it
@@ -2942,7 +3051,9 @@ function chipRow(label, list, colours, cur, videoId, kind){
 
 /** A status change rendered as a compact timeline entry. */
 function activityItem(a){
-  var LABEL = { status:'Status', showstatus:'Show status', notes:'Notes', played:'Playback' };
+  var LABEL = { status:'Status', showstatus:'Show status', notes:'Notes', played:'Playback',
+                due:'Expected date', agency:'Agency', uploader:'Sender',
+                uploaderEmail:'Sender email', clientTitle:'Client title' };
   var colours = a.type==='showstatus' ? S.showColours : S.colours;
   var col = colours[a.to] || 'var(--txt-3)';
   var h = '<div class="tlitem act"><div class="tlbox" style="padding:8px 11px">';
