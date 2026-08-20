@@ -259,9 +259,14 @@ thead th:hover{color:var(--txt-2)}
 thead th .arr{opacity:.5;font-size:9px}
 tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 tbody tr:hover{background:var(--panel-2)}
-tr.sect-row td{background:var(--bg-2);font-weight:650;font-size:12px;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--txt-2);padding:9px 12px}
-tr.sect-row td .sdot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:8px}
+/* The divider carries its section's colour across the full row, so the eye
+   finds a segment boundary without reading. Text colour is computed per
+   section by readableOn(): the palette is bright and a section colour can be
+   edited to anything, so neither black nor white is safe as a constant. */
+tr.sect-row td{background:var(--bg-2);font-weight:700;font-size:12px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--txt-2);padding:9px 12px;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+tr.sect-row td .selsect{margin-right:3px;accent-color:rgba(0,0,0,.5)}
 td.t-title{font-weight:550;max-width:300px}
 td.t-link{max-width:200px}
 td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
@@ -657,6 +662,9 @@ tr.selrow td{background:var(--accent-soft)}
   @page{ margin:12mm; }
   html,body{background:#fff !important;color:#000 !important}
   body{font-size:10.5pt}
+  /* A solid colour bar per section eats toner and reads worse on paper. */
+  tr.sect-row td{background:none !important;color:#000 !important;
+    border-top:1pt solid #000 !important;border-bottom:.5pt solid #000 !important}
   header,.demo-note,.scrim,.modal,.drawer,#toasts,.busy,#boot,#gate,
   .noprint,.sd-right,.tabs,.filters,.stats{display:none !important}
   main{padding:0 !important}
@@ -837,7 +845,7 @@ tr.selrow td{background:var(--accent-soft)}
         <datalist id="uploaderList"></datalist>
         <div class="hint">Leave blank and whoever sends the first cut fills it in.</div></div>
       <div class="field"><label>Uploader email</label>
-        <input id="vfEmail" type="email" placeholder="name@molsoncoors.com"></div>
+        <input id="vfEmail" type="email" placeholder="name@company.com"></div>
     </div>
     <div class="row2">
       <div class="field"><label>Agency</label>
@@ -872,7 +880,7 @@ tr.selrow td{background:var(--accent-soft)}
     <div id="sfNewVideo" style="display:none">
       <div class="field">
         <label>What is it? <span class="req">*</span></label>
-        <input id="sfNewTitle" placeholder="e.g. Coors Light World Cup Sizzle">
+        <input id="sfNewTitle" placeholder="e.g. Brand Anthem Sizzle">
       </div>
       <div class="field">
         <label>Section / speaker</label>
@@ -922,7 +930,7 @@ tr.selrow td{background:var(--accent-soft)}
         <div class="field" style="margin-bottom:10px"><label>Name <span class="req">*</span></label>
           <input id="sfBy" placeholder="Dana Whitfield"></div>
         <div class="field" style="margin-bottom:10px"><label>Email <span class="req">*</span></label>
-          <input id="sfEmail" type="email" placeholder="dana@molsoncoors.com"></div>
+          <input id="sfEmail" type="email" placeholder="dana@example.com"></div>
       </div>
       <div class="field" style="margin-bottom:10px"><label>Agency / company</label>
         <input id="sfAgency" list="agencyList" placeholder="Who do you work for?"></div>
@@ -1048,7 +1056,7 @@ tr.selrow td{background:var(--accent-soft)}
     <div class="field">
       <label>Bulk import videos</label>
       <textarea id="bulkTxt" style="min-height:140px;font-family:var(--mono);font-size:12px"
-        placeholder="1, Opening Sizzle, General Session, Dana Whitfield, dana@molsoncoors.com&#10;2, CEO Welcome, General Session, Marcus Reed&#10;2A, Late Add Tribute, General Session&#10;3, Brand Anthem, Awards Dinner"></textarea>
+        placeholder="1, Opening Sizzle, General Session, Dana Whitfield, dana@example.com&#10;2, CEO Welcome, General Session, Marcus Reed&#10;2A, Late Add Tribute, General Session&#10;3, Brand Anthem, Awards Dinner"></textarea>
       <div class="hint">One per line: <b>number, title, section, uploader, uploader email, agency</b> — comma or tab separated, trailing fields optional. Paste straight from a spreadsheet. Existing numbers are skipped, and new section names get created for you.</div>
       <label style="display:flex;align-items:center;gap:9px;margin-top:11px;font-weight:600;cursor:pointer">
         <input type="checkbox" id="bulkNoNum" onchange="onBulkNoNum()"
@@ -1147,7 +1155,7 @@ tr.selrow td{background:var(--accent-soft)}
       or deleted. The current event stays live under its own code; this one gets its own.</div>
     <div class="row2">
       <div class="field"><label>Event name <span class="req">*</span></label>
-        <input id="neName" placeholder="MCBC Distributor Convention"></div>
+        <input id="neName" placeholder="Annual Sales Conference"></div>
       <div class="field"><label>Year</label><input id="neYear" placeholder="2027"></div>
     </div>
     <div class="field"><label>Access code <span class="req">*</span></label>
@@ -1156,8 +1164,8 @@ tr.selrow td{background:var(--accent-soft)}
     <div class="row2">
       <div class="field"><label>Theme</label>
         <select id="neTheme">
-          <option value="r3">Gold</option><option value="molson">Molson Coors</option>
-          <option value="steel">Coors Steel</option><option value="stage">Stage Green</option>
+          <option value="r3">Gold</option><option value="midnight">Midnight</option>
+          <option value="steel">Steel</option><option value="stage">Stage Green</option>
         </select></div>
       <div class="field"><label>Timezone</label><input id="neTz" value="America/Chicago"></div>
     </div>
@@ -1215,7 +1223,7 @@ tr.selrow td{background:var(--accent-soft)}
         <div class="field" style="margin-bottom:10px"><label>Name <span class="req">*</span></label>
           <input id="mgName" placeholder="Dana Whitfield"></div>
         <div class="field" style="margin-bottom:10px"><label>Email <span class="req">*</span></label>
-          <input id="mgEmail" type="email" placeholder="dana@molsoncoors.com"></div>
+          <input id="mgEmail" type="email" placeholder="dana@example.com"></div>
       </div>
       <div class="field" style="margin-bottom:10px"><label>Agency / company</label>
         <input id="mgAgency" list="agencyList" placeholder="Who do you work for?"></div>
@@ -1254,24 +1262,24 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V20';
+var UI_BUILD = 'V21';
 
 var S = {
   serverBuild:'',
   videos:[], sections:[], statuses:[], colours:{}, palette:[],
   showStatuses:[], showColours:{}, noteRequired:[], issueFor:null,
-  messages:[], feedOpen:false, msgSeen:Number(localStorage.getItem('mcbc_msgseen')||0),
+  messages:[], feedOpen:false, msgSeen:Number(localStorage.getItem('vt_msgseen')||0),
   config:{}, me:{role:'client',email:''},
-  token: localStorage.getItem('mcbc_token') || '',
-  vtok: localStorage.getItem('mcbc_view') || '',
-  eventId: localStorage.getItem('mcbc_event') || '', events:[],
+  token: localStorage.getItem('vt_token') || '',
+  vtok: localStorage.getItem('vt_view') || '',
+  eventId: localStorage.getItem('vt_event') || '', events:[],
   submitters:[],
-  submitter: localStorage.getItem('mcbc_name') || '',
-  submitterEmail: localStorage.getItem('mcbc_email') || '',
-  submitterAgency: localStorage.getItem('mcbc_agency') || '',
+  submitter: localStorage.getItem('vt_name') || '',
+  submitterEmail: localStorage.getItem('vt_email') || '',
+  submitterAgency: localStorage.getItem('vt_agency') || '',
   reorder:false, orderDraft:null, dragFrom:null, hideCut:false,
   viewAs:'', meReal:{role:'client',email:''},
-  lastSeen:Number(localStorage.getItem('mcbc_lastseen')||0), fNew:false, fUnnumbered:false, fShow:'',
+  lastSeen:Number(localStorage.getItem('vt_lastseen')||0), fNew:false, fUnnumbered:false, fShow:'',
   view:'table', q:'', fStatus:[], fUploader:'', fSection:'',
   // 'order' is the running order set on Show Day — the order the rundown plays in
   sort:{key:'order',dir:1}, hidePlayed:false, closedSections:{},
@@ -1281,19 +1289,20 @@ var S = {
 };
 /* =========================================================================
    THEMES — token sets over the existing CSS custom properties.
-   'molson' is lifted straight from the Molson Coors lockup: deep navy field,
-   golden-orange mark, sky-blue counter.
+   'midnight' is a deep navy field with a golden-orange mark and sky-blue
+   counter. Theme ids are stored in the Events sheet, so they never change --
+   only the labels shown in the picker do.
    ========================================================================= */
 var THEMES = {
   r3: { label:'Gold', bg:'#0b0f14', bg2:'#111823', panel:'#151d29', panel2:'#1b2533',
         line:'#243044', lineSoft:'#1c2635', txt:'#e8eef7', txt2:'#9fb0c6', txt3:'#6b7d94',
         accent:'#c8933f', accentDeep:'#8c611f', accentSoft:'rgba(200,147,63,.14)',
         glow1:'rgba(200,147,63,.10)', glow2:'rgba(56,189,248,.06)' },
-  molson: { label:'Molson Coors', bg:'#0d1420', bg2:'#121a28', panel:'#161f2e', panel2:'#1e2837',
+  midnight: { label:'Midnight', bg:'#0d1420', bg2:'#121a28', panel:'#161f2e', panel2:'#1e2837',
         line:'#2c3a4c', lineSoft:'#212c3b', txt:'#eef2f8', txt2:'#a7b3c3', txt3:'#76839a',
         accent:'#f6a821', accentDeep:'#b56f10', accentSoft:'rgba(246,168,33,.15)',
         glow1:'rgba(246,168,33,.12)', glow2:'rgba(63,159,216,.05)' },
-  steel: { label:'Coors Steel', bg:'#0b1216', bg2:'#101a21', panel:'#141f28', panel2:'#1a2833',
+  steel: { label:'Steel', bg:'#0b1216', bg2:'#101a21', panel:'#141f28', panel2:'#1a2833',
         line:'#243642', lineSoft:'#1c2b35', txt:'#e9f1f6', txt2:'#a2b6c2', txt3:'#6d8290',
         accent:'#56b3e8', accentDeep:'#2b7fb3', accentSoft:'rgba(86,179,232,.14)',
         glow1:'rgba(86,179,232,.09)', glow2:'rgba(200,147,63,.05)' },
@@ -1401,7 +1410,7 @@ function cacheKey(){
   var cred = (S.token||'') + '|' + (S.vtok||'') + '|' + (S.eventId||'');
   var h = 0;
   for(var i=0;i<cred.length;i++) h = (h*31 + cred.charCodeAt(i)) | 0;
-  return 'mcbc_cache_' + (h>>>0).toString(36);
+  return 'vt_cache_' + (h>>>0).toString(36);
 }
 function readCache(){
   try{ var raw = localStorage.getItem(cacheKey()); return raw ? JSON.parse(raw) : null; }
@@ -1414,7 +1423,7 @@ function writeCache(d){
 function clearCache(){
   try{
     Object.keys(localStorage).forEach(function(k){
-      if(k.indexOf('mcbc_cache_')===0) localStorage.removeItem(k);
+      if(k.indexOf('vt_cache_')===0) localStorage.removeItem(k);
     });
   }catch(e){}
 }
@@ -1426,7 +1435,7 @@ function applyBootstrap(d){
     S.submitters=d.submitters||[]; S.messages=d.messages||[];
     S.statuses=d.statuses||[]; S.colours=d.colours||{}; S.palette=d.palette||[];
     S.showStatuses=d.showStatuses||[]; S.showColours=d.showColours||{};
-    if(d.config&&d.config.eventId){ S.eventId=d.config.eventId; try{localStorage.setItem('mcbc_event',S.eventId);}catch(e){} }
+    if(d.config&&d.config.eventId){ S.eventId=d.config.eventId; try{localStorage.setItem('vt_event',S.eventId);}catch(e){} }
     S.events=d.events||[];
     S.noteRequired=d.noteRequired||['Issue','Deleted'];
     S.config=d.config||{}; applyIdentity(d.me);
@@ -1434,7 +1443,7 @@ function applyBootstrap(d){
 
     // The token stopped being admin (PIN changed, say) — drop it, and drop the
     // cached admin payload with it rather than leaving internal notes on disk.
-    if(S.me.role!=='admin' && S.token){ S.token=''; localStorage.removeItem('mcbc_token'); clearCache(); }
+    if(S.me.role!=='admin' && S.token){ S.token=''; localStorage.removeItem('vt_token'); clearCache(); }
     applyTheme(S.config.theme);
 
     applyEventHeader();
@@ -1483,11 +1492,11 @@ function boot(){
    it; anyone can re-open it from "How it works". */
 function maybeShowIntro(){
   if(S.me.role==='admin') return;
-  try{ if(localStorage.getItem('mcbc_intro_seen')) return; }catch(e){}
+  try{ if(localStorage.getItem('vt_intro_seen')) return; }catch(e){}
   setTimeout(function(){ if(S.me.role!=='admin') show('mIntro'); }, 500);
 }
 function dismissIntro(){
-  try{ localStorage.setItem('mcbc_intro_seen','1'); }catch(e){}
+  try{ localStorage.setItem('vt_intro_seen','1'); }catch(e){}
   closeAll();
 }
 
@@ -1573,7 +1582,7 @@ function startPolling(){
    internal event's name on a public page. It also cost a round trip before the
    box could settle, so dropping it makes the gate appear at once. */
 function showGate(){
-  S.vtok=''; localStorage.removeItem('mcbc_view'); clearCache();
+  S.vtok=''; localStorage.removeItem('vt_view'); clearCache();
   document.getElementById('boot').style.display='none';
   document.getElementById('gate').classList.add('on');
   setTimeout(function(){ document.getElementById('gatePw').focus(); },150);
@@ -1591,8 +1600,8 @@ function doGate(){
     }
     S.vtok = r.token || '';
     S.eventId = r.eventId || '';
-    if(S.vtok) localStorage.setItem('mcbc_view', S.vtok);
-    if(S.eventId) localStorage.setItem('mcbc_event', S.eventId);
+    if(S.vtok) localStorage.setItem('vt_view', S.vtok);
+    if(S.eventId) localStorage.setItem('vt_event', S.eventId);
     document.getElementById('gatePw').value='';
     document.getElementById('boot').style.display='';
     document.getElementById('gate').classList.remove('on');
@@ -1859,6 +1868,18 @@ function sectionColour(name){
   var sum=0; for(var j=0;j<String(name).length;j++) sum+=String(name).charCodeAt(j);
   return (S.palette.length?S.palette:['#c8933f'])[sum % (S.palette.length||1)];
 }
+/* Black or white, whichever actually reads on `hex`. Relative luminance per
+   WCAG; the 0.18 cut keeps dark text on every colour in SECTION_PALETTE (all
+   of which are bright) and flips to white only for genuinely dark customs. */
+function readableOn(hex){
+  var h=String(hex||'').replace('#','');
+  if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  var r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b)) return 'var(--txt)';
+  function lin(c){ c/=255; return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); }
+  return (0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)) > 0.18 ? '#0b0f14' : '#ffffff';
+}
+
 function sectionNote(name){
   for(var i=0;i<S.sections.length;i++)
     if(S.sections[i].name===name) return S.sections[i].notes;
@@ -1997,7 +2018,7 @@ function closeFeed(){
 }
 function markFeedRead(){
   var ids=unreadMessages().map(function(m){ return m.id; });
-  S.msgSeen=Date.now(); try{ localStorage.setItem('mcbc_msgseen',String(S.msgSeen)); }catch(e){}
+  S.msgSeen=Date.now(); try{ localStorage.setItem('vt_msgseen',String(S.msgSeen)); }catch(e){}
   if(!ids.length){ renderFeedBadge(); return; }
   api('markMessagesRead', ids, S.token, S.eventId).then(function(r){
     if(r.messages) S.messages=r.messages;
@@ -2071,8 +2092,8 @@ function sendMessageNow(){
     if(!who.email) return toast('Add your email so the video team can reply.','err');
   }
   S.submitter=who.name; S.submitterEmail=who.email; S.submitterAgency=who.agency||'';
-  try{ localStorage.setItem('mcbc_name',who.name); localStorage.setItem('mcbc_email',who.email);
-       if(who.agency) localStorage.setItem('mcbc_agency',who.agency); }catch(e){}
+  try{ localStorage.setItem('vt_name',who.name); localStorage.setItem('vt_email',who.email);
+       if(who.agency) localStorage.setItem('vt_agency',who.agency); }catch(e){}
   api('sendClientMessage', { text:text, from:who.name, email:who.email, agency:who.agency }, S.token, S.vtok, S.eventId)
     .then(function(){ closeAll(); toast('Sent — the video team will see it. Thanks!','ok'); })
     .catch(err);
@@ -2099,7 +2120,7 @@ function newCount(){
 }
 function markAllSeen(){
   S.lastSeen = Date.now();
-  try{ localStorage.setItem('mcbc_lastseen', String(S.lastSeen)); }catch(e){}
+  try{ localStorage.setItem('vt_lastseen', String(S.lastSeen)); }catch(e){}
   S.fNew = false;
   renderAll();
   toast('Marked everything as seen.','ok');
@@ -2109,7 +2130,7 @@ function markAllSeen(){
 function initLastSeen(){
   if(!S.lastSeen){
     S.lastSeen = Date.now();
-    try{ localStorage.setItem('mcbc_lastseen', String(S.lastSeen)); }catch(e){}
+    try{ localStorage.setItem('vt_lastseen', String(S.lastSeen)); }catch(e){}
   }
 }
 
@@ -2572,12 +2593,13 @@ function renderTable(){
 
   groups.forEach(function(g){
     var t = tally(g.items);
-    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'">' +
+    var sc = sectionColour(g.name), st = readableOn(sc);
+    h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'"' +
+         ' style="background:'+sc+';color:'+st+'">' +
          (S.me.role==='admin'
            ? '<input type="checkbox" class="selsect" onclick="selectSection('+JSON.stringify(g.name)+',this.checked)" title="Select this whole section">'
            : '') +
-         '<span class="sdot" style="background:'+sectionColour(g.name)+'"></span>' +
-         esc(g.name)+' <span style="opacity:.6;font-weight:500;text-transform:none;letter-spacing:0">— ' +
+         esc(g.name)+' <span style="opacity:.72;font-weight:600;text-transform:none;letter-spacing:0">— ' +
          t.total+' videos · '+t.missing+' missing · '+
          (S.me.role==='admin' ? t.ready+' in show' : t.have+' received')+'</span></td></tr>';
 
@@ -3357,9 +3379,9 @@ function submitNow(){
   var who = resolveWho();
   if(!who) return;
   S.submitter = who.name; S.submitterEmail = who.email; S.submitterAgency = who.agency||'';
-  localStorage.setItem('mcbc_name', who.name);
-  localStorage.setItem('mcbc_email', who.email);
-  if(who.agency) localStorage.setItem('mcbc_agency', who.agency);
+  localStorage.setItem('vt_name', who.name);
+  localStorage.setItem('vt_email', who.email);
+  if(who.agency) localStorage.setItem('vt_agency', who.agency);
 
   // Already seen this exact link or file name? Say so before it goes in, and
   // name where it already sits. Asked once per attempt — never a hard block,
@@ -4375,7 +4397,7 @@ function commitEvent(){
     api('createEvent', fields, S.token).then(function(r){
       S.events = r.events || S.events;
       S.eventId = r.eventId;                     // jump into the new event
-      try{ localStorage.setItem('mcbc_event', S.eventId); }catch(e){}
+      try{ localStorage.setItem('vt_event', S.eventId); }catch(e){}
       closeAll();
       return pullNow(true).then(function(){ toast('Event created — now viewing it.','ok'); });
     }).catch(err);
@@ -4387,7 +4409,7 @@ function switchEvent(id){
   if(!id || id===S.eventId) return;
   SEL = {};                      // ids mean nothing in another event
   S.eventId = id;
-  try{ localStorage.setItem('mcbc_event', S.eventId); }catch(e){}
+  try{ localStorage.setItem('vt_event', S.eventId); }catch(e){}
   pullNow(true).then(function(){
     var e = (S.events||[]).filter(function(x){return x.id===S.eventId;})[0];
     toast('Now viewing '+((e? (e.name+' '+e.year):'event')).trim(),'ok');
@@ -4430,11 +4452,11 @@ function onBulkNoNum(){
   var on = document.getElementById('bulkNoNum').checked;
   document.getElementById('bulkNoNumHint').style.display = on ? '' : 'none';
   document.getElementById('bulkTxt').placeholder = on
-    ? 'Opening Sizzle, General Session, Dana Whitfield, dana@molsoncoors.com, Ridgeline Creative\n'
-      + 'CEO Welcome, General Session, Marcus Reed, marcus@molsoncoors.com, In-House Comms\n'
+    ? 'Opening Sizzle, General Session, Dana Whitfield, dana@example.com, Ridgeline Creative\n'
+      + 'CEO Welcome, General Session, Marcus Reed, marcus@example.com, In-House Comms\n'
       + 'Brand Anthem, Awards Dinner'
-    : '1, Opening Sizzle, General Session, Dana Whitfield, dana@molsoncoors.com, Ridgeline Creative\n'
-      + '2, CEO Welcome, General Session, Marcus Reed, marcus@molsoncoors.com, In-House Comms\n'
+    : '1, Opening Sizzle, General Session, Dana Whitfield, dana@example.com, Ridgeline Creative\n'
+      + '2, CEO Welcome, General Session, Marcus Reed, marcus@example.com, In-House Comms\n'
       + '2A, Late Add Tribute, General Session\n'
       + '3, Brand Anthem, Awards Dinner';
 }
@@ -4494,7 +4516,7 @@ function toggleAdmin(){
 function doPin(){
   api('verifyPin', document.getElementById('pinIn').value).then(function(r){
     if(!r.ok) return toast(r.msg,'err');
-    S.token = r.token; localStorage.setItem('mcbc_token', r.token);
+    S.token = r.token; localStorage.setItem('vt_token', r.token);
     return api('getBootstrap', S.token, S.vtok, S.eventId).then(function(d){
       S.viewAs=''; applyIdentity(d.me); S.videos=d.videos; S.sections=d.sections; S.config=d.config;
       S.submitters=d.submitters||S.submitters; S.messages=d.messages||[];
