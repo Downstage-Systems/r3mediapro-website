@@ -259,14 +259,13 @@ thead th:hover{color:var(--txt-2)}
 thead th .arr{opacity:.5;font-size:9px}
 tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 tbody tr:hover{background:var(--panel-2)}
-/* The divider carries its section's colour across the full row, so the eye
-   finds a segment boundary without reading. Text colour is computed per
-   section by readableOn(): the palette is bright and a section colour can be
-   edited to anything, so neither black nor white is safe as a constant. */
+/* The divider washes its section's colour across the full row, so the eye
+   finds a segment boundary without reading. A tint rather than the solid
+   colour (see rgba()): ten saturated bars out-shout the rows they label. */
 tr.sect-row td{background:var(--bg-2);font-weight:700;font-size:12px;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--txt-2);padding:9px 12px;
+  letter-spacing:.07em;color:var(--txt);padding:9px 12px;
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
-tr.sect-row td .selsect{margin-right:3px;accent-color:rgba(0,0,0,.5)}
+tr.sect-row td .selsect{margin-right:3px;accent-color:var(--accent)}
 td.t-title{font-weight:550;max-width:300px}
 td.t-link{max-width:200px}
 td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
@@ -1868,16 +1867,16 @@ function sectionColour(name){
   var sum=0; for(var j=0;j<String(name).length;j++) sum+=String(name).charCodeAt(j);
   return (S.palette.length?S.palette:['#c8933f'])[sum % (S.palette.length||1)];
 }
-/* Black or white, whichever actually reads on `hex`. Relative luminance per
-   WCAG; the 0.18 cut keeps dark text on every colour in SECTION_PALETTE (all
-   of which are bright) and flips to white only for genuinely dark customs. */
-function readableOn(hex){
+/* `hex` as an rgba() string. The section dividers wash their colour over the
+   row rather than painting it solid: at full strength ten saturated bars
+   fight the content for attention. At this alpha over a dark panel every
+   palette colour still reads as itself and normal light text stays legible. */
+function rgba(hex, a){
   var h=String(hex||'').replace('#','');
   if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
   var r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
-  if(isNaN(r)||isNaN(g)||isNaN(b)) return 'var(--txt)';
-  function lin(c){ c/=255; return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); }
-  return (0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)) > 0.18 ? '#0b0f14' : '#ffffff';
+  if(isNaN(r)||isNaN(g)||isNaN(b)) return 'transparent';
+  return 'rgba('+r+','+g+','+b+','+a+')';
 }
 
 function sectionNote(name){
@@ -2593,13 +2592,14 @@ function renderTable(){
 
   groups.forEach(function(g){
     var t = tally(g.items);
-    var sc = sectionColour(g.name), st = readableOn(sc);
+    var sc = sectionColour(g.name);
     h += '<tr class="sect-row"><td colspan="'+(S.me.role==='admin'?12:7)+'"' +
-         ' style="background:'+sc+';color:'+st+'">' +
+         ' style="background:linear-gradient('+rgba(sc,.26)+','+rgba(sc,.26)+'),var(--bg-2);' +
+         'box-shadow:inset 3px 0 0 '+sc+'">' +
          (S.me.role==='admin'
            ? '<input type="checkbox" class="selsect" onclick="selectSection('+JSON.stringify(g.name)+',this.checked)" title="Select this whole section">'
            : '') +
-         esc(g.name)+' <span style="opacity:.72;font-weight:600;text-transform:none;letter-spacing:0">— ' +
+         esc(g.name)+' <span style="opacity:.62;font-weight:500;text-transform:none;letter-spacing:0">— ' +
          t.total+' videos · '+t.missing+' missing · '+
          (S.me.role==='admin' ? t.ready+' in show' : t.have+' received')+'</span></td></tr>';
 
