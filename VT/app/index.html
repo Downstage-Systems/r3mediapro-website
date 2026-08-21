@@ -177,8 +177,9 @@ main{padding:20px 22px 90px}
 .cseg-b.on .d{background:var(--seg);opacity:1}
 .cseg-b:not(.on):hover{color:var(--txt-2);background:var(--panel-2)}
 @media(max-width:600px){
-  .cseg-b{padding:7px 11px}          /* dots only — bigger tap target, label hidden */
-  .cseg-b .lbl{display:none}
+  /* Labels stay on phones. They were hidden to dots once; the list card now
+     gives the selector its own line, and dots alone read as "it's gone". */
+  .cseg-b{padding:8px 11px;font-size:11px}
   .cseg-b .d{width:9px;height:9px}
 }
 .c-top .spacer{flex:1}
@@ -719,13 +720,133 @@ tr.selrow td{background:var(--accent-soft)}
   .sd-row.blocked{border-left:2pt solid #000 !important;padding-left:5pt}
 }
 
+/* ======================  PHONE LAYOUT (≤640px)  ======================
+   Measured on a 375×812 phone before this block existed: the first video
+   row sat 839px from the top — a client opened the tracker and saw no
+   videos without scrolling. The header alone was 648px: title/search/
+   buttons 222, stat cards 240, tabs 52 (overflowing, Uploaders hidden),
+   filters 133. Every rule here exists to get content above the fold and
+   make the things a thumb hits at least 36px tall. */
 @media(max-width:640px){
-  .hdr-top{padding:12px 14px 10px}
-  .stats,.tabs,.filters{padding-left:14px;padding-right:14px}
-  main{padding:16px 14px 80px}
+  /* Sticky at 355px the header ate 44% of a phone screen. Let it scroll
+     away; the reading area is worth more than a pinned search box. */
+  header{position:static}
+  .hdr-top{padding:10px 12px 8px;gap:8px 10px}
+  .stats,.tabs,.filters{padding-left:12px;padding-right:12px}
+  main{padding:12px 10px 80px}
   .grid{grid-template-columns:1fr}
   .brand .sub{display:none}
   .sect-counts{gap:9px}
+
+  /* Row 1: mark + title, with the three icon buttons pushed to the right.
+     Row 2: search, full width. Row 3: the upload CTA and the sync pill. */
+  .brand{order:0;flex:1 1 auto}
+  .mark{width:32px;height:32px;border-radius:9px}
+  .mark svg{width:17px;height:17px}
+  .brand h1{font-size:15px;white-space:normal;line-height:1.2}
+  #msgBtn,#howBtn,#helpBtn,#updatesBtn{order:1;padding:8px 9px;min-height:38px}
+  #msgBtn{margin-left:auto}
+  .hdr-spacer{display:none}
+  .search{order:2;flex:1 1 100%;max-width:none;min-width:0}
+  .search input{padding:10px 12px 10px 36px;font-size:16px}   /* 16px stops iOS zooming the field */
+  #btnSubmit{order:3;flex:1 1 auto;justify-content:center;min-height:42px}
+  .hdr-top .btn.adminOnly{order:3;min-height:42px}
+  .syncpill{order:4;min-height:38px}
+
+  /* Stat cards become one scrollable strip of compact tiles, and the
+     progress block keeps its bar but drops the legend — the tiles already
+     say the same numbers. */
+  .stats{flex-wrap:nowrap;overflow-x:auto;gap:8px;padding-bottom:8px;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .stats::-webkit-scrollbar{display:none}
+  .stat{flex:0 0 auto;min-width:0;padding:7px 11px;border-radius:10px}
+  .stat .n{font-size:17px}
+  .stat .l{font-size:9.5px;letter-spacing:.05em;margin-top:1px;white-space:nowrap}
+  .progress-wrap{display:none}   /* the tiles say the same numbers; in a nowrap strip it only scrolled off-screen */
+
+  /* All four tabs must fit on a 375px screen — a tab that is off-screen is a
+     view the client never finds. */
+  .tabs{gap:0;padding-left:6px;padding-right:6px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:10px 10px;font-size:13px;gap:5px;min-height:40px}
+  .tab .cnt{display:none}          /* ~90px; the stats strip already shows these counts */
+
+  /* Filters: one horizontally-scrolling row instead of a 133px stack. */
+  .filters{flex-wrap:nowrap;overflow-x:auto;padding:8px 12px;gap:7px;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .filters::-webkit-scrollbar{display:none}
+  .filters > *{flex:0 0 auto}
+  .chip{min-height:36px;padding:6px 12px}
+  .filters select{min-height:36px;padding:6px 9px;font-size:13px;max-width:170px}
+  .filters .btn{min-height:36px}
+
+  /* Thumb-sized controls. */
+  .btn.sm{min-height:34px;padding:7px 11px}
+  .cseg-b{padding:9px 12px;min-height:34px}
+  .t-acts .btn{min-height:34px}
+
+  /* The client list as stacked cards. An 8-column table is ~860px wide; on
+     a 375px phone it either scrolls sideways or (as it did) wraps every
+     cell until a row is 260px tall with the uploader on four lines. Each
+     row becomes a small card: number + title + status on the first line,
+     the facts on the second, the buttons on the third. No JS — the same
+     cells, re-flowed. Admin keeps the table: it has 13 columns and Rob is
+     usually on a laptop for that. */
+  .tbl-wrap:has(table.slim){overflow:visible}
+  table.slim,table.slim tbody{display:block;width:100%}
+  table.slim thead{display:none}
+  table.slim tr.sect-row,table.slim tr.sect-row td{display:block;width:100%;box-sizing:border-box}
+  table.slim tr.sect-row td{border-radius:8px;margin:10px 0 4px}
+  /* Flex, not grid: several cells share the 'facts' line, and grid items
+     given the same area overlap instead of flowing. Line 1 fills (the title
+     grows), so everything after it wraps to line 2 and runs inline; the
+     actions cell is 100% wide and takes line 3 on its own. */
+  table.slim tbody tr:not(.sect-row){
+    display:flex;flex-wrap:wrap;gap:5px 10px;align-items:center;padding:10px 12px 8px;
+    background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;margin:6px 0}
+  table.slim tbody tr:not(.sect-row):hover{background:var(--panel)}
+  table.slim tbody tr:not(.sect-row) td{display:block;padding:0;border:0;max-width:none;white-space:normal}
+  table.slim tbody tr:not(.sect-row) td:nth-child(1){flex:0 0 auto;order:1}
+  table.slim tbody tr:not(.sect-row) td:nth-child(2){flex:1 1 auto;order:2;font-size:14px;font-weight:600;line-height:1.3;min-width:0}
+  table.slim tbody tr:not(.sect-row) td:nth-child(3){flex:0 0 100%;order:3;margin-left:0}  /* status selector on its own line, labels showing */
+  /* A short title leaves room on line 1, so the facts would creep up beside
+     the status. tr::before is itself a flex item of the row: at 100% basis
+     and ordered after the status, it is a hard line break. */
+  table.slim tbody tr:not(.sect-row)::before{content:'';flex:0 0 100%;height:0;order:4;margin:-5px 0 0}
+  table.slim tbody tr:not(.sect-row) td:nth-child(4),
+  table.slim tbody tr:not(.sect-row) td:nth-child(5),
+  table.slim tbody tr:not(.sect-row) td:nth-child(6),
+  table.slim tbody tr:not(.sect-row) td:nth-child(7){order:5}
+  /* nothing to say → say nothing: no uploader, no cut yet */
+  table.slim tbody tr:not(.sect-row) td:nth-child(4):not(:has(.uploader)):not(:has(.agencyline)),
+  table.slim tbody tr:not(.sect-row) td:nth-child(6):has(> .vbadge.none){display:none}
+  /* facts line: uploader · expected · ver · file, wrapping as one run */
+  table.slim tbody tr:not(.sect-row) td:nth-child(4),
+  table.slim tbody tr:not(.sect-row) td:nth-child(5),
+  table.slim tbody tr:not(.sect-row) td:nth-child(6),
+  table.slim tbody tr:not(.sect-row) td:nth-child(7){
+    flex:0 1 auto;display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;color:var(--txt-2);margin-right:6px;min-width:0}
+  table.slim tbody tr:not(.sect-row) td:nth-child(4) .agencyline{display:inline;margin-left:5px;color:var(--txt-3)}
+  table.slim tbody tr:not(.sect-row) td:nth-child(4) .agencyline:before{content:'· '}
+  table.slim tbody tr:not(.sect-row) td:nth-child(5):before{content:'Expected ';color:var(--txt-3)}
+  table.slim tbody tr:not(.sect-row) td:nth-child(5):has(span[style*="txt-3"]),
+  table.slim tbody tr:not(.sect-row) td.t-link:has(> span[style*="txt-3"]){display:none}  /* empty date / no file → nothing to say */
+  table.slim tbody tr:not(.sect-row) td.t-link{max-width:100%}
+  table.slim tbody tr:not(.sect-row) td.t-link a{display:inline;white-space:normal;word-break:break-all}
+  table.slim tbody tr:not(.sect-row) td:nth-child(8){flex:1 1 100%;order:6;margin-top:2px}
+  table.slim .t-acts{flex-direction:row;flex-wrap:wrap;justify-content:flex-start;gap:6px;align-items:center}
+  table.slim .uploader .avatar{display:none}
+  table.slim td.t-title{max-width:none}
+
+  /* Show Day rows: number + title on top, status line under, buttons last.
+     Side by side they squeezed the title into a 4-line column. */
+  .sd-row{flex-wrap:wrap;gap:6px 10px;padding:10px 12px}
+  .sd-ord{min-width:24px;font-size:15px;text-align:left}
+  .sd-main{flex:1 1 calc(100% - 40px)}
+  .sd-title{font-size:14px}
+  .sd-right{flex:1 1 100%;justify-content:flex-start;gap:6px}
+  .sd-divider{margin:14px 0 2px;padding:8px 12px}
 }
 </style>
 </head>
@@ -1100,6 +1221,21 @@ tr.selrow td{background:var(--accent-soft)}
         and the URL never changes.</div>
     </div>
     <div class="field">
+      <label>Email me what changed</label>
+      <select id="cfgDigest" onchange="setDigestInterval(this.value)" style="max-width:260px">
+        <option value="0">Off</option>
+        <option value="1">Every hour</option>
+        <option value="2">Every 2 hours</option>
+        <option value="4">Every 4 hours</option>
+        <option value="6">Every 6 hours</option>
+        <option value="12">Every 12 hours</option>
+        <option value="24">Once a day, 8am</option>
+      </select>
+      <div class="hint">A summary of new cuts, changes and messages since the last email — sent only when
+        something actually changed, to the help address. Runs on Google's clock, so it keeps going with the tracker closed.</div>
+    </div>
+
+    <div class="field">
       <label>What senders can open</label>
       <label style="display:flex;align-items:center;gap:9px;font-weight:600;cursor:pointer">
         <input type="checkbox" id="cfgLinks" onchange="toggleClientLinks(this.checked)"
@@ -1324,7 +1460,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V24';
+var UI_BUILD = 'V25';
 
 var S = {
   serverBuild:'',
@@ -2573,10 +2709,14 @@ function cardHtml(v){
 
   h += '<div class="c-actions">';
   if(v.link){
-    h += '<a class="btn sm" href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">Open</a>';
-    if(admin){
-      h += '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>';
-      h += '<button class="btn sm ghost" onclick="copyLink(\''+v.id+'\')">Copy</button>';
+    if(clientCanOpen()){
+      h += '<a class="btn sm" href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">Open</a>';
+      if(admin){
+        h += '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>';
+        h += '<button class="btn sm ghost" onclick="copyLink(\''+v.id+'\')">Copy</button>';
+      }
+    } else {
+      h += '<button class="btn sm ghost" onclick="requestFile(\''+v.id+'\')">Request file</button>';
     }
   }
   h += '<button class="btn sm" onclick="openSubmit(\''+v.id+'\')">+ New Version</button>';
@@ -2741,8 +2881,14 @@ function fmtDue(d){
    to know the team has it and what it is called — the difference is only
    whether they can open someone else's cut. One shared access code means the
    whole slate is visible to every agency, so this is the switch that matters. */
+/* Every place the UI can hand someone a URL asks this. Admin always may;
+   a sender may only while the Client Links switch is on. V24 gated only the
+   List cell and left Open/Copy live on Board cards, Show Day rows and the
+   History drawer — three ways round the switch. */
+function clientCanOpen(){ return S.me.role==='admin' || S.config.allowClientLinks !== false; }
+
 function clientLinkCell(v){
-  var open = S.config.allowClientLinks !== false;
+  var open = clientCanOpen();
   var name = v.fileName || (v.fileId ? 'Drive upload' : (v.link ? shortUrl(v.link) : ''));
   if(v.link && open)
     return '<a href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">'+esc(name)+'</a>';
@@ -2809,6 +2955,19 @@ function fillFromSender(name){
   var e = document.getElementById('dtEmail'), a = document.getElementById('dtAgency');
   if(e && !e.value.trim() && hit.email)  e.value = hit.email;
   if(a && !a.value.trim() && hit.agency) a.value = hit.agency;
+}
+
+function setDigestInterval(h){
+  h = Number(h)||0; var was = S.config.digestHours||0;
+  S.config.digestHours = h;
+  api('setDigestInterval', h, S.token, S.eventId).then(function(){
+    toast(h ? 'Digest ' + (h===24 ? 'once a day' : 'every ' + h + (h===1?' hour':' hours')) +
+              ' — the first one goes when something changes.' : 'Digest emails off.','ok');
+  }).catch(function(e){ S.config.digestHours = was; paintDigest(); err(e); });
+}
+function paintDigest(){
+  var el = document.getElementById('cfgDigest'); if(!el) return;
+  el.value = String(S.config.digestHours||0);
 }
 
 function toggleClientLinks(on){
@@ -3065,9 +3224,14 @@ function renderShowday(){
       h += '</div>';
       h += '<div class="sd-right noprint">';
       if(v.link){
-        h += '<a class="btn sm" href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">Open</a>';
-        if(S.me.role==='admin') h += '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>';
-        h += '<button class="btn sm ghost" onclick="copyLink(\''+v.id+'\')">Copy</button>';
+        if(clientCanOpen()){
+          h += '<a class="btn sm" href="'+esc(safeUrl(v.link))+'" target="_blank" rel="noopener">Open</a>';
+          if(S.me.role==='admin') h += '<button class="btn sm" onclick="downloadAndMark(\''+v.id+'\')">'+downloadBtnLabel(v)+'</button>';
+          h += '<button class="btn sm ghost" onclick="copyLink(\''+v.id+'\')">Copy</button>';
+        } else {
+          h += '<span class="onhand" title="The video team has this one">With the team</span>' +
+               '<button class="btn sm ghost" onclick="requestFile(\''+v.id+'\')">Request</button>';
+        }
       } else h += '<span style="color:var(--red);font-size:12px;font-weight:700">NO FILE</span>';
       h += '<button class="btn sm ghost" onclick="openHistory(\''+v.id+'\')">'+
            (S.me.role==='admin'
@@ -3268,11 +3432,13 @@ function renderHistoryBody(){
          (r.size?' · '+mb(r.size):'')+'</div>' +
          '<div style="font-size:11.5px;color:var(--txt-3);margin-top:2px">'+esc(fmtWhen(r.time))+'</div>';
     if(r.fileName) h += '<div class="tl-file">'+esc(r.fileName)+'</div>';
-    h += '<div class="tl-url">'+esc(r.link)+'</div>';
+    if(clientCanOpen()) h += '<div class="tl-url">'+esc(r.link)+'</div>';   // the URL itself is the thing being withheld
     if(r.note) h += '<div class="tl-note">“'+esc(r.note)+'”</div>';
-    h += '<div class="tl-acts">' +
-         '<a class="btn sm" href="'+esc(safeUrl(r.link))+'" target="_blank" rel="noopener">Open</a>' +
-         '<button class="btn sm ghost" onclick="copyVer(\''+r.id+'\')">Copy</button>';
+    h += '<div class="tl-acts">';
+    if(clientCanOpen()){
+      h += '<a class="btn sm" href="'+esc(safeUrl(r.link))+'" target="_blank" rel="noopener">Open</a>' +
+           '<button class="btn sm ghost" onclick="copyVer(\''+r.id+'\')">Copy</button>';
+    }
     if(admin){
       if(!r.active) h += '<button class="btn sm" onclick="makeCurrent(\''+r.id+'\')">Make current</button>';
       if(r.review!=='Approved') h += '<button class="btn sm" onclick="review(\''+r.id+'\',\'Approved\')">Approve</button>';
@@ -4561,7 +4727,7 @@ function openMore(){
   document.getElementById('themeRow').innerHTML = h;
   var nn = document.getElementById('bulkNoNum');
   if(nn){ nn.checked = false; onBulkNoNum(); }   // fresh each time Tools opens
-  paintClientLinks();
+  paintClientLinks(); paintDigest();
 
   var sb = S.serverBuild || '?';
   var match = sb === UI_BUILD;
