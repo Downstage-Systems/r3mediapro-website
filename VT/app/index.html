@@ -482,6 +482,8 @@ td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:now
 .feed-ic.sub{background:rgba(52,211,153,.16)} .feed-ic.sub svg{fill:var(--green)}
 .feed-ic.stat{background:var(--accent-soft)} .feed-ic.stat svg{fill:var(--accent)}
 .feed-ic.note{background:rgba(167,139,250,.16)} .feed-ic.note svg{fill:var(--purple)}
+.feed-ic.prob{background:rgba(239,68,68,.16)} .feed-ic.prob svg{fill:var(--red)}
+.feed-item.unread .feed-ic.prob{box-shadow:0 0 0 2px rgba(239,68,68,.35)}
 .feed-ic svg{width:15px;height:15px}
 .feed-main{flex:1;min-width:0}
 .feed-t{font-size:13px;color:var(--txt);line-height:1.4}
@@ -1221,6 +1223,14 @@ tr.selrow td{background:var(--accent-soft)}
         and the URL never changes.</div>
     </div>
     <div class="field">
+      <label>Problems</label>
+      <div id="probSummary" class="hint" style="margin:0 0 8px"></div>
+      <button class="btn sm" onclick="copyProblemReport()">Copy problem report</button>
+      <div class="hint">Plain text of the recent failures — what the server said, who, which file, which browser.
+        Paste it to whoever is fixing the backend.</div>
+    </div>
+
+    <div class="field">
       <label>Email me what changed</label>
       <select id="cfgDigest" onchange="setDigestInterval(this.value)" style="max-width:260px">
         <option value="0">Off</option>
@@ -1461,13 +1471,13 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V27';
+var UI_BUILD = 'V28';
 
 var S = {
   serverBuild:'',
   videos:[], sections:[], statuses:[], colours:{}, palette:[],
   showStatuses:[], showColours:{}, noteRequired:[], issueFor:null,
-  messages:[], feedOpen:false, msgSeen:Number(localStorage.getItem('vt_msgseen')||0),
+  messages:[], problems:[], feedOpen:false, msgSeen:Number(localStorage.getItem('vt_msgseen')||0),
   config:{}, me:{role:'client',email:''},
   token: localStorage.getItem('vt_token') || '',
   vtok: localStorage.getItem('vt_view') || '',
@@ -1631,7 +1641,7 @@ function clearCache(){
    cached copy and the fresh one can never drift apart. */
 function applyBootstrap(d){
     S.videos=d.videos||[]; S.sections=d.sections||[];
-    S.submitters=d.submitters||[]; S.messages=d.messages||[];
+    S.submitters=d.submitters||[]; S.messages=d.messages||[]; S.problems=d.problems||[];
     S.statuses=d.statuses||[]; S.colours=d.colours||{}; S.palette=d.palette||[];
     S.showStatuses=d.showStatuses||[]; S.showColours=d.showColours||{};
     if(d.config&&d.config.eventId){ S.eventId=d.config.eventId; try{localStorage.setItem('vt_event',S.eventId);}catch(e){} }
@@ -2154,13 +2164,21 @@ function renderFeedBadge(){
   if(!btn||!badge) return;
   if(S.me.role!=='admin'){ btn.style.display='none'; return; }
   btn.style.display='';
-  var n=unreadMessages().length;
+  var n=unreadMessages().length + freshProblems().length;
   badge.textContent=n; badge.style.display=n?'':'none';
 }
 
 /** Merge unread client messages with recent activity into one reverse-time feed. */
+function freshProblems(){ return (S.problems||[]).filter(function(p){ return p.time>(S.msgSeen||0); }); }
 function buildFeed(){
   var items=[];
+  (S.problems||[]).forEach(function(p){
+    var v = p.videoId && p.videoId!=='none' ? byId(p.videoId) : null;
+    var label = v ? ((v.number?v.number+' — ':'')+(v.title||'untitled')) : '';
+    items.push({ t:p.time, kind:'prob', unread:p.time>(S.msgSeen||0), vid:v?v.id:'',
+      title:'<b>'+esc(PROBLEM_LABEL[p.from]||'Problem')+'</b>'+(label?' — '+esc(label):''),
+      sub:esc(p.to||'')+(p.by?' · '+esc(p.by):'')+(p.detail?' · '+esc(p.detail):'') });
+  });
   S.messages.forEach(function(m){
     items.push({ t:m.time, kind:'msg', unread:!m.read, id:m.id,
       title:'<b>'+esc(m.from||'Someone')+'</b> messaged you',
@@ -2194,9 +2212,10 @@ function renderFeed(){
   var ICON={ msg:'<svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2z"/></svg>',
     sub:'<svg viewBox="0 0 24 24"><path d="M11 15V6.4L8.4 9 7 7.6 12 2.6l5 5L15.6 9 13 6.4V15z"/></svg>',
     stat:'<svg viewBox="0 0 24 24"><path d="M4 4h11a2 2 0 0 1 2 2v3.2l4.3-2.5a.8.8 0 0 1 1.2.7v9.2a.8.8 0 0 1-1.2.7L17 14.8V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>',
-    note:'<svg viewBox="0 0 24 24"><path d="M4 4h16v2H4zm0 5h16v2H4zm0 5h11v2H4z"/></svg>' };
+    note:'<svg viewBox="0 0 24 24"><path d="M4 4h16v2H4zm0 5h16v2H4zm0 5h11v2H4z"/></svg>',
+    prob:'<svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm1 14h-2v2h2v-2zm0-7h-2v5h2V9z"/></svg>' };
   body.innerHTML = items.map(function(it){
-    var click = it.kind==='msg' ? '' : ' onclick="feedOpenVideo(\''+it.vid+'\')"';
+    var click = (it.kind==='msg' || !it.vid) ? '' : ' onclick="feedOpenVideo(\''+it.vid+'\')"';
     return '<div class="feed-item'+(it.unread?' unread':'')+'"'+click+'>' +
       '<div class="feed-ic '+it.kind+'">'+ICON[it.kind]+'</div>' +
       '<div class="feed-main"><div class="feed-t">'+it.title+'</div>' +
@@ -2888,6 +2907,25 @@ function fmtDue(d){
    History drawer — three ways round the switch. */
 function clientCanOpen(){ return S.me.role==='admin' || S.config.allowClientLinks !== false; }
 
+var PROBLEM_LABEL = { upload:'Upload failed', link:'Link could not be sent', submit:'Submission failed',
+  details:'Details could not be saved', 'upload-stalled':'Upload never finished',
+  createUploadSession:'Upload could not start', completeUpload:'Upload could not be filed',
+  submitVersion:'Link could not be sent', createClientVideo:'New video could not be added',
+  setClientFlag:'Status could not be set', setClientDetails:'Details could not be saved' };
+
+/* Tell the team a send failed on THIS side — a dropped connection or a Drive
+   refusal the server never sees. Fire-and-forget: it must never make the
+   failure worse, so it cannot throw and its own failure is ignored. */
+function reportProblem(kind, videoId, message, extra){
+  try{
+    var p = { kind:kind, videoId:videoId||'', message:String(message||'').slice(0,400),
+              submitter:S.submitter||'', email:S.submitterEmail||'', agency:S.submitterAgency||'',
+              ua:navigator.userAgent };
+    if(extra) for(var k in extra) p[k]=extra[k];
+    apiQuiet('reportProblem', p, S.token, S.vtok, S.eventId).catch(function(){});
+  }catch(e){}
+}
+
 function clientLinkCell(v){
   var open = clientCanOpen();
   var name = v.fileName || (v.fileId ? 'Drive upload' : (v.link ? shortUrl(v.link) : ''));
@@ -2966,6 +3004,44 @@ function setDigestInterval(h){
               ' — the first one goes when something changes.' : 'Digest emails off.','ok');
   }).catch(function(e){ S.config.digestHours = was; paintDigest(); err(e); });
 }
+/* The problem log as text, for pasting into a fix request. Everything a
+   backend diagnosis needs and nothing it does not: the server's own error
+   string, the kind, who, the file, the browser, the time, the build. */
+function problemReportText(){
+  var ps = (S.problems||[]).slice(0,40);
+  var L = ['Video tracker — problem report', 'Event: '+(S.config.eventName||'')+'  ·  UI '+UI_BUILD+'  ·  Code.gs '+(S.serverBuild||'?'),
+           'Generated: '+new Date().toString(), ''];
+  if(!ps.length){ L.push('No problems logged.'); return L.join('\n'); }
+  ps.forEach(function(p,i){
+    var v = p.videoId && p.videoId!=='none' ? byId(p.videoId) : null;
+    L.push((i+1)+'. '+(PROBLEM_LABEL[p.from]||p.from)+'  ['+p.from+']  '+new Date(p.time).toString());
+    if(v) L.push('   video: '+(v.number?v.number+' ':'')+(v.title||'')+'  (id '+v.id+')');
+    L.push('   error: '+(p.to||''));
+    if(p.by)     L.push('   who:   '+p.by);
+    if(p.detail) L.push('   ctx:   '+p.detail);
+    L.push('');
+  });
+  return L.join('\n');
+}
+function copyProblemReport(){
+  var txt = problemReportText();
+  function done(){ toast('Problem report copied — paste it where you need it.','ok'); }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done, function(){ fallbackCopy(txt); done(); });
+  } else { fallbackCopy(txt); done(); }
+}
+function fallbackCopy(txt){
+  var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta);
+}
+function paintProblems(){
+  var el=document.getElementById('probSummary'); if(!el) return;
+  var ps=S.problems||[], fresh=freshProblems().length;
+  el.textContent = ps.length ? (ps.length+' logged'+(fresh?' · '+fresh+' new since you last opened updates':'')+
+                                ' · latest: '+(PROBLEM_LABEL[ps[0].from]||ps[0].from)+' '+ago(ps[0].time))
+                             : 'Nothing logged — no failed uploads or sends.';
+}
+
 function paintDigest(){
   var el = document.getElementById('cfgDigest'); if(!el) return;
   el.value = String(S.config.digestHours||0);
@@ -3838,6 +3914,7 @@ function sendAgainst(videoId, who, note){
                   S.me.role==='admin' ? 'It’s on the tracker.' : 'The video team has your link.');
         setTimeout(closeAll, 1400);
       }).catch(function(e){
+        reportProblem('link', videoId, String((e&&e.message)||e), { link: link, submitter: who.name, email: who.email, agency: who.agency });
         sfError('Couldn’t send the link', String((e&&e.message)||e),
           function(){ sendAgainst(videoId, who, note); });
       });
@@ -3967,6 +4044,8 @@ function runUpload(videoId, who, note){
       if(clear) clear.style.display = '';
       var msg = String((e && e.message) || e);
       if(msg.indexOf('cancelled') >= 0){ sfStageHide(); return; }  // user hit Cancel
+      reportProblem('upload', videoId, msg, { fileName: S.pendingFile && S.pendingFile.name, size: S.pendingFile && S.pendingFile.size,
+                                              submitter: who && who.name, email: who && who.email, agency: who && who.agency });
       // Stays on screen until dismissed — no more relying on a toast you might miss.
       sfError('Upload didn’t finish',
         msg + '  Try again, or paste a link instead.',
@@ -4728,7 +4807,7 @@ function openMore(){
   document.getElementById('themeRow').innerHTML = h;
   var nn = document.getElementById('bulkNoNum');
   if(nn){ nn.checked = false; onBulkNoNum(); }   // fresh each time Tools opens
-  paintClientLinks(); paintDigest();
+  paintClientLinks(); paintDigest(); paintProblems();
 
   var sb = S.serverBuild || '?';
   var match = sb === UI_BUILD;
@@ -4918,7 +4997,7 @@ function doPin(){
     S.token = r.token; localStorage.setItem('vt_token', r.token);
     return api('getBootstrap', S.token, S.vtok, S.eventId).then(function(d){
       S.viewAs=''; applyIdentity(d.me); S.videos=d.videos; S.sections=d.sections; S.config=d.config;
-      S.submitters=d.submitters||S.submitters; S.messages=d.messages||[];
+      S.submitters=d.submitters||S.submitters; S.messages=d.messages||[]; S.problems=d.problems||[];
       S.events=d.events||[]; if(d.config&&d.config.eventId) S.eventId=d.config.eventId;
       S.serverBuild=d.serverBuild||'';
       initLastSeen();
