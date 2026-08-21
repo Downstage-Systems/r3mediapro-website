@@ -262,19 +262,20 @@ tbody tr:hover{background:var(--panel-2)}
 /* The divider washes its section's colour across the full row, so the eye
    finds a segment boundary without reading. A tint rather than the solid
    colour (see rgba()): ten saturated bars out-shout the rows they label. */
-tr.sect-row td{background:var(--bg-2);font-weight:700;font-size:12px;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--txt);padding:9px 12px;
+tr.sect-row td{background:var(--bg-2);font-weight:650;font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--txt);padding:7px 12px;
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
 tr.sect-row td .selsect{margin-right:3px;accent-color:var(--accent)}
 .sect-tally{opacity:.62;font-weight:500;text-transform:none;letter-spacing:0}
 
-/* On a phone the divider was shouting: 12px uppercase at weight 700 with
-   letter-spacing reads far heavier than the 12.5px body text around it, and
-   the row is a label, not a headline. Smaller, tighter, lighter — the colour
-   band is already doing the work of separating sections. */
-@media(max-width:600px){
-  tr.sect-row td{font-size:10px;font-weight:650;letter-spacing:.03em;padding:6px 9px}
-  .sect-tally{font-size:9.5px}
+/* The divider was shouting at every width, not just on phones: uppercase at
+   weight 700 with letter-spacing reads far heavier than the body text it
+   labels. The colour band already separates the sections, so the text can sit
+   well below the row content. The breakpoint clears tablets and landscape
+   phones, which sit above 600px and were still getting the desktop size. */
+@media(max-width:900px){
+  tr.sect-row td{font-size:9.5px;font-weight:650;letter-spacing:.02em;padding:6px 9px}
+  .sect-tally{font-size:9px}
 }
 td.t-title{font-weight:550;max-width:300px}
 td.t-due{white-space:nowrap;font-size:12.5px;color:var(--txt-2)}
