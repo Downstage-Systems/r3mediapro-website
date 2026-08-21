@@ -22,6 +22,11 @@
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Without this, iOS Safari 'font-boosts' text inside wide scrollable
+   content — the List table is ~860px in a 375px viewport, a classic
+   trigger — so authored sizes silently inflate on iPhone and nowhere
+   else. Desktop emulation does not reproduce it. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html,body{margin:0;padding:0;height:100%}
 body{
   background:
