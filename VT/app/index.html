@@ -1233,9 +1233,19 @@ tr.selrow td{background:var(--accent-soft)}
     <div class="field">
       <label>Push to your phone (Pushover)</label>
       <div id="pushSummary" class="hint" style="margin:0 0 8px"></div>
-      <button class="btn sm" onclick="sendTestPush()">Send a test push</button>
-      <div class="hint">Keys go on the <b>Config</b> sheet: <b>PUSHOVER_USER</b> and <b>PUSHOVER_TOKEN</b> from pushover.net.
-        <b>PUSHOVER_EVENTS</b> picks what buzzes — cuts, problems, messages.</div>
+      <div class="row2">
+        <div class="field" style="margin-bottom:8px"><label>User key</label>
+          <input id="poUser" autocomplete="off" spellcheck="false" placeholder="from pushover.net"></div>
+        <div class="field" style="margin-bottom:8px"><label>App token</label>
+          <input id="poToken" autocomplete="off" spellcheck="false" placeholder="this tracker's application"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm primary" onclick="savePushoverKeys()">Save &amp; test</button>
+        <button class="btn sm" onclick="sendTestPush()">Send a test push</button>
+        <button class="btn sm ghost" onclick="clearPushoverKeys()">Remove keys</button>
+      </div>
+      <div class="hint">Saved on the private Config sheet; the page never shows them back. <b>PUSHOVER_EVENTS</b>
+        there picks what buzzes — cuts, problems, messages.</div>
     </div>
 
     <div class="field">
@@ -1479,7 +1489,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V29';
+var UI_BUILD = 'V30';
 
 var S = {
   serverBuild:'',
@@ -3050,13 +3060,27 @@ function paintProblems(){
                              : 'Nothing logged — no failed uploads or sends.';
 }
 
+function savePushoverKeys(){
+  var u=document.getElementById('poUser'), t=document.getElementById('poToken');
+  if(!u.value.trim() || !t.value.trim()) return toast('Paste both the user key and the app token.','err');
+  api('setPushoverKeys', u.value.trim(), t.value.trim(), S.token).then(function(r){
+    u.value=''; t.value='';                      // never leave a key sitting in the form
+    S.pushReady=!!r.pushReady; paintPush();
+    toast(r.tested ? 'Saved — test push sent, check the phone.' : 'Saved, but Pushover rejected the test — check both keys.', r.tested?'ok':'err');
+  }).catch(err);
+}
+function clearPushoverKeys(){
+  confirmThen('Remove the Pushover keys?', 'Push notifications stop until you paste them again. Email and the in-app feed are unaffected.',
+    function(){ api('setPushoverKeys','','',S.token).then(function(){ S.pushReady=false; paintPush(); toast('Pushover keys removed.','ok'); }).catch(err); },
+    { go:'Remove keys' });
+}
 function sendTestPush(){
   api('sendTestPush', S.token).then(function(r){ toast(r.msg, r.ok?'ok':'err'); }).catch(err);
 }
 function paintPush(){
   var el=document.getElementById('pushSummary'); if(!el) return;
-  el.textContent = S.pushReady ? 'Connected — new cuts, problems and messages buzz the phone (per PUSHOVER_EVENTS).'
-                               : 'Not set up yet — add the two keys on the Config sheet, then send a test.';
+  el.textContent = S.pushReady ? 'Connected — new cuts, problems and messages buzz the phone (per PUSHOVER_EVENTS). Paste new keys below to replace them.'
+                               : 'Not set up yet — paste the two keys from pushover.net and Save.';
 }
 
 function paintDigest(){
