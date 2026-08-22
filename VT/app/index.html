@@ -286,6 +286,8 @@ tr.sect-row td .selsect{margin-right:3px;accent-color:var(--accent)}
 td.t-title{font-weight:550;max-width:300px}
 td.t-due{white-space:nowrap;font-size:12.5px;color:var(--txt-2)}
 .reqbtn{margin-left:7px;padding:1px 8px;font-size:11px}
+.pk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txt-2);cursor:pointer}
+.pk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;margin:0}
 td.t-due .duetxt.late{color:var(--red);font-weight:650}
 td.t-link{max-width:200px}
 td.t-link a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
@@ -1244,8 +1246,15 @@ tr.selrow td{background:var(--accent-soft)}
         <button class="btn sm" onclick="sendTestPush()">Send a test push</button>
         <button class="btn sm ghost" onclick="clearPushoverKeys()">Remove keys</button>
       </div>
-      <div class="hint">Saved on the private Config sheet; the page never shows them back. <b>PUSHOVER_EVENTS</b>
-        there picks what buzzes — cuts, problems, messages.</div>
+      <div class="hint">Saved on the private Config sheet; the page never shows them back.</div>
+      <div style="margin-top:12px;font-size:12px;font-weight:600;color:var(--txt-2)">What buzzes the phone</div>
+      <div id="pushKinds" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:6px">
+        <label class="pk"><input type="checkbox" value="cuts" onchange="savePushEvents()"> Every new version</label>
+        <label class="pk"><input type="checkbox" value="newvideos" onchange="savePushEvents()"> A sender adds a video</label>
+        <label class="pk"><input type="checkbox" value="flags" onchange="savePushEvents()"> Marked Final / New version coming</label>
+        <label class="pk"><input type="checkbox" value="messages" onchange="savePushEvents()"> Messages to the team</label>
+        <label class="pk"><input type="checkbox" value="problems" onchange="savePushEvents()"> Problems — a send failed</label>
+      </div>
     </div>
 
     <div class="field">
@@ -1495,7 +1504,7 @@ var S = {
   serverBuild:'',
   videos:[], sections:[], statuses:[], colours:{}, palette:[],
   showStatuses:[], showColours:{}, noteRequired:[], issueFor:null,
-  messages:[], problems:[], feedOpen:false, msgSeen:Number(localStorage.getItem('vt_msgseen')||0),
+  messages:[], problems:[], pushEvents:'', feedOpen:false, msgSeen:Number(localStorage.getItem('vt_msgseen')||0),
   config:{}, me:{role:'client',email:''},
   token: localStorage.getItem('vt_token') || '',
   vtok: localStorage.getItem('vt_view') || '',
@@ -1659,7 +1668,7 @@ function clearCache(){
    cached copy and the fresh one can never drift apart. */
 function applyBootstrap(d){
     S.videos=d.videos||[]; S.sections=d.sections||[];
-    S.submitters=d.submitters||[]; S.messages=d.messages||[]; S.problems=d.problems||[]; S.pushReady=!!d.pushReady;
+    S.submitters=d.submitters||[]; S.messages=d.messages||[]; S.problems=d.problems||[]; S.pushReady=!!d.pushReady; S.pushEvents=String(d.pushEvents||'');
     S.statuses=d.statuses||[]; S.colours=d.colours||{}; S.palette=d.palette||[];
     S.showStatuses=d.showStatuses||[]; S.showColours=d.showColours||{};
     if(d.config&&d.config.eventId){ S.eventId=d.config.eventId; try{localStorage.setItem('vt_event',S.eventId);}catch(e){} }
@@ -3060,6 +3069,13 @@ function paintProblems(){
                              : 'Nothing logged — no failed uploads or sends.';
 }
 
+function savePushEvents(){
+  var on=[...document.querySelectorAll('#pushKinds input:checked')].map(function(i){ return i.value; });
+  var was=S.pushEvents; S.pushEvents=on.join(',');
+  api('setPushEvents', S.pushEvents, S.token).then(function(r){
+    toast(on.length ? 'Phone gets: '+on.length+' of 5 kinds.' : 'Nothing buzzes the phone — email and the feed still do.','ok');
+  }).catch(function(e){ S.pushEvents=was; paintPush(); err(e); });
+}
 function savePushoverKeys(){
   var u=document.getElementById('poUser'), t=document.getElementById('poToken');
   if(!u.value.trim() || !t.value.trim()) return toast('Paste both the user key and the app token.','err');
@@ -3078,6 +3094,8 @@ function sendTestPush(){
   api('sendTestPush', S.token).then(function(r){ toast(r.msg, r.ok?'ok':'err'); }).catch(err);
 }
 function paintPush(){
+  var on=String(S.pushEvents||'').split(',');
+  document.querySelectorAll('#pushKinds input').forEach(function(i){ i.checked = on.indexOf(i.value)>=0; });
   var el=document.getElementById('pushSummary'); if(!el) return;
   el.textContent = S.pushReady ? 'Connected — new cuts, problems and messages buzz the phone (per PUSHOVER_EVENTS). Paste new keys below to replace them.'
                                : 'Not set up yet — paste the two keys from pushover.net and Save.';
@@ -5038,7 +5056,7 @@ function doPin(){
     S.token = r.token; localStorage.setItem('vt_token', r.token);
     return api('getBootstrap', S.token, S.vtok, S.eventId).then(function(d){
       S.viewAs=''; applyIdentity(d.me); S.videos=d.videos; S.sections=d.sections; S.config=d.config;
-      S.submitters=d.submitters||S.submitters; S.messages=d.messages||[]; S.problems=d.problems||[]; S.pushReady=!!d.pushReady;
+      S.submitters=d.submitters||S.submitters; S.messages=d.messages||[]; S.problems=d.problems||[]; S.pushReady=!!d.pushReady; S.pushEvents=String(d.pushEvents||'');
       S.events=d.events||[]; if(d.config&&d.config.eventId) S.eventId=d.config.eventId;
       S.serverBuild=d.serverBuild||'';
       initLastSeen();
