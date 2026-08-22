@@ -1231,6 +1231,14 @@ tr.selrow td{background:var(--accent-soft)}
     </div>
 
     <div class="field">
+      <label>Push to your phone (Pushover)</label>
+      <div id="pushSummary" class="hint" style="margin:0 0 8px"></div>
+      <button class="btn sm" onclick="sendTestPush()">Send a test push</button>
+      <div class="hint">Keys go on the <b>Config</b> sheet: <b>PUSHOVER_USER</b> and <b>PUSHOVER_TOKEN</b> from pushover.net.
+        <b>PUSHOVER_EVENTS</b> picks what buzzes — cuts, problems, messages.</div>
+    </div>
+
+    <div class="field">
       <label>Email me what changed</label>
       <select id="cfgDigest" onchange="setDigestInterval(this.value)" style="max-width:260px">
         <option value="0">Off</option>
@@ -1471,7 +1479,7 @@ tr.selrow td{background:var(--accent-soft)}
 /* Build stamp — bump on each deployment to match the Apps Script deployment
    label. Must equal BUILD in Code.gs; the admin Tools menu shows both so a
    half-paste is obvious. */
-var UI_BUILD = 'V28';
+var UI_BUILD = 'V29';
 
 var S = {
   serverBuild:'',
@@ -1641,7 +1649,7 @@ function clearCache(){
    cached copy and the fresh one can never drift apart. */
 function applyBootstrap(d){
     S.videos=d.videos||[]; S.sections=d.sections||[];
-    S.submitters=d.submitters||[]; S.messages=d.messages||[]; S.problems=d.problems||[];
+    S.submitters=d.submitters||[]; S.messages=d.messages||[]; S.problems=d.problems||[]; S.pushReady=!!d.pushReady;
     S.statuses=d.statuses||[]; S.colours=d.colours||{}; S.palette=d.palette||[];
     S.showStatuses=d.showStatuses||[]; S.showColours=d.showColours||{};
     if(d.config&&d.config.eventId){ S.eventId=d.config.eventId; try{localStorage.setItem('vt_event',S.eventId);}catch(e){} }
@@ -3040,6 +3048,15 @@ function paintProblems(){
   el.textContent = ps.length ? (ps.length+' logged'+(fresh?' · '+fresh+' new since you last opened updates':'')+
                                 ' · latest: '+(PROBLEM_LABEL[ps[0].from]||ps[0].from)+' '+ago(ps[0].time))
                              : 'Nothing logged — no failed uploads or sends.';
+}
+
+function sendTestPush(){
+  api('sendTestPush', S.token).then(function(r){ toast(r.msg, r.ok?'ok':'err'); }).catch(err);
+}
+function paintPush(){
+  var el=document.getElementById('pushSummary'); if(!el) return;
+  el.textContent = S.pushReady ? 'Connected — new cuts, problems and messages buzz the phone (per PUSHOVER_EVENTS).'
+                               : 'Not set up yet — add the two keys on the Config sheet, then send a test.';
 }
 
 function paintDigest(){
@@ -4807,7 +4824,7 @@ function openMore(){
   document.getElementById('themeRow').innerHTML = h;
   var nn = document.getElementById('bulkNoNum');
   if(nn){ nn.checked = false; onBulkNoNum(); }   // fresh each time Tools opens
-  paintClientLinks(); paintDigest(); paintProblems();
+  paintClientLinks(); paintDigest(); paintProblems(); paintPush();
 
   var sb = S.serverBuild || '?';
   var match = sb === UI_BUILD;
@@ -4997,7 +5014,7 @@ function doPin(){
     S.token = r.token; localStorage.setItem('vt_token', r.token);
     return api('getBootstrap', S.token, S.vtok, S.eventId).then(function(d){
       S.viewAs=''; applyIdentity(d.me); S.videos=d.videos; S.sections=d.sections; S.config=d.config;
-      S.submitters=d.submitters||S.submitters; S.messages=d.messages||[]; S.problems=d.problems||[];
+      S.submitters=d.submitters||S.submitters; S.messages=d.messages||[]; S.problems=d.problems||[]; S.pushReady=!!d.pushReady;
       S.events=d.events||[]; if(d.config&&d.config.eventId) S.eventId=d.config.eventId;
       S.serverBuild=d.serverBuild||'';
       initLastSeen();
